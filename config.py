@@ -127,6 +127,7 @@ PAYMENTS_ENABLED = _as_bool("PAYMENTS_ENABLED", "false")
 # ---- One-time maintenance flags ----
 CLEANUP_DEV_COMMANDS_ONCE = _as_bool("CLEANUP_DEV_COMMANDS_ONCE", "false")
 CLEAR_GLOBAL_COMMANDS_ONCE = _as_bool("CLEAR_GLOBAL_COMMANDS_ONCE", "false")
+CLEAR_GUILD_COMMANDS_ONCE = _as_bool("CLEAR_GUILD_COMMANDS_ONCE", "false")
 
 
 # ---------------------------------------------------------------------------

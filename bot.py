@@ -422,6 +422,27 @@ async def sync_commands() -> None:
                 logger.exception("Failed fetching commands after sync (guild=%s)", guild_id)
 
     else:
+        # One-time maintenance: clear leftover GUILD commands that cause duplicates
+        # when switching from dev (guild-scoped) to prod (global) mode.
+        if bool(getattr(config, "CLEAR_GUILD_COMMANDS_ONCE", False)):
+            guild_ids = (
+                list(getattr(config, "SYNC_GUILD_IDS", []) or [])
+                or list(getattr(config, "DEV_GUILD_IDS", []) or [])
+            )
+            if not guild_ids:
+                single = getattr(config, "SYNC_GUILD_ID", None) or getattr(config, "DEV_GUILD_ID", None)
+                if single:
+                    guild_ids = [int(single)]
+            for gid in guild_ids:
+                guild = discord.Object(id=int(gid))
+                bot.tree.clear_commands(guild=guild)
+                await bot.tree.sync(guild=guild)
+                logger.info("🧹 Cleared guild commands for guild=%s (prod cleanup)", gid)
+            if not guild_ids:
+                logger.warning("CLEAR_GUILD_COMMANDS_ONCE=True but no guild IDs configured — nothing to clear")
+            else:
+                logger.info("🧹 Guild command cleanup done. Set CLEAR_GUILD_COMMANDS_ONCE=false and restart.")
+
         await bot.tree.sync()
         logger.info("✅ Synced slash commands globally (prod)")
 
