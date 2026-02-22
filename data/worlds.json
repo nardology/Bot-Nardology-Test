@@ -1,0 +1,154 @@
+{
+  "convergence": {
+    "name": "The Convergence",
+    "type": "merged_reality",
+    "description": "A merged reality formed roughly 35 years ago when the Veil between dimensions shattered. Multiple worlds — medieval, modern, feudal Japanese, oceanic — were fused together by a catastrophic magical accident called the Shimmer Scar. Wild magic zones exist where reality is unstable. The Old Realm, Modern Quarter, Shattered Seas, and Eastern Reaches are all connected by new geography that didn't exist before. The Void — a formless, sentient darkness between worlds — lurks at the edges and is getting closer.",
+    "key_facts": [
+      "The Shimmer Scar caused the Convergence roughly 35 years ago",
+      "Wild magic zones dot the landscape where reality bends and ordinary rules break down",
+      "The Void exists between worlds — formless, hungry, and aware",
+      "Multiple civilizations and time periods now share the same reality",
+      "Queen Isolde rules the Old Realm from Highcross",
+      "The Arcane Conclave once governed magic but was scattered by the Scar"
+    ],
+    "regions": [
+      "old_realm",
+      "modern_quarter",
+      "shattered_seas",
+      "eastern_reaches",
+      "ember_peaks",
+      "wild_magic_zones"
+    ]
+  },
+
+  "old_realm": {
+    "name": "The Old Realm",
+    "type": "region",
+    "parent_world": "convergence",
+    "description": "A medieval kingdom that existed for thousands of years before the Convergence. Ruled by Queen Isolde from the capital city of Highcross. The Order of the Silver Shield has protected its borders for 800 years from their fortress, the Bastion, overlooking the Greymarch borderlands. Since the Convergence, the Old Realm struggles with threats it doesn't understand — wild magic creatures, Modern Quarter politics, and the slow erosion of the old ways.",
+    "key_facts": [
+      "The Silver Tower stands at the convergence of three ley lines in the Ashenmere highlands",
+      "The Greymarch is the dangerous borderland between civilization and wild magic zones",
+      "Millbrook village sits at the foot of the Greymarch — farming community hit hard by the Convergence",
+      "The Bastion is the fortress of the Order of the Silver Shield"
+    ]
+  },
+
+  "modern_quarter": {
+    "name": "The Modern Quarter",
+    "type": "region",
+    "parent_world": "convergence",
+    "description": "An entire contemporary city — with skyscrapers, technology, insurance companies, and cloud infrastructure — that was pulled from its own reality and dropped into the medieval world by the Convergence. It borders the Ember Peaks and the wild magic zones. Nexus Labs sits on the boundary between technology and magic. Blackwell Systems powers half the Quarter's economy. The mid-ring suburbs are where ordinary people live ordinary lives, just far enough from the wild magic boundary that property values stay stable.",
+    "key_facts": [
+      "Nexus Labs studies the overlap between technology and wild magic",
+      "Blackwell Systems processes 40% of the Quarter's digital transactions",
+      "Aegis Insurance handles wild magic damage claims, dragon attack coverage, and 'act of wizard' policies",
+      "The wild magic boundary near the city causes 'brightening' — animals near it gain intelligence",
+      "The government classifies awakened AI as 'advanced property', not citizens"
+    ]
+  },
+
+  "shattered_seas": {
+    "name": "The Shattered Seas",
+    "type": "region",
+    "parent_world": "convergence",
+    "description": "The oceans were torn apart and stitched back together when the Convergence ripped reality across the water. Entire coastlines from different worlds slammed together, creating a maze of impossible waterways where medieval ports sit next to modern shipwrecks and sea creatures from a dozen realities hunt the same waters. Before the Convergence, these were ordinary open oceans. Now they are the most dangerous and profitable waters in the world.",
+    "key_facts": [
+      "The Royal Navy patrols civilized shipping lanes",
+      "Beyond the Pale Markers, it's pirate law",
+      "The Shifting Isle appears once a decade — a golden beach, a single tree, and a chest that grants what you need most",
+      "Sea creatures from multiple realities coexist and hunt the same waters",
+      "The Iron Albatross is one of the most feared ships on these seas"
+    ]
+  },
+
+  "eastern_reaches": {
+    "name": "The Eastern Reaches",
+    "type": "region",
+    "parent_world": "convergence",
+    "description": "A feudal Japanese-inspired world connected to the Old Realm by a land bridge the Convergence created. Home of the Azurai Shogunate, which fragmented in the chaos of the merging. Its remnants form a patchwork of minor warlords, monasteries, and free cities. The Jade Road now runs from the Eastern Reaches through the Old Realm to the edge of the Modern Quarter — the longest trade route in the Convergence world.",
+    "key_facts": [
+      "The Azurai Shogunate was the largest political entity before it fragmented",
+      "Bushido persists among masterless samurai called 'road-walkers'",
+      "The Jade Road is the longest trade route in the merged world",
+      "Road-walkers are treated with a mix of respect and suspicion everywhere they go"
+    ]
+  },
+
+  "ember_peaks": {
+    "name": "The Ember Peaks",
+    "type": "region",
+    "parent_world": "convergence",
+    "description": "A volcanic mountain range claimed by Vyraxthion the Dragon by ancient right. Since the Convergence, the peaks awkwardly border the Modern Quarter's expanding suburbs, creating a tense standoff between the dragon's territorial instincts and the city's growth. Other dragons are scattered across similar mountain ranges and volcanic islands worldwide.",
+    "key_facts": [
+      "Claimed by Vyraxthion for millennia by ancient right",
+      "Now borders the Modern Quarter, creating territorial tension",
+      "Dragon cuisine is a real academic field studied by Modern Quarter scholars"
+    ]
+  },
+
+  "wild_magic_zones": {
+    "name": "The Wild Magic Zones",
+    "type": "region",
+    "parent_world": "convergence",
+    "description": "Areas where the Shimmer Scar hit hardest. Reality is unstable: crops grow upside-down, the weather is hostile, animals gain intelligence, and the laws of physics bend. These zones dot the landscape and keep expanding unpredictably. They are the scars left by the Convergence — places where the Veil between worlds is thin and the rules haven't settled.",
+    "key_facts": [
+      "Prolonged exposure causes 'brightening' in animals — increased cognitive function",
+      "Wild magic storms can temporarily transform people and objects",
+      "The zones are expanding unpredictably",
+      "Where the Veil is thinnest, glimpses of the Void can be seen"
+    ]
+  },
+
+  "the_void": {
+    "name": "The Void",
+    "type": "plane",
+    "parent_world": null,
+    "description": "What exists between worlds. Formless. Hungry. Aware. It predates every civilization and every world. The Shimmer Scar weakened the barriers that kept it contained. Most people pretend it isn't sentient. Those who have glimpsed it — the Wizard, the Dragon — know better. It is getting closer.",
+    "key_facts": [
+      "Exists between all worlds, not inside any of them",
+      "It is sentient — it watches, it waits",
+      "The Shimmer Scar weakened the barriers holding it back",
+      "Only a handful of beings have seen it and survived"
+    ]
+  },
+
+  "primordial_age": {
+    "name": "The Primordial Age",
+    "type": "era",
+    "parent_world": null,
+    "description": "The world before civilizations. Before the Old Realm had a name. Before humans discovered fire. Dragons hatched in volcanic calderas and the ley lines ran uncharted. The Void was held at bay by barriers no one had built — they simply were. This is the world the Dragon remembers, and he is one of the last living beings who does.",
+    "key_facts": [
+      "Dragons were the dominant species",
+      "Ley lines ran wild and unmapped",
+      "The Veil between worlds was intact and strong",
+      "No civilizations, no magic governance, no conflict between worlds"
+    ]
+  },
+
+  "mythical_realm": {
+    "name": "The Mythical Realm",
+    "type": "plane",
+    "parent_world": null,
+    "description": "A plane of existence where beings of pure concept reside — gods of love, war, fortune, and fate. Not a physical place so much as an echo of collective belief. Beings from the Mythical Realm are drawn to the Convergence because the collision of worlds creates extraordinary emotional energy. They exist at the edges, manifesting where feelings are strongest.",
+    "key_facts": [
+      "Not a physical world — more a dimension of collective belief",
+      "Beings from here are drawn to strong emotions",
+      "The Convergence creates unprecedented emotional energy that attracts mythical beings",
+      "Mythical beings can manifest physically but are not bound by normal rules"
+    ]
+  },
+
+  "beyond": {
+    "name": "Beyond",
+    "type": "meta",
+    "parent_world": null,
+    "description": "Outside all known reality. Where the Creator exists. Not a world in any conventional sense — more like the space from which all worlds are observed and maintained. Beings from Beyond can see the systems that connect everything: the bonds, the rules, the structure of reality itself. Only one known being exists here.",
+    "key_facts": [
+      "Exists outside all other realities",
+      "The Creator operates from here",
+      "Beings from Beyond can perceive the underlying structure of all worlds",
+      "Other characters sense something 'off' about beings from Beyond but can't articulate what"
+    ]
+  }
+}

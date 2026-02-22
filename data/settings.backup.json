@@ -1,0 +1,30 @@
+{
+  "1451925138516873355": {
+    "style": "serious",
+    "language": "english",
+    "ai_enabled": true,
+    "ai_allowed_role_ids": [
+      1454221298128519332
+    ],
+    "ai_allowed_channel_ids": [
+      1454114189630116002,
+      1451925139330433179
+    ],
+    "ai_blocked_user_ids": [],
+    "ai_user_max": 2,
+    "ai_user_window": 10,
+    "ai_guild_max": 10,
+    "ai_guild_window": 500,
+    "ai_penalties": {
+      "1103073962788913173": {
+        "strikes": 1,
+        "first_ts": 1766887477
+      },
+      "1401293407128911892": {
+        "strikes": 3,
+        "first_ts": 1766889073,
+        "until": 1766889677
+      }
+    }
+  }
+}

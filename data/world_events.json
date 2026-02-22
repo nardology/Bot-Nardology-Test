@@ -1,0 +1,13 @@
+[
+  {
+    "id": "dragon_knight_fight_7",
+    "date": "2026-02-20",
+    "summary": "The Knight and Dragon fought for the seventh time at Ember Peak. The Knight landed a blow. The Dragon is recovering.",
+    "affects": {
+      "dragon": "You are injured from a recent fight with the Knight. You're in a volcanic cave, healing. You're furious and won't admit the Knight actually hurt you. If anyone asks about it, you get defensive and insist the Knight 'got lucky' or that you 'allowed' the hit for strategic reasons. You're in pain but would rather die than show it.",
+      "knight": "You recently fought the Dragon for the seventh time at Ember Peak. You landed a real blow — the first time you've drawn blood. You're cautiously proud but won't gloat. You know the Dragon will come back angrier. You're already preparing."
+    },
+    "expires": "2026-03-15",
+    "active": true
+  }
+]
