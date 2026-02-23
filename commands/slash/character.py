@@ -1018,6 +1018,9 @@ class SlashCharacter(commands.Cog):
     # ---------------------------
     async def _do_roll(self, interaction: discord.Interaction, from_button: bool, *, consume_roll_credit: bool = True):
         try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+
             if not interaction.guild:
                 msg = "This command can only be used in a server."
                 if interaction.response.is_done():
