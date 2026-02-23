@@ -364,12 +364,16 @@ async def load_extensions() -> None:
 async def sync_commands() -> None:
     env = str(getattr(config, "ENVIRONMENT", "prod")).lower().strip()
     
-    # One-time maintenance: clear GLOBAL commands (these cause duplicates in the UI)
+    # One-time maintenance: clear stale GLOBAL commands before re-registering.
     if bool(getattr(config, "CLEAR_GLOBAL_COMMANDS_ONCE", False)):
-        logger.info("🧨 CLEAR_GLOBAL_COMMANDS_ONCE=True — clearing GLOBAL commands...")
+        logger.info("🧨 CLEAR_GLOBAL_COMMANDS_ONCE=True — clearing stale GLOBAL commands...")
+        saved_commands = list(bot.tree.get_commands())
         bot.tree.clear_commands(guild=None)
-        await bot.tree.sync()  # sync empty global set to Discord
-        logger.info("🧨 Cleared GLOBAL commands. Now set CLEAR_GLOBAL_COMMANDS_ONCE=False and restart.")
+        await bot.tree.sync()
+        for cmd in saved_commands:
+            bot.tree.add_command(cmd)
+        logger.info("🧨 Stale GLOBAL commands cleared. Fresh set will be synced below. "
+                     "Set CLEAR_GLOBAL_COMMANDS_ONCE=false for next restart.")
 
     if env == "dev":
         # Support comma-separated IDs in SYNC_GUILD_ID / DEV_GUILD_ID via config.SYNC_GUILD_IDS / DEV_GUILD_IDS.
