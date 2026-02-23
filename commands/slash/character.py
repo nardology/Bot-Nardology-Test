@@ -447,10 +447,10 @@ class RollView(discord.ui.View):
 
     async def _guard(self, interaction: discord.Interaction) -> bool:
         if interaction.user.id != self.user_id:
-            await interaction.response.send_message("This roll isn’t yours.", ephemeral=True)
+            await _safe_ephemeral_send(interaction, "This roll isn’t yours.")
             return False
         if not await pending_is_valid(self.user_id, expected_style_id=self.rolled_style_id):
-            await interaction.response.send_message("That roll expired. Use `/character roll` again.", ephemeral=True)
+            await _safe_ephemeral_send(interaction, "That roll expired. Use `/character roll` again.")
             return False
         return True
 
@@ -462,6 +462,7 @@ class RollView(discord.ui.View):
     async def full_image_btn(self, interaction: discord.Interaction, button: discord.ui.Button):  # type: ignore[override]
         """Show the rolled character image as a standalone attachment (Discord renders it larger)."""
         try:
+            await interaction.response.defer(ephemeral=True)
             if not await self._guard(interaction):
                 return
             from utils.character_registry import get_style
@@ -514,6 +515,7 @@ class RollView(discord.ui.View):
     @discord.ui.button(label="Add", style=discord.ButtonStyle.success)
     async def add_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
+            await interaction.response.defer(ephemeral=True)
             if not await self._guard(interaction):
                 return
 
@@ -532,9 +534,9 @@ class RollView(discord.ui.View):
 
             if ok:
                 await pending_clear(self.user_id)
-                await interaction.response.send_message(f"✅ {msg}", ephemeral=True)
+                await interaction.followup.send(f"✅ {msg}", ephemeral=True)
             else:
-                await interaction.response.send_message(
+                await interaction.followup.send(
                     f"⚠️ {msg}\nUse **Replace** to swap a character.",
                     ephemeral=True,
                 )
@@ -542,13 +544,14 @@ class RollView(discord.ui.View):
         except Exception:
             logger.exception("RollView.add_btn failed")
             try:
-                await interaction.response.send_message("⚠️ Something went wrong. Check logs.", ephemeral=True)
+                await _safe_ephemeral_send(interaction, "⚠️ Something went wrong. Check logs.")
             except Exception:
                 pass
 
     @discord.ui.button(label="Replace", style=discord.ButtonStyle.primary)
     async def replace_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
+            await interaction.response.defer(ephemeral=True)
             if not await self._guard(interaction):
                 return
 
@@ -557,7 +560,7 @@ class RollView(discord.ui.View):
             state = await load_state(user_id=self.user_id)
             owned = list(getattr(state, "owned_custom", []) or [])
             if not owned:
-                await interaction.response.send_message("You have no characters to replace.", ephemeral=True)
+                await interaction.followup.send("You have no characters to replace.", ephemeral=True)
                 return
 
             options = [discord.SelectOption(label=_format_character_name(sid), value=sid) for sid in owned[:25]]
@@ -570,8 +573,9 @@ class RollView(discord.ui.View):
 
                 async def callback(self, i: discord.Interaction):
                     try:
+                        await i.response.defer(ephemeral=True)
                         if i.user.id != self.owner_id:
-                            await i.response.send_message("This menu isn’t yours.", ephemeral=True)
+                            await i.followup.send("This menu isn’t yours.", ephemeral=True)
                             return
 
                         old_id = (self.values[0] or "").strip().lower()
@@ -589,39 +593,40 @@ class RollView(discord.ui.View):
 
                         if ok2:
                             await pending_clear(self.owner_id)
-                            await i.response.send_message(f"✅ {msg2}", ephemeral=True)
+                            await i.followup.send(f"✅ {msg2}", ephemeral=True)
                         else:
-                            await i.response.send_message(f"⚠️ {msg2}", ephemeral=True)
+                            await i.followup.send(f"⚠️ {msg2}", ephemeral=True)
 
                     except Exception:
                         logger.exception("ReplaceSelect.callback failed")
                         try:
-                            await i.response.send_message("⚠️ Something went wrong. Check logs.", ephemeral=True)
+                            await _safe_ephemeral_send(i, "⚠️ Something went wrong. Check logs.")
                         except Exception:
                             pass
 
             v = discord.ui.View(timeout=60)
             v.add_item(ReplaceSelect(self.user_id, self.rolled_style_id))
-            await interaction.response.send_message("Pick a character to replace:", view=v, ephemeral=True)
+            await interaction.followup.send("Pick a character to replace:", view=v, ephemeral=True)
 
         except Exception:
             logger.exception("RollView.replace_btn failed")
             try:
-                await interaction.response.send_message("⚠️ Something went wrong. Check logs.", ephemeral=True)
+                await _safe_ephemeral_send(interaction, "⚠️ Something went wrong. Check logs.")
             except Exception:
                 pass
 
     @discord.ui.button(label="Discard", style=discord.ButtonStyle.secondary)
     async def discard_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
+            await interaction.response.defer(ephemeral=True)
             if not await self._guard(interaction):
                 return
             await pending_clear(self.user_id)
-            await interaction.response.send_message("❌ Discarded.", ephemeral=True)
+            await interaction.followup.send("❌ Discarded.", ephemeral=True)
         except Exception:
             logger.exception("RollView.discard_btn failed")
             try:
-                await interaction.response.send_message("⚠️ Something went wrong. Check logs.", ephemeral=True)
+                await _safe_ephemeral_send(interaction, "⚠️ Something went wrong. Check logs.")
             except Exception:
                 pass
 
