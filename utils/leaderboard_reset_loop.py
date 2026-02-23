@@ -95,4 +95,4 @@ async def _loop() -> None:
 def start_leaderboard_reset_loop() -> None:
     """Start the background leaderboard period reset loop."""
     task = asyncio.create_task(_loop())
-    task.add_done_callback(lambda t: logger.warning("Leaderboard reset loop exited: %s", t.exception()))
+    task.add_done_callback(lambda t: None if t.cancelled() else logger.warning("Leaderboard reset loop exited: %s", t.exception()))

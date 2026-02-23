@@ -529,4 +529,4 @@ async def _loop(bot: discord.Client) -> None:
 def start_streak_reminder_loop(bot: discord.Client) -> None:
     """Start the background streak reminder loop."""
     task = asyncio.create_task(_loop(bot))
-    task.add_done_callback(lambda t: logger.warning("Streak reminder loop exited: %s", t.exception()))
+    task.add_done_callback(lambda t: None if t.cancelled() else logger.warning("Streak reminder loop exited: %s", t.exception()))

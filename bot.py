@@ -533,4 +533,7 @@ if __name__ == "__main__":
     except (OSError, AttributeError):
         pass  # SIGTERM not available on Windows
 
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass
