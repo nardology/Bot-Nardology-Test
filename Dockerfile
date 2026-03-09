@@ -8,7 +8,7 @@ WORKDIR /app
 COPY requirements.txt /app/requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-# then copy your code
+# then copy your code (bust cache: v3)
 COPY . /app
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
