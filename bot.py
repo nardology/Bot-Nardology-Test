@@ -275,6 +275,13 @@ class SlashOnlyBot(commands.AutoShardedBot):
         except Exception:
             logger.exception("Failed to start streak reminder loop")
 
+        # Background: roll-ready DMs (notify when next character roll is available)
+        try:
+            from utils.roll_ready_dm_loop import start_roll_ready_dm_loop
+            start_roll_ready_dm_loop(self)
+        except Exception:
+            logger.exception("Failed to start roll-ready DM loop")
+
         # Background: weekly analytics DM to bot owners (Monday 10:00 UTC)
         try:
             from utils.weekly_analytics_loop import start_weekly_analytics_loop

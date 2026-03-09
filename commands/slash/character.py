@@ -25,6 +25,8 @@ from core.kai_mascot import (
     get_kai_legendary_roll_message,
     get_kai_pity_roll_message,
 )
+from utils.start_required import require_start
+from utils.roll_ready_dm import schedule_roll_ready_dm
 from utils.character_store import (
     can_roll_is_pro,
     clear_roll_window,
@@ -807,6 +809,7 @@ class SlashCharacter(commands.Cog):
     # /character collection
     # ---------------------------
     @character_group.command(name="collection", description="View your owned characters and your selected character")
+    @require_start()
     async def character_collection(self, interaction: discord.Interaction):
         try:
             user_id = interaction.user.id
@@ -876,6 +879,7 @@ class SlashCharacter(commands.Cog):
     # /character select
     # ---------------------------
     @character_group.command(name="select", description="Select your active character")
+    @require_start()
     @app_commands.describe(character="A character you own (or fun/serious).")
     @app_commands.autocomplete(character=ac_character_select)
     async def character_select(self, interaction: discord.Interaction, character: str):
@@ -905,6 +909,7 @@ class SlashCharacter(commands.Cog):
         name="unselect",
         description="Clear your selected character (back to server default unless chosen in /talk)",
     )
+    @require_start()
     async def character_unselect(self, interaction: discord.Interaction):
         try:
             # Your character_store currently returns False if style_id is None.
@@ -927,6 +932,7 @@ class SlashCharacter(commands.Cog):
     # /character remove
     # ---------------------------
     @character_group.command(name="remove", description="Remove a custom character from your collection")
+    @require_start()
     @app_commands.describe(character="A custom character you own.")
     @app_commands.autocomplete(character=ac_character_remove)
     async def character_remove(self, interaction: discord.Interaction, character: str):
@@ -975,6 +981,7 @@ class SlashCharacter(commands.Cog):
     # /character roll
     # ---------------------------
     @character_group.command(name="roll", description="Roll for a random character")
+    @require_start()
     async def character_roll(self, interaction: discord.Interaction):
         await self._do_roll(interaction, from_button=False)
 
@@ -1042,6 +1049,7 @@ class SlashCharacter(commands.Cog):
             allowed, remaining, per_day = await can_roll_is_pro(user_id=user_id, is_pro=is_pro)
             if consume_roll_credit and not allowed:
                 window_s = roll_window_seconds()
+                retry_s = 0
                 if window_s > 0:
                     retry_s = await get_roll_retry_after_seconds(
                         user_id=user_id, tier="pro" if is_pro else "free"
@@ -1051,6 +1059,7 @@ class SlashCharacter(commands.Cog):
                     if retry_s > 0:
                         h, m = retry_s // 3600, (retry_s % 3600) // 60
                         msg += f" Try again in **{h}h {m}m**."
+                        await schedule_roll_ready_dm(user_id=user_id, retry_after_seconds=retry_s)
                     msg += f" Buy an extra roll below for **{EXTRA_ROLL_COST} points**."
                 else:
                     msg = f"🛑 You're out of rolls for today ({per_day}/day). Buy an extra roll below for **{EXTRA_ROLL_COST} points**."

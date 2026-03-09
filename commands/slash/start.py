@@ -9,6 +9,7 @@ from discord.ext import commands
 import config
 from utils.character_store import grant_onboarding_roll
 from utils.premium import grant_premium_trial
+from utils.start_required import mark_started
 from core.kai_mascot import embed_kai_start, get_kai_start_greeting
 
 
@@ -98,6 +99,7 @@ class SlashStart(commands.Cog):
             user_id = int(interaction.user.id)
 
             granted = await grant_onboarding_roll(user_id=user_id)
+            await mark_started(user_id)
 
             e = embed_kai_start(
                 get_kai_start_greeting(),

@@ -14,6 +14,7 @@ from utils.bonds import (
 )
 from utils.bonds_store import get_bond, upsert_bond_nickname
 from utils.character_registry import BASE_STYLE_IDS, get_style
+from utils.start_required import require_start
 
 
 async def ac_bond_character(
@@ -76,6 +77,7 @@ class SlashBond(commands.Cog):
     bond = app_commands.Group(name="bond", description="Bond progression with characters")
 
     @bond.command(name="view", description="View your bond with a character")
+    @require_start()
     @app_commands.autocomplete(character=ac_bond_character)
     @app_commands.describe(character="Character/style ID (e.g. fun, serious, samurai)")
     async def view(self, interaction: discord.Interaction, character: str | None = None):
@@ -129,6 +131,7 @@ class SlashBond(commands.Cog):
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @bond.command(name="nickname", description="Set (or clear) a nickname for a character")
+    @require_start()
     @app_commands.autocomplete(character=ac_bond_character)
     @app_commands.describe(
         character="Character/style ID",

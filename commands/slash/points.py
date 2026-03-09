@@ -84,6 +84,8 @@ from utils.streak_reminders import (
     set_streak_reminders_enabled,
     send_after_claim_dm,
 )
+from utils.roll_ready_dm import set_roll_ready_dm_enabled
+from utils.start_required import require_start
 
 logger = logging.getLogger("bot.points")
 
@@ -1142,6 +1144,7 @@ class SlashPoints(commands.Cog):
     points = app_commands.Group(name="points", description="Daily points, streaks, and shop")
 
     @points.command(name="daily", description="Claim your daily points reward")
+    @require_start()
     async def points_daily(self, interaction: discord.Interaction):
         """Show daily status and let the user claim via a button."""
         try:
@@ -1237,6 +1240,31 @@ class SlashPoints(commands.Cog):
             await interaction.response.send_message(msg, ephemeral=True)
         except Exception:
             logger.exception("/points reminders failed")
+            try:
+                await interaction.response.send_message("⚠️ Could not update setting. Try again later.", ephemeral=True)
+            except Exception:
+                pass
+
+    @points.command(name="roll_reminders", description="Turn roll-ready DMs on or off (DM when your next roll is available)")
+    @app_commands.choices(
+        toggle=[
+            app_commands.Choice(name="On", value="on"),
+            app_commands.Choice(name="Off", value="off"),
+        ],
+    )
+    async def points_roll_reminders(self, interaction: discord.Interaction, toggle: app_commands.Choice[str]):
+        """Set whether to receive a DM when your next character roll is ready."""
+        try:
+            uid = int(interaction.user.id)
+            enabled = toggle.value.lower() == "on"
+            await set_roll_ready_dm_enabled(uid, enabled)
+            if enabled:
+                msg = "Roll-ready DMs are now **on**. You'll get a DM when your next character roll is available (after you run out of rolls)."
+            else:
+                msg = "Roll-ready DMs are now **off**. You won't receive DMs when your next roll is ready."
+            await interaction.response.send_message(msg, ephemeral=True)
+        except Exception:
+            logger.exception("/points roll_reminders failed")
             try:
                 await interaction.response.send_message("⚠️ Could not update setting. Try again later.", ephemeral=True)
             except Exception:

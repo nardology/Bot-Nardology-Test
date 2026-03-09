@@ -13,6 +13,7 @@ from discord.ext import commands
 import config
 from utils.audit import audit_log
 from utils.feedback_store import count_feedback_since, insert_feedback
+from utils.start_required import require_start
 from utils.premium import get_feedback_caps
 
 logger = logging.getLogger("bot.feedback")
@@ -66,6 +67,7 @@ class SlashFeedback(commands.Cog):
         return False
 
     @app_commands.command(name="feedback", description="Send feedback to the bot owner (private)")
+    @require_start()
     @app_commands.describe(
         kind="What type of feedback is this?",
         message="What should the owner know?",
