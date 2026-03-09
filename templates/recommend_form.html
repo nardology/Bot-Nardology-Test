@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Recommend a Character — Bot-Nardology</title>
+<style>
+  :root {
+    --bg: #1a1a2e;
+    --surface: #16213e;
+    --surface2: #0f3460;
+    --accent: #e94560;
+    --accent-hover: #c73a52;
+    --text: #eee;
+    --text-muted: #999;
+    --border: #2a2a4a;
+    --input-bg: #0d1b2a;
+    --success: #2ecc71;
+    --error: #e74c3c;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 20px;
+  }
+  .container {
+    max-width: 800px;
+    margin: 0 auto;
+  }
+  h1 {
+    text-align: center;
+    margin-bottom: 8px;
+    color: var(--accent);
+    font-size: 1.8rem;
+  }
+  .subtitle {
+    text-align: center;
+    color: var(--text-muted);
+    margin-bottom: 32px;
+    font-size: 0.95rem;
+  }
+  .section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 20px;
+  }
+  .section h2 {
+    font-size: 1.15rem;
+    margin-bottom: 16px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  .field {
+    margin-bottom: 16px;
+  }
+  .field label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 4px;
+    font-size: 0.9rem;
+  }
+  .field .hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin-bottom: 4px;
+  }
+  .required::after {
+    content: " *";
+    color: var(--accent);
+  }
+  input[type="text"], input[type="url"], textarea, select {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 0.95rem;
+    font-family: inherit;
+  }
+  input[type="color"] {
+    width: 60px;
+    height: 38px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    background: var(--input-bg);
+    cursor: pointer;
+    padding: 2px;
+  }
+  .color-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .color-row input[type="text"] {
+    flex: 1;
+  }
+  textarea {
+    min-height: 80px;
+    resize: vertical;
+  }
+  textarea.tall { min-height: 140px; }
+  select {
+    cursor: pointer;
+    appearance: auto;
+  }
+  .list-field .items { margin-bottom: 8px; }
+  .list-field .item-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .list-field .item-row input { flex: 1; }
+  .btn-sm {
+    padding: 6px 14px;
+    font-size: 0.85rem;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    color: var(--text);
+    background: var(--surface2);
+  }
+  .btn-sm:hover { opacity: 0.85; }
+  .btn-remove { background: var(--error); color: #fff; padding: 6px 10px; }
+  .dict-field .pair-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 6px;
+    align-items: center;
+  }
+  .dict-field .pair-row input { flex: 1; }
+  .actions {
+    text-align: center;
+    margin: 32px 0;
+  }
+  .btn-submit {
+    padding: 14px 48px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    background: var(--accent);
+    color: #fff;
+    transition: background 0.2s;
+  }
+  .btn-submit:hover { background: var(--accent-hover); }
+  .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 14px 24px;
+    border-radius: var(--radius);
+    color: #fff;
+    font-weight: 600;
+    z-index: 1000;
+    display: none;
+    max-width: 400px;
+  }
+  .toast.success { background: var(--success); display: block; }
+  .toast.error { background: var(--error); display: block; }
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>Recommend a Character</h1>
+  <p class="subtitle">Fill out the details below to recommend an official character for Bot-Nardology. Fields marked with * are required.</p>
+
+  <form id="recForm" autocomplete="off">
+
+    <div class="section">
+      <h2>Basic Info</h2>
+      <div class="two-col">
+        <div class="field">
+          <label class="required">Character Name</label>
+          <input type="text" id="display_name" maxlength="64" placeholder="e.g. Knight, Pirate, Wizard">
+        </div>
+        <div class="field">
+          <label class="required">Rarity</label>
+          <select id="rarity">
+            <option value="">-- Select --</option>
+            <option value="common">Common</option>
+            <option value="uncommon">Uncommon</option>
+            <option value="rare">Rare</option>
+            <option value="legendary">Legendary</option>
+            <option value="mythic">Mythic</option>
+          </select>
+        </div>
+      </div>
+      <div class="field">
+        <label>Color</label>
+        <div class="hint">Embed accent color (hex). Click the swatch or type a hex code.</div>
+        <div class="color-row">
+          <input type="color" id="color_picker" value="#5865F2">
+          <input type="text" id="color" maxlength="7" placeholder="#5865F2">
+        </div>
+      </div>
+      <div class="field">
+        <label>Description</label>
+        <div class="hint">A short one-line blurb about the character.</div>
+        <input type="text" id="description" maxlength="200" placeholder="A noble knight who lives by honor and duty.">
+      </div>
+      <div class="field">
+        <label>Image URL</label>
+        <div class="hint">Direct link to a portrait image (PNG/JPG).</div>
+        <input type="url" id="image_url" placeholder="https://example.com/character.png">
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>AI Prompt</h2>
+      <div class="field">
+        <label>System Prompt</label>
+        <div class="hint">The core instruction that tells the AI how to roleplay this character.</div>
+        <textarea id="prompt" class="tall" placeholder="You're a noble knight sworn to protect the realm. You speak formally and with honor..."></textarea>
+      </div>
+      <div class="field list-field">
+        <label>Tips</label>
+        <div class="hint">Short tips for users on how to interact with this character.</div>
+        <div class="items" id="tips_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('tips')">+ Add Tip</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Persona</h2>
+      <div class="field">
+        <label>Backstory</label>
+        <textarea id="backstory" placeholder="Their origin story, history, and background..."></textarea>
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <label>Age</label>
+          <input type="text" id="age" maxlength="100" placeholder="e.g. 38, ancient, ageless">
+        </div>
+        <div class="field">
+          <label>Occupation</label>
+          <input type="text" id="occupation" placeholder="e.g. Knight-Captain of the Silver Shield">
+        </div>
+      </div>
+      <div class="field">
+        <label>Speech Style</label>
+        <input type="text" id="speech_style" placeholder="e.g. Formal, measured, and earnest">
+      </div>
+      <div class="field">
+        <label>Lore</label>
+        <textarea id="lore" placeholder="World-building and lore relevant to this character..."></textarea>
+      </div>
+      <div class="field list-field">
+        <label>Personality Traits</label>
+        <div class="items" id="personality_traits_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('personality_traits')">+ Add Trait</button>
+      </div>
+      <div class="field list-field">
+        <label>Quirks</label>
+        <div class="items" id="quirks_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('quirks')">+ Add Quirk</button>
+      </div>
+      <div class="field list-field">
+        <label>Fears</label>
+        <div class="items" id="fears_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('fears')">+ Add Fear</button>
+      </div>
+      <div class="field list-field">
+        <label>Desires</label>
+        <div class="items" id="desires_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('desires')">+ Add Desire</button>
+      </div>
+      <div class="field list-field">
+        <label>Likes</label>
+        <div class="items" id="likes_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('likes')">+ Add Like</button>
+      </div>
+      <div class="field list-field">
+        <label>Dislikes</label>
+        <div class="items" id="dislikes_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('dislikes')">+ Add Dislike</button>
+      </div>
+      <div class="field list-field">
+        <label>Catchphrases</label>
+        <div class="items" id="catchphrases_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('catchphrases')">+ Add Catchphrase</button>
+      </div>
+      <div class="field list-field">
+        <label>Secrets</label>
+        <div class="items" id="secrets_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('secrets')">+ Add Secret</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>World Context</h2>
+      <div class="two-col">
+        <div class="field">
+          <label>World</label>
+          <input type="text" id="world" maxlength="100" placeholder="e.g. convergence">
+        </div>
+        <div class="field">
+          <label>Original World</label>
+          <input type="text" id="original_world" maxlength="100" placeholder="e.g. old_realm">
+        </div>
+      </div>
+      <div class="field">
+        <label>World Knowledge</label>
+        <textarea id="world_knowledge" placeholder="What this character knows about the world..."></textarea>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Tags</h2>
+      <div class="field list-field">
+        <label>Tags</label>
+        <div class="hint">Keywords for filtering/searching (e.g. fantasy, honor, warrior).</div>
+        <div class="items" id="tags_items"></div>
+        <button type="button" class="btn-sm" onclick="addListItem('tags')">+ Add Tag</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Relationships &amp; Reactions</h2>
+      <div class="field dict-field">
+        <label>Relationships</label>
+        <div class="hint">How this character relates to other characters (key = character ID, value = description).</div>
+        <div class="items" id="relationships_items"></div>
+        <button type="button" class="btn-sm" onclick="addDictItem('relationships')">+ Add Relationship</button>
+      </div>
+      <div class="field dict-field">
+        <label>Topic Reactions</label>
+        <div class="hint">How this character reacts to specific topics (key = topic, value = reaction).</div>
+        <div class="items" id="topic_reactions_items"></div>
+        <button type="button" class="btn-sm" onclick="addDictItem('topic_reactions')">+ Add Reaction</button>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button type="submit" class="btn-submit" id="submitBtn">Submit Recommendation</button>
+    </div>
+  </form>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/*__INJECT__*/
+
+const DATA = window.__DATA__ || {};
+const existing = DATA.existing || null;
+
+function $(id) { return document.getElementById(id); }
+
+function addListItem(field, value) {
+  const container = $(field + '_items');
+  const row = document.createElement('div');
+  row.className = 'item-row';
+  row.innerHTML = '<input type="text" value="' + escapeAttr(value || '') + '" placeholder="Enter value...">'
+    + '<button type="button" class="btn-sm btn-remove" onclick="this.parentElement.remove()">X</button>';
+  container.appendChild(row);
+}
+
+function addDictItem(field, key, value) {
+  const container = $(field + '_items');
+  const row = document.createElement('div');
+  row.className = 'pair-row';
+  row.innerHTML = '<input type="text" value="' + escapeAttr(key || '') + '" placeholder="Key">'
+    + '<input type="text" value="' + escapeAttr(value || '') + '" placeholder="Value">'
+    + '<button type="button" class="btn-sm btn-remove" onclick="this.parentElement.remove()">X</button>';
+  container.appendChild(row);
+}
+
+function escapeAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function getListValues(field) {
+  const rows = $(field + '_items').querySelectorAll('.item-row input');
+  return Array.from(rows).map(i => i.value.trim()).filter(Boolean);
+}
+
+function getDictValues(field) {
+  const rows = $(field + '_items').querySelectorAll('.pair-row');
+  const obj = {};
+  rows.forEach(r => {
+    const inputs = r.querySelectorAll('input');
+    const k = inputs[0].value.trim();
+    const v = inputs[1].value.trim();
+    if (k) obj[k] = v;
+  });
+  return obj;
+}
+
+function showToast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type;
+  setTimeout(() => { t.className = 'toast'; }, 5000);
+}
+
+// Pre-fill from existing data
+if (existing) {
+  const simple = ['display_name','rarity','color','description','image_url','prompt',
+    'backstory','age','occupation','speech_style','lore','world','original_world','world_knowledge'];
+  simple.forEach(k => {
+    const el = $(k);
+    if (el && existing[k]) el.value = existing[k];
+  });
+  if (existing.color) {
+    try { $('color_picker').value = existing.color; } catch(e) {}
+  }
+
+  const lists = ['tips','personality_traits','quirks','fears','desires','likes','dislikes','catchphrases','secrets','tags'];
+  lists.forEach(k => {
+    const arr = existing[k];
+    if (Array.isArray(arr)) arr.forEach(v => addListItem(k, v));
+  });
+
+  const dicts = ['relationships','topic_reactions'];
+  dicts.forEach(k => {
+    const obj = existing[k];
+    if (obj && typeof obj === 'object') {
+      Object.entries(obj).forEach(([dk,dv]) => addDictItem(k, dk, dv));
+    }
+  });
+}
+
+// Sync color picker <-> text input
+$('color_picker').addEventListener('input', function() { $('color').value = this.value; });
+$('color').addEventListener('input', function() {
+  if (/^#[0-9a-fA-F]{6}$/.test(this.value)) $('color_picker').value = this.value;
+});
+
+// Form submit
+$('recForm').addEventListener('submit', async function(e) {
+  e.preventDefault();
+  const btn = $('submitBtn');
+  btn.disabled = true;
+  btn.textContent = 'Submitting...';
+
+  const body = {
+    token: DATA.token,
+    display_name: $('display_name').value.trim(),
+    rarity: $('rarity').value,
+    color: $('color').value.trim() || null,
+    description: $('description').value.trim() || null,
+    image_url: $('image_url').value.trim() || null,
+    prompt: $('prompt').value.trim() || null,
+    backstory: $('backstory').value.trim() || null,
+    age: $('age').value.trim() || null,
+    occupation: $('occupation').value.trim() || null,
+    speech_style: $('speech_style').value.trim() || null,
+    lore: $('lore').value.trim() || null,
+    world: $('world').value.trim() || null,
+    original_world: $('original_world').value.trim() || null,
+    world_knowledge: $('world_knowledge').value.trim() || null,
+    tips: getListValues('tips'),
+    personality_traits: getListValues('personality_traits'),
+    quirks: getListValues('quirks'),
+    fears: getListValues('fears'),
+    desires: getListValues('desires'),
+    likes: getListValues('likes'),
+    dislikes: getListValues('dislikes'),
+    catchphrases: getListValues('catchphrases'),
+    secrets: getListValues('secrets'),
+    tags: getListValues('tags'),
+    relationships: getDictValues('relationships'),
+    topic_reactions: getDictValues('topic_reactions'),
+  };
+
+  if (!body.display_name) { showToast('Character name is required.', 'error'); btn.disabled = false; btn.textContent = 'Submit Recommendation'; return; }
+  if (!body.rarity) { showToast('Rarity is required.', 'error'); btn.disabled = false; btn.textContent = 'Submit Recommendation'; return; }
+
+  try {
+    const res = await fetch('/api/recommend', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      showToast('Recommendation submitted! You will be notified via DM.', 'success');
+      btn.textContent = 'Submitted!';
+    } else {
+      showToast(data.error || 'Something went wrong.', 'error');
+      btn.disabled = false;
+      btn.textContent = 'Submit Recommendation';
+    }
+  } catch (err) {
+    showToast('Network error. Please try again.', 'error');
+    btn.disabled = false;
+    btn.textContent = 'Submit Recommendation';
+  }
+});
+</script>
+</body>
+</html>

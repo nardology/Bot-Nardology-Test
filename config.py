@@ -29,6 +29,12 @@ TERMS_OF_SERVICE_URL = "https://neon-cranachan-dfa64a.netlify.app/"
 PRIVACY_POLICY_URL = "https://sage-malabi-770900.netlify.app/"
 SUPPORT_SERVER_URL = "https://discord.gg/F4TNTDvHP9"
 
+# ---- Web / recommendation system ----
+_port = os.getenv("PORT", "8080")
+BASE_URL = (os.getenv("BASE_URL") or "").strip() or (
+    f"http://localhost:{_port}" if ENVIRONMENT == "dev" else ""
+)
+
 # ---- Emergency kill switch ----
 # If true, ALL AI calls are disabled immediately (even if Redis/DB are unhealthy).
 # Useful for incident response / cost containment.

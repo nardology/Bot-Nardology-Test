@@ -742,6 +742,13 @@ async def start_webhook_server(bot) -> None:
     else:
         log.info("STRIPE_SECRET_KEY not set; Stripe webhook endpoint disabled (health-check still active).")
 
+    # Character recommendation system routes
+    try:
+        from core.recommendations import register_routes as _register_rec_routes
+        _register_rec_routes(app, bot)
+    except Exception:
+        log.exception("Failed to register recommendation routes (non-fatal)")
+
     port = int(os.getenv("PORT", "8080"))
     runner = web.AppRunner(app)
     await runner.setup()

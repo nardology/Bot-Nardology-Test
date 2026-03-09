@@ -367,6 +367,54 @@ try:
     # NOTE: Old PremiumEntitlement (guild-level) is kept for data preservation.
 
     # ------------------------------------------------------------------
+    # Character Recommendations
+    # ------------------------------------------------------------------
+
+    class CharacterRecommendation(Base):
+        """User-submitted character recommendations for owner review."""
+
+        __tablename__ = "character_recommendations"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+        status: Mapped[str] = mapped_column(String(20), default="pending")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        display_name: Mapped[str] = mapped_column(Text, nullable=False)
+        rarity: Mapped[str] = mapped_column(String(20), nullable=False)
+        color: Mapped[str | None] = mapped_column(String(20), nullable=True)
+        description: Mapped[str | None] = mapped_column(Text, nullable=True)
+        prompt: Mapped[str | None] = mapped_column(Text, nullable=True)
+        tips: Mapped[str | None] = mapped_column(Text, nullable=True)
+        backstory: Mapped[str | None] = mapped_column(Text, nullable=True)
+        personality_traits: Mapped[str | None] = mapped_column(Text, nullable=True)
+        quirks: Mapped[str | None] = mapped_column(Text, nullable=True)
+        speech_style: Mapped[str | None] = mapped_column(Text, nullable=True)
+        fears: Mapped[str | None] = mapped_column(Text, nullable=True)
+        desires: Mapped[str | None] = mapped_column(Text, nullable=True)
+        likes: Mapped[str | None] = mapped_column(Text, nullable=True)
+        dislikes: Mapped[str | None] = mapped_column(Text, nullable=True)
+        catchphrases: Mapped[str | None] = mapped_column(Text, nullable=True)
+        secrets: Mapped[str | None] = mapped_column(Text, nullable=True)
+        lore: Mapped[str | None] = mapped_column(Text, nullable=True)
+        age: Mapped[str | None] = mapped_column(String(100), nullable=True)
+        occupation: Mapped[str | None] = mapped_column(Text, nullable=True)
+        image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+        tags: Mapped[str | None] = mapped_column(Text, nullable=True)
+        world: Mapped[str | None] = mapped_column(String(100), nullable=True)
+        original_world: Mapped[str | None] = mapped_column(String(100), nullable=True)
+        world_knowledge: Mapped[str | None] = mapped_column(Text, nullable=True)
+        relationships: Mapped[str | None] = mapped_column(Text, nullable=True)
+        topic_reactions: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+        reviewer_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+        __table_args__ = (
+            Index("ix_char_rec_user_status", "user_id", "status"),
+        )
+
+    # ------------------------------------------------------------------
     # Phase 6b: Persistent Memory Anchors
     # ------------------------------------------------------------------
 
