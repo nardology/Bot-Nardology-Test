@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>World Lore — Bot-Nardology</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --accent: #e94560;
+    --accent2: #9b59b6;
+    --accent-hover: #c73a52;
+    --gold: #f1c40f;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --border: #30363d;
+    --input-bg: #0d1117;
+    --success: #2ecc71;
+    --error: #e74c3c;
+    --radius: 10px;
+    --rarity-common: #9e9e9e;
+    --rarity-uncommon: #4caf50;
+    --rarity-rare: #2196f3;
+    --rarity-epic: #9c27b0;
+    --rarity-legendary: #ff9800;
+    --rarity-mythic: #f1c40f;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .hero {
+    text-align: center;
+    padding: 60px 20px 40px;
+    background: linear-gradient(135deg, #0d1117 0%, #1a1a2e 50%, #16213e 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .hero h1 { font-size: 2.4rem; color: var(--accent); margin-bottom: 8px; }
+  .hero p { color: var(--text-muted); font-size: 1.05rem; max-width: 600px; margin: 0 auto; }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 32px 20px; }
+
+  /* Navigation tabs */
+  .tabs { display: flex; gap: 8px; margin-bottom: 32px; flex-wrap: wrap; justify-content: center; }
+  .tab-btn {
+    padding: 10px 24px; border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface); color: var(--text-muted); cursor: pointer; font-size: 0.95rem;
+    transition: all 0.2s;
+  }
+  .tab-btn:hover { border-color: var(--accent); color: var(--text); }
+  .tab-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* Section headers */
+  .section-title { font-size: 1.6rem; color: var(--accent); margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border); }
+
+  /* World cards */
+  .world-grid { display: grid; gap: 20px; grid-template-columns: 1fr; }
+  .world-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    transition: border-color 0.2s;
+  }
+  .world-card:hover { border-color: var(--accent2); }
+  .world-card .world-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .world-card .world-name { font-size: 1.25rem; font-weight: 700; color: var(--text); }
+  .world-card .world-type {
+    font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;
+    padding: 3px 10px; border-radius: 20px; background: var(--surface2); color: var(--text-muted);
+  }
+  .world-card .world-desc { color: var(--text-muted); margin-bottom: 16px; font-size: 0.95rem; }
+  .world-card .facts-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 8px; }
+  .world-card .fact { padding: 4px 0; color: var(--text); font-size: 0.9rem; padding-left: 16px; position: relative; }
+  .world-card .fact::before { content: "•"; position: absolute; left: 0; color: var(--accent); }
+  .world-card .regions { margin-top: 12px; display: flex; gap: 6px; flex-wrap: wrap; }
+  .world-card .region-tag {
+    font-size: 0.8rem; padding: 3px 10px; border-radius: 20px;
+    background: var(--surface2); color: var(--accent2); border: 1px solid var(--border);
+  }
+
+  /* Character cards */
+  .char-filter { margin-bottom: 20px; }
+  .char-filter input {
+    width: 100%; max-width: 400px; padding: 10px 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 0.95rem;
+  }
+  .char-filter input::placeholder { color: var(--text-muted); }
+  .char-grid { display: grid; gap: 16px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+  .char-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    cursor: pointer;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .char-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .char-card-header {
+    display: flex; align-items: center; gap: 14px; padding: 16px;
+  }
+  .char-img {
+    width: 56px; height: 56px; border-radius: 50%; object-fit: cover;
+    border: 2px solid var(--border); flex-shrink: 0; background: var(--surface2);
+  }
+  .char-img-placeholder {
+    width: 56px; height: 56px; border-radius: 50%; flex-shrink: 0;
+    background: var(--surface2); display: flex; align-items: center; justify-content: center;
+    font-size: 1.4rem; border: 2px solid var(--border);
+  }
+  .char-info { flex: 1; min-width: 0; }
+  .char-name { font-weight: 700; font-size: 1.05rem; }
+  .char-meta { font-size: 0.8rem; color: var(--text-muted); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .rarity-badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px;
+    font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+  }
+  .expand-icon { color: var(--text-muted); font-size: 1.2rem; transition: transform 0.2s; }
+  .char-card.open .expand-icon { transform: rotate(180deg); }
+  .char-details { display: none; padding: 0 16px 16px; border-top: 1px solid var(--border); }
+  .char-card.open .char-details { display: block; padding-top: 16px; }
+  .detail-section { margin-bottom: 14px; }
+  .detail-label { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--accent); margin-bottom: 4px; }
+  .detail-text { font-size: 0.9rem; color: var(--text-muted); }
+  .detail-list { list-style: none; padding: 0; }
+  .detail-list li { font-size: 0.9rem; color: var(--text-muted); padding: 2px 0 2px 16px; position: relative; }
+  .detail-list li::before { content: "—"; position: absolute; left: 0; color: var(--accent); }
+  .rel-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 8px; }
+  .rel-item { background: var(--surface2); padding: 8px 12px; border-radius: 6px; font-size: 0.85rem; }
+  .rel-name { color: var(--accent); font-weight: 600; }
+
+  /* Suggest form */
+  .suggest-section { margin-top: 40px; }
+  .suggest-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+  }
+  .form-row { margin-bottom: 16px; }
+  .form-row label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+  .form-row .hint { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
+  .form-row input, .form-row textarea, .form-row select {
+    width: 100%; padding: 10px 12px; background: var(--input-bg);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 0.95rem; font-family: inherit;
+  }
+  .form-row textarea { min-height: 120px; resize: vertical; }
+  .form-row select { cursor: pointer; }
+  .submit-btn {
+    padding: 12px 32px; font-size: 1rem; font-weight: 600; border: none;
+    border-radius: var(--radius); cursor: pointer; color: #fff; background: var(--accent);
+    transition: background 0.2s;
+  }
+  .submit-btn:hover { background: var(--accent-hover); }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  #suggest-status { margin-top: 12px; font-size: 0.9rem; }
+  .status-ok { color: var(--success); }
+  .status-err { color: var(--error); }
+
+  .footer {
+    text-align: center; padding: 32px 20px; color: var(--text-muted); font-size: 0.85rem;
+    border-top: 1px solid var(--border); margin-top: 48px;
+  }
+
+  @media (max-width: 600px) {
+    .hero h1 { font-size: 1.6rem; }
+    .char-grid { grid-template-columns: 1fr; }
+    .rel-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<script>/*__INJECT__*/</script>
+
+<div class="hero">
+  <h1>World of Bot-Nardology</h1>
+  <p>Explore the worlds, regions, and characters that make up the Convergence — and suggest your own lore!</p>
+</div>
+
+<div class="container">
+  <div class="tabs">
+    <button class="tab-btn active" data-tab="worlds">Worlds</button>
+    <button class="tab-btn" data-tab="characters">Characters</button>
+    <button class="tab-btn" data-tab="suggest">Suggest Lore</button>
+  </div>
+
+  <!-- WORLDS TAB -->
+  <div id="tab-worlds" class="tab-content active">
+    <h2 class="section-title">Worlds &amp; Regions</h2>
+    <div class="world-grid" id="worlds-container"></div>
+  </div>
+
+  <!-- CHARACTERS TAB -->
+  <div id="tab-characters" class="tab-content">
+    <h2 class="section-title">Characters</h2>
+    <div class="char-filter">
+      <input type="text" id="char-search" placeholder="Search characters by name, world, or rarity...">
+    </div>
+    <div class="char-grid" id="chars-container"></div>
+  </div>
+
+  <!-- SUGGEST TAB -->
+  <div id="tab-suggest" class="tab-content">
+    <h2 class="section-title">Suggest Lore Changes</h2>
+    <p style="color:var(--text-muted); margin-bottom:20px;">
+      Have an idea for a new world detail, character backstory change, or lore addition?
+      Fill out the form below and it will be sent to the developers for review.
+    </p>
+    <div class="suggest-form">
+      <div class="form-row">
+        <label>Discord Username *</label>
+        <div class="hint">So we know who to credit</div>
+        <input type="text" id="sg-username" placeholder="e.g. MyUser#1234" maxlength="100">
+      </div>
+      <div class="form-row">
+        <label>Type *</label>
+        <select id="sg-type">
+          <option value="">Select...</option>
+          <option value="World">World / Region</option>
+          <option value="Character">Character</option>
+          <option value="Event">Event / Story</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <label>Subject Name</label>
+        <div class="hint">Which world or character does this relate to?</div>
+        <input type="text" id="sg-subject" placeholder="e.g. The Convergence, Dog, Wizard..." maxlength="100">
+      </div>
+      <div class="form-row">
+        <label>Your Suggestion *</label>
+        <div class="hint">Describe the lore you'd like to add or change (max 2000 characters)</div>
+        <textarea id="sg-suggestion" maxlength="2000" placeholder="I think it would be cool if..."></textarea>
+      </div>
+      <button class="submit-btn" id="sg-submit">Submit Suggestion</button>
+      <div id="suggest-status"></div>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  Bot-Nardology &mdash; World Lore Encyclopedia
+</div>
+
+<script>
+const DATA = window.__DATA__ || { worlds: [], characters: [] };
+
+const RARITY_COLORS = {
+  common: '#9e9e9e', uncommon: '#4caf50', rare: '#2196f3',
+  epic: '#9c27b0', legendary: '#ff9800', mythic: '#f1c40f',
+};
+
+// -- Tabs --
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+  });
+});
+
+// -- Worlds --
+function renderWorlds() {
+  const container = document.getElementById('worlds-container');
+  const worlds = DATA.worlds || [];
+  const parentWorlds = worlds.filter(w => !w.parent_world);
+  const regionWorlds = worlds.filter(w => w.parent_world);
+
+  function renderCard(w) {
+    const facts = (w.key_facts || []).map(f => `<div class="fact">${esc(f)}</div>`).join('');
+    const regions = (w.regions || []).map(rid => {
+      const rw = worlds.find(x => x.id === rid);
+      return `<span class="region-tag">${esc(rw ? rw.name : rid)}</span>`;
+    }).join('');
+    return `<div class="world-card">
+      <div class="world-header">
+        <span class="world-name">${esc(w.name)}</span>
+        <span class="world-type">${esc(w.type || '')}</span>
+      </div>
+      <div class="world-desc">${esc(w.description)}</div>
+      ${facts ? `<div class="facts-title">Key Facts</div>${facts}` : ''}
+      ${regions ? `<div class="regions">${regions}</div>` : ''}
+    </div>`;
+  }
+
+  let html = '';
+  parentWorlds.forEach(w => { html += renderCard(w); });
+  regionWorlds.forEach(w => { html += renderCard(w); });
+  container.innerHTML = html;
+}
+
+// -- Characters --
+function renderCharacters(filter) {
+  const container = document.getElementById('chars-container');
+  let chars = DATA.characters || [];
+  if (filter) {
+    const q = filter.toLowerCase();
+    chars = chars.filter(c =>
+      (c.display_name || '').toLowerCase().includes(q) ||
+      (c.rarity || '').toLowerCase().includes(q) ||
+      (c.world || '').toLowerCase().includes(q) ||
+      (c.occupation || '').toLowerCase().includes(q)
+    );
+  }
+
+  container.innerHTML = chars.map(c => {
+    const rarity = (c.rarity || 'common').toLowerCase();
+    const color = RARITY_COLORS[rarity] || '#9e9e9e';
+    const img = c.image_url
+      ? `<img class="char-img" src="${esc(c.image_url)}" alt="${esc(c.display_name)}" onerror="this.style.display='none'">`
+      : `<div class="char-img-placeholder">?</div>`;
+
+    let details = '';
+
+    if (c.backstory) details += detailSection('Backstory', c.backstory);
+    if (c.lore) details += detailSection('Lore', c.lore);
+    if (c.age) details += detailSection('Age', c.age);
+    if (c.occupation) details += detailSection('Occupation', c.occupation);
+    if (c.speech_style) details += detailSection('Speech Style', c.speech_style);
+    if (c.personality_traits && c.personality_traits.length) details += detailList('Personality', c.personality_traits);
+    if (c.quirks && c.quirks.length) details += detailList('Quirks', c.quirks);
+    if (c.likes && c.likes.length) details += detailList('Likes', c.likes);
+    if (c.dislikes && c.dislikes.length) details += detailList('Dislikes', c.dislikes);
+    if (c.fears && c.fears.length) details += detailList('Fears', c.fears);
+    if (c.desires && c.desires.length) details += detailList('Desires', c.desires);
+    if (c.catchphrases && c.catchphrases.length) details += detailList('Catchphrases', c.catchphrases);
+    if (c.secrets && c.secrets.length) details += detailList('Secrets', c.secrets);
+    if (c.relationships && Object.keys(c.relationships).length) {
+      const rels = Object.entries(c.relationships).map(([k, v]) =>
+        `<div class="rel-item"><span class="rel-name">${esc(k)}</span>: ${esc(String(v).substring(0, 150))}</div>`
+      ).join('');
+      details += `<div class="detail-section"><div class="detail-label">Relationships</div><div class="rel-grid">${rels}</div></div>`;
+    }
+    if (c.world) {
+      const wObj = (DATA.worlds || []).find(w => w.id === c.world);
+      details += detailSection('World', wObj ? wObj.name : c.world);
+    }
+    if (c.original_world) {
+      const oObj = (DATA.worlds || []).find(w => w.id === c.original_world);
+      details += detailSection('Origin', oObj ? oObj.name : c.original_world);
+    }
+    if (c.tags && c.tags.length) details += detailSection('Tags', c.tags.join(', '));
+
+    const worldLabel = c.world ? (() => {
+      const wObj = (DATA.worlds || []).find(w => w.id === c.world);
+      return wObj ? wObj.name : c.world;
+    })() : '';
+
+    return `<div class="char-card" onclick="this.classList.toggle('open')">
+      <div class="char-card-header">
+        ${img}
+        <div class="char-info">
+          <div class="char-name">${esc(c.display_name || c.style_id)}</div>
+          <div class="char-meta">
+            <span class="rarity-badge" style="background:${color};color:#000">${esc(rarity)}</span>
+            ${worldLabel ? `<span>${esc(worldLabel)}</span>` : ''}
+          </div>
+        </div>
+        <span class="expand-icon">&#9660;</span>
+      </div>
+      ${c.description ? `<div style="padding:0 16px 12px;color:var(--text-muted);font-size:0.9rem">${esc(c.description)}</div>` : ''}
+      <div class="char-details">${details || '<div class="detail-text">No additional lore available.</div>'}</div>
+    </div>`;
+  }).join('');
+}
+
+function detailSection(label, text) {
+  return `<div class="detail-section"><div class="detail-label">${esc(label)}</div><div class="detail-text">${esc(String(text))}</div></div>`;
+}
+function detailList(label, items) {
+  const lis = items.map(i => `<li>${esc(String(i).substring(0, 300))}</li>`).join('');
+  return `<div class="detail-section"><div class="detail-label">${esc(label)}</div><ul class="detail-list">${lis}</ul></div>`;
+}
+function esc(s) { const d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
+
+// -- Search --
+document.getElementById('char-search').addEventListener('input', (e) => {
+  renderCharacters(e.target.value);
+});
+
+// -- Suggest form --
+document.getElementById('sg-submit').addEventListener('click', async () => {
+  const status = document.getElementById('suggest-status');
+  const btn = document.getElementById('sg-submit');
+  const username = document.getElementById('sg-username').value.trim();
+  const subjectType = document.getElementById('sg-type').value;
+  const subjectName = document.getElementById('sg-subject').value.trim();
+  const suggestion = document.getElementById('sg-suggestion').value.trim();
+
+  if (!username || !subjectType || !suggestion) {
+    status.className = 'status-err';
+    status.textContent = 'Please fill in all required fields.';
+    return;
+  }
+
+  btn.disabled = true;
+  status.textContent = 'Submitting...';
+  status.className = '';
+
+  try {
+    const res = await fetch('/api/lore/suggest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, subject_type: subjectType, subject_name: subjectName, suggestion }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      status.className = 'status-ok';
+      status.textContent = 'Suggestion submitted! The developers will review it.';
+      document.getElementById('sg-suggestion').value = '';
+    } else {
+      status.className = 'status-err';
+      status.textContent = data.error || 'Something went wrong.';
+    }
+  } catch (err) {
+    status.className = 'status-err';
+    status.textContent = 'Network error. Please try again.';
+  }
+  btn.disabled = false;
+});
+
+// -- Init --
+renderWorlds();
+renderCharacters('');
+</script>
+</body>
+</html>

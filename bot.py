@@ -361,6 +361,7 @@ EXTENSIONS = [
     "commands.slash.privacy",
     "commands.slash.tutorial",
     "commands.slash.recommend",
+    "commands.slash.lore",
 ]
 
 logger.info("EXTENSIONS tuple: %r", EXTENSIONS)

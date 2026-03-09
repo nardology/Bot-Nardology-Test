@@ -28,6 +28,7 @@ TOPICS = [
     "start",
     "tutorial",
     "recommend",
+    "lore",
     "feedback",
     "report",
     "appeal",
@@ -63,7 +64,8 @@ def build_help_embed() -> discord.Embed:
         "🎲 `/character roll` — Roll for a new character\n"
         "📜 `/character collection` — View your characters\n"
         "✅ `/character select` — Select active character\n"
-        "💕 `/bond view` — Check bond with a character\n\n"
+        "💕 `/bond view` — Check bond with a character\n"
+        "📖 `/lore` — Explore world & character lore\n\n"
         "**Voice**\n"
         "🔊 `/voice play` — Play a sound in VC\n"
         "📋 `/voice list` — List available sounds\n\n"
@@ -309,6 +311,16 @@ def get_topic_text(topic: str) -> str | None:
             "Fill out the character's name, rarity, backstory, personality, and more. "
             "You'll be notified via DM when your recommendation is reviewed by the developers. "
             "You can edit your pending recommendation by running `/recommend` again."
+        )
+    if t == "lore":
+        return (
+            "📖 **Lore**\n"
+            "• `/lore` — Opens the World Lore page in your browser\n\n"
+            "Browse all worlds, regions, and characters with their full backstories, "
+            "personality traits, relationships, and more. The page is public — share it "
+            "with anyone!\n\n"
+            "You can also **suggest lore changes** directly on the page. "
+            "Suggestions are sent to the developers for review."
         )
     if t == "feedback":
         return (
