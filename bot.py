@@ -6,7 +6,7 @@ import time
 from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
-BOT_CODE_VERSION = "2026-03-09-v2"
+BOT_CODE_VERSION = "2026-03-09-v3"
 print(f"[boot] bot.py loading… (code version {BOT_CODE_VERSION})", flush=True)
 
 import discord
