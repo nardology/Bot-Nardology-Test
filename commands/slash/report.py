@@ -7,6 +7,7 @@ from discord import app_commands
 from discord.ext import commands
 
 from utils.storage import set_guild_setting, get_guild_setting
+from utils.redis_rate_limiter import check_daily_limit
 from utils.reporting import (
     send_report,
     send_global_report,
@@ -102,6 +103,13 @@ class SlashReport(commands.Cog):
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
             return
 
+        allowed, msg = await check_daily_limit(
+            key_prefix="report_global", user_id=int(interaction.user.id), max_per_day=3,
+        )
+        if not allowed:
+            await interaction.response.send_message(f"⚠️ {msg}", ephemeral=True)
+            return
+
         category_lower = category.strip().lower()
         if category_lower not in REPORT_CATEGORIES:
             await interaction.response.send_message(
@@ -118,21 +126,18 @@ class SlashReport(commands.Cog):
             )
             return
 
-        # Build report content
         content = (
             f"**Reported by:** {interaction.user} (`{interaction.user.id}`)\n"
             f"**Guild:** {interaction.guild.name} (`{interaction.guild.id}`)\n\n"
             f"**Description:**\n{description.strip()}"
         )
 
-        # Add evidence
         evidence = {}
         if interaction.channel:
             evidence["channel_id"] = int(interaction.channel.id)
         if interaction.guild:
             evidence["guild_id"] = int(interaction.guild.id)
 
-        # Send global report
         sent = await send_global_report(
             bot=self.bot,
             guild_id=int(interaction.guild.id),
@@ -174,6 +179,13 @@ class SlashReport(commands.Cog):
     ):
         if not interaction.guild:
             await interaction.response.send_message("Use this in a server.", ephemeral=True)
+            return
+
+        allowed, msg = await check_daily_limit(
+            key_prefix="report_content", user_id=int(interaction.user.id), max_per_day=5,
+        )
+        if not allowed:
+            await interaction.response.send_message(f"⚠️ {msg}", ephemeral=True)
             return
 
         category_lower = category.strip().lower()

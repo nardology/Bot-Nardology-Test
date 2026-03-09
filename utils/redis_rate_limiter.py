@@ -4,8 +4,30 @@ from __future__ import annotations
 import time
 import uuid
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 from utils.backpressure import get_redis_or_none
+
+
+async def check_daily_limit(*, key_prefix: str, user_id: int, max_per_day: int) -> tuple[bool, str]:
+    """Simple per-user daily counter. Returns (allowed, message).
+
+    Fail-closed: if Redis is down the action is blocked.
+    """
+    r = await get_redis_or_none()
+    if r is None:
+        return False, "This feature is temporarily unavailable (Redis offline)."
+    day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    key = f"{key_prefix}:rl:{user_id}:{day}"
+    try:
+        count = await r.incr(key)
+        if count == 1:
+            await r.expire(key, 90000)  # 25h TTL
+        if count > max_per_day:
+            return False, f"You've reached the daily limit of **{max_per_day}** for this action. Try again tomorrow."
+        return True, "ok"
+    except Exception:
+        return False, "Rate limit check failed. Please try again later."
 
 
 @dataclass

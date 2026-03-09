@@ -10,6 +10,7 @@ from discord.ext import commands
 
 import config
 from utils.owner import is_bot_owner
+from utils.redis_rate_limiter import check_daily_limit
 
 from utils.premium import get_premium_tier
 from utils.packs_store import (
@@ -124,6 +125,13 @@ async def _notify_owner_verification_request(
     import config
     from commands.slash.z_server import VerificationDecisionView
     from utils.verification import get_ticket
+
+    allowed, _ = await check_daily_limit(
+        key_prefix="verification_ticket", user_id=int(user_id), max_per_day=10,
+    )
+    if not allowed:
+        logger.warning("User %s hit verification ticket daily limit", user_id)
+        return
 
     gid = int(guild_id)
     uid = int(user_id)

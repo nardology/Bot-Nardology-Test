@@ -352,6 +352,16 @@ async def handle_submit(request):
     if user_id is None:
         return web.json_response({"error": "Invalid or expired token"}, status=403)
 
+    try:
+        from utils.redis_rate_limiter import check_daily_limit
+        allowed, msg = await check_daily_limit(
+            key_prefix="recommend_submit", user_id=user_id, max_per_day=5,
+        )
+        if not allowed:
+            return web.json_response({"error": msg}, status=429)
+    except Exception:
+        log.debug("Rate limit check failed for recommend, allowing", exc_info=True)
+
     display_name = (body.get("display_name") or "").strip()
     rarity = (body.get("rarity") or "").strip().lower()
 
