@@ -1059,76 +1059,78 @@ class ClaimDailyView(discord.ui.View):
 
     @discord.ui.button(label="Claim Daily", style=discord.ButtonStyle.primary, emoji="🎁")
     async def claim(self, interaction: discord.Interaction, button: discord.ui.Button):
-        # Claim the daily reward and update the original message.
-        res = await claim_daily(guild_id=self.guild_id, user_id=self.user_id)
-        bal = await get_balance(guild_id=self.guild_id, user_id=self.user_id)
+        await interaction.response.defer()
 
-        # Pack creator bonus (only when they actually claimed today; server packs grant no bonus)
-        pack_bonus = 0
-        if res.awarded > 0:
-            try:
-                pack_bonus, _breakdown = await get_pack_creator_daily_bonus(
-                    self.bot,
-                    self.user_id,
-                )
-                if pack_bonus > 0:
-                    await adjust_points(
-                        guild_id=0,
-                        user_id=self.user_id,
-                        delta=pack_bonus,
-                        reason="pack_creator_daily",
-                        meta={"source": "pack_creator_rewards"},
+        try:
+            res = await claim_daily(guild_id=self.guild_id, user_id=self.user_id)
+            bal = await get_balance(guild_id=self.guild_id, user_id=self.user_id)
+
+            pack_bonus = 0
+            if res.awarded > 0:
+                try:
+                    pack_bonus, _breakdown = await get_pack_creator_daily_bonus(
+                        self.bot,
+                        self.user_id,
                     )
-                    bal = await get_balance(guild_id=self.guild_id, user_id=self.user_id)
+                    if pack_bonus > 0:
+                        await adjust_points(
+                            guild_id=0,
+                            user_id=self.user_id,
+                            delta=pack_bonus,
+                            reason="pack_creator_daily",
+                            meta={"source": "pack_creator_rewards"},
+                        )
+                        bal = await get_balance(guild_id=self.guild_id, user_id=self.user_id)
+                except Exception:
+                    logger.exception("Pack creator daily bonus failed")
+
+            desc = f"You claimed **{res.awarded}** points! Streak: **{res.streak}** day(s)."
+            if getattr(res, "first_bonus_awarded", 0) > 0:
+                desc += f" (Including **{res.first_bonus_awarded}** first-time bonus!)"
+            if pack_bonus > 0:
+                desc += f" + **{pack_bonus}** pack creator bonus!"
+
+            e = discord.Embed(title="Daily Reward", description=desc)
+            e.add_field(name="Balance", value=f"{bal} points", inline=True)
+            e.add_field(name="Streak", value=str(res.streak), inline=True)
+
+            button.disabled = True
+            await interaction.edit_original_response(embed=e, view=self)
+
+            try:
+                kai_msg = get_kai_daily_claim_message(
+                    res.awarded, res.streak, getattr(res, "first_bonus_awarded", 0),
+                )
+                kai_embed = embed_kailove(kai_msg, title=get_kai_daily_claim_message_varied(res.streak))
+                await interaction.followup.send(embed=kai_embed, ephemeral=True)
             except Exception:
-                logger.exception("Pack creator daily bonus failed")
+                logger.exception("KAI daily followup failed")
 
-        # Build description (DailyResult has no .message)
-        desc = f"You claimed **{res.awarded}** points! Streak: **{res.streak}** day(s)."
-        if getattr(res, "first_bonus_awarded", 0) > 0:
-            desc += f" (Including **{res.first_bonus_awarded}** first-time bonus!)"
-        if pack_bonus > 0:
-            desc += f" + **{pack_bonus}** pack creator bonus!"
+            try:
+                asyncio.create_task(
+                    send_after_claim_dm(self.bot, self.user_id, res.streak),
+                )
+            except Exception:
+                logger.exception("After-claim DM schedule failed")
 
-        e = discord.Embed(title="Daily Reward", description=desc)
-        e.add_field(name="Balance", value=f"{bal} points", inline=True)
-        e.add_field(name="Streak", value=str(res.streak), inline=True)
-
-        # Disable the button after claim.
-        button.disabled = True
-        await interaction.response.edit_message(embed=e, view=self)
-
-        # KAI mascot: Kailove on daily claim
-        try:
-            kai_msg = get_kai_daily_claim_message(
-                res.awarded, res.streak, getattr(res, "first_bonus_awarded", 0),
-            )
-            kai_embed = embed_kailove(kai_msg, title=get_kai_daily_claim_message_varied(res.streak))
-            await interaction.followup.send(embed=kai_embed, ephemeral=True)
+            if getattr(res, "restore_available", False):
+                restore_view = StreakRestoreView(
+                    interaction.client,
+                    guild_id=self.guild_id,
+                    user_id=self.user_id,
+                    cost=getattr(res, "restore_cost", 500),
+                )
+                await interaction.followup.send(
+                    "Your streak can be restored for a cost (limited time):",
+                    ephemeral=True,
+                    view=restore_view,
+                )
         except Exception:
-            logger.exception("KAI daily followup failed")
-
-        # After-claim DM (reminder users only); best-effort, don't block
-        try:
-            asyncio.create_task(
-                send_after_claim_dm(self.bot, self.user_id, res.streak),
-            )
-        except Exception:
-            logger.exception("After-claim DM schedule failed")
-
-        # If a restore is available, offer it as a follow-up.
-        if getattr(res, "restore_available", False):
-            restore_view = StreakRestoreView(
-                interaction.client,
-                guild_id=self.guild_id,
-                user_id=self.user_id,
-                cost=getattr(res, "restore_cost", 500),
-            )
-            await interaction.followup.send(
-                "Your streak can be restored for a cost (limited time):",
-                ephemeral=True,
-                view=restore_view,
-            )
+            logger.exception("ClaimDailyView.claim failed")
+            try:
+                await interaction.followup.send("⚠️ Something went wrong claiming daily. Please try again.", ephemeral=True)
+            except Exception:
+                pass
 
 
 class SlashPoints(commands.Cog):
@@ -1142,29 +1144,39 @@ class SlashPoints(commands.Cog):
     @points.command(name="daily", description="Claim your daily points reward")
     async def points_daily(self, interaction: discord.Interaction):
         """Show daily status and let the user claim via a button."""
-        gid = int(interaction.guild_id or 0)
-        uid = int(interaction.user.id)
+        try:
+            gid = int(interaction.guild_id or 0)
+            uid = int(interaction.user.id)
 
-        claimed, next_in_s, streak = await get_claim_status(guild_id=gid, user_id=uid)
-        bal = await get_balance(guild_id=gid, user_id=uid)
+            claimed, next_in_s, streak = await get_claim_status(guild_id=gid, user_id=uid)
+            bal = await get_balance(guild_id=gid, user_id=uid)
 
-        if claimed:
-            desc = "✅ You already claimed your daily today."
-        else:
-            desc = "Press **Claim Daily** to collect your reward."
+            if claimed:
+                desc = "✅ You already claimed your daily today."
+            else:
+                desc = "Press **Claim Daily** to collect your reward."
 
-        e = discord.Embed(title="Daily Reward", description=desc)
-        e.add_field(name="Balance", value=f"{bal} points", inline=True)
-        e.add_field(name="Streak", value=str(streak), inline=True)
-        if claimed and next_in_s is not None:
-            e.add_field(name="Next claim", value=f"in {int(next_in_s)}s", inline=False)
+            e = discord.Embed(title="Daily Reward", description=desc)
+            e.add_field(name="Balance", value=f"{bal} points", inline=True)
+            e.add_field(name="Streak", value=str(streak), inline=True)
+            if claimed and next_in_s is not None:
+                e.add_field(name="Next claim", value=f"in {int(next_in_s)}s", inline=False)
 
-        view = None if claimed else ClaimDailyView(bot=self.bot, guild_id=gid, user_id=uid)
+            view = None if claimed else ClaimDailyView(bot=self.bot, guild_id=gid, user_id=uid)
 
-        if view is None:
-            await interaction.response.send_message(embed=e, ephemeral=True)
-        else:
-            await interaction.response.send_message(embed=e, ephemeral=True, view=view)
+            if view is None:
+                await interaction.response.send_message(embed=e, ephemeral=True)
+            else:
+                await interaction.response.send_message(embed=e, ephemeral=True, view=view)
+        except Exception:
+            logger.exception("/points daily failed")
+            try:
+                if interaction.response.is_done():
+                    await interaction.followup.send("⚠️ Something went wrong. Please try again.", ephemeral=True)
+                else:
+                    await interaction.response.send_message("⚠️ Something went wrong. Please try again.", ephemeral=True)
+            except Exception:
+                pass
 
     @points.command(name="balance", description="View your points balance and streak")
     async def points_balance(self, interaction: discord.Interaction):
