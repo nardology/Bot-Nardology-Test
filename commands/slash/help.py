@@ -35,6 +35,7 @@ TOPICS = [
     "penalty",
     "privacy",
     "legal",
+    "about",
 ]
 
 
@@ -91,7 +92,8 @@ def build_help_embed() -> discord.Embed:
         "🛠️ `/settings show` · `/settings character` · `/settings ai ...`\n"
         "⚠️ `/penalty view` / `reset` — User penalties\n\n"
         "**Privacy & Legal**\n"
-        "🔒 `/privacy export` / `delete` · 📜 `/legal`\n\n"
+        "🔒 `/privacy export` / `delete` · 📜 `/legal`\n"
+        "ℹ️ `/about` — Landing page, tech stack & contact\n\n"
         "ℹ️ `/help topic:<name>` for details — "
         "e.g. `voice`, `packs`, `premium`, `settings.ai`"
     )
@@ -266,6 +268,13 @@ def get_topic_text(topic: str) -> str | None:
             f"• [Terms of Service]({config.TERMS_OF_SERVICE_URL})\n"
             f"• [Privacy Policy]({config.PRIVACY_POLICY_URL})\n"
             f"• [Support Server]({config.SUPPORT_SERVER_URL})"
+        )
+    if t == "about":
+        return (
+            "ℹ️ **About**\n"
+            "• `/about` — Opens the Bot-Nardology landing page\n\n"
+            "View features, Pro pricing, technology stack, roadmap, growth metrics, "
+            "and contact information for investors or collaborators."
         )
     if t == "leaderboard":
         return (
