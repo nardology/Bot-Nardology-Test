@@ -362,9 +362,10 @@ async function init() {
     $('loadingMsg').style.display = 'none';
     $('recForm').style.display = 'block';
   } catch (err) {
+    console.error('Init error:', err, 'API:', API);
     $('loadingMsg').style.display = 'none';
     $('errorMsg').style.display = 'block';
-    $('errorMsg').textContent = 'Could not reach the server. Please try again later.';
+    $('errorMsg').textContent = 'Could not reach the API at: ' + API + '. Is BASE_URL set correctly in Railway?';
   }
 }
 
@@ -428,7 +429,8 @@ $('recForm').addEventListener('submit', async function(e) {
       btn.textContent = 'Submit Recommendation';
     }
   } catch (err) {
-    showToast('Network error. Please try again.', 'error');
+    console.error('Submit error:', err, 'API:', API);
+    showToast('Network error: could not reach ' + API + '. Check if BASE_URL is set correctly.', 'error');
     btn.disabled = false;
     btn.textContent = 'Submit Recommendation';
   }

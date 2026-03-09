@@ -733,7 +733,14 @@ async def start_webhook_server(bot) -> None:
 
     from aiohttp import web
 
-    app = web.Application()
+    middlewares = []
+    try:
+        from core.recommendations import make_cors_middleware
+        middlewares.append(make_cors_middleware())
+    except Exception:
+        log.exception("Failed to create CORS middleware (non-fatal)")
+
+    app = web.Application(middlewares=middlewares)
     app.router.add_get("/", _handle_health)
     app.router.add_get("/metrics", _handle_metrics)
 

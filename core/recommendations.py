@@ -21,10 +21,13 @@ log = logging.getLogger("recommendations")
 _bot = None
 _TOKEN_MAX_AGE_S = 30 * 24 * 3600  # 30 days
 
-_ALLOWED_ORIGINS: set[str] = set()
+_ALLOWED_ORIGINS: set[str] | None = None
 
 
-def _build_allowed_origins() -> set[str]:
+def _get_allowed_origins() -> set[str]:
+    global _ALLOWED_ORIGINS
+    if _ALLOWED_ORIGINS is not None:
+        return _ALLOWED_ORIGINS
     origins: set[str] = set()
     for url in (config.RECOMMEND_FORM_URL, config.RECOMMEND_REVIEW_URL, config.RECOMMEND_DASHBOARD_URL):
         if url:
@@ -32,36 +35,58 @@ def _build_allowed_origins() -> set[str]:
     if config.ENVIRONMENT == "dev":
         origins.add("http://localhost:5500")
         origins.add("http://127.0.0.1:5500")
+    _ALLOWED_ORIGINS = origins
+    log.info("CORS allowed origins: %s", origins)
     return origins
 
 
 # ---------------------------------------------------------------------------
-# CORS helpers
+# CORS middleware (applied to all /api/recommend responses automatically)
 # ---------------------------------------------------------------------------
 
-def _cors_origin(request) -> str | None:
-    origin = request.headers.get("Origin", "")
-    if not _ALLOWED_ORIGINS:
-        _ALLOWED_ORIGINS.update(_build_allowed_origins())
-    if origin.rstrip("/") in _ALLOWED_ORIGINS:
+def _match_origin(request) -> str | None:
+    origin = (request.headers.get("Origin") or "").rstrip("/")
+    if not origin:
+        return None
+    allowed = _get_allowed_origins()
+    if origin in allowed:
         return origin
     return None
 
 
-def _add_cors(response, request):
-    origin = _cors_origin(request)
-    if origin:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    return response
+def _set_cors_headers(response, origin: str) -> None:
+    response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Max-Age"] = "86400"
 
 
-async def handle_options(request):
-    """Handle CORS preflight requests for any /api/ route."""
+def make_cors_middleware():
+    """Return aiohttp middleware that adds CORS headers to every /api/ response."""
     from aiohttp import web
-    resp = web.Response(status=204)
-    return _add_cors(resp, request)
+
+    @web.middleware
+    async def cors_middleware(request, handler):
+        origin = _match_origin(request)
+
+        if request.method == "OPTIONS" and origin and request.path.startswith("/api/"):
+            resp = web.Response(status=204)
+            _set_cors_headers(resp, origin)
+            return resp
+
+        try:
+            resp = await handler(request)
+        except web.HTTPException as exc:
+            resp = exc
+        except Exception:
+            log.exception("Unhandled error in %s %s", request.method, request.path)
+            resp = web.json_response({"error": "Internal server error"}, status=500)
+
+        if origin and request.path.startswith("/api/"):
+            _set_cors_headers(resp, origin)
+        return resp
+
+    return cors_middleware
 
 
 # ---------------------------------------------------------------------------
@@ -284,14 +309,12 @@ async def handle_form_data(request):
     token = request.query.get("token", "")
     user_id = verify_token(token, "submit")
     if user_id is None:
-        resp = web.json_response({"error": "Invalid or expired token"}, status=403)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid or expired token"}, status=403)
 
     existing = await get_pending_recommendation(user_id)
     existing_data = _rec_to_dict(existing) if existing else None
 
-    resp = web.json_response({"ok": True, "user_id": user_id, "existing": existing_data})
-    return _add_cors(resp, request)
+    return web.json_response({"ok": True, "user_id": user_id, "existing": existing_data})
 
 
 async def handle_submit(request):
@@ -301,24 +324,20 @@ async def handle_submit(request):
     try:
         body = await request.json()
     except Exception:
-        resp = web.json_response({"error": "Invalid JSON"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid JSON"}, status=400)
 
     token = body.get("token", "")
     user_id = verify_token(token, "submit")
     if user_id is None:
-        resp = web.json_response({"error": "Invalid or expired token"}, status=403)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid or expired token"}, status=403)
 
     display_name = (body.get("display_name") or "").strip()
     rarity = (body.get("rarity") or "").strip().lower()
 
     if not display_name:
-        resp = web.json_response({"error": "Character name is required"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Character name is required"}, status=400)
     if rarity not in ("common", "uncommon", "rare", "legendary", "mythic"):
-        resp = web.json_response({"error": "Invalid rarity"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid rarity"}, status=400)
 
     fields: dict[str, Any] = {
         "display_name": display_name,
@@ -353,8 +372,7 @@ async def handle_submit(request):
         rec_id = await save_recommendation(user_id, fields)
     except Exception:
         log.exception("Failed to save recommendation for user=%s", user_id)
-        resp = web.json_response({"error": "Database error"}, status=500)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Database error"}, status=500)
 
     try:
         await _dm_owners_recommendation(rec_id, display_name, rarity, user_id)
@@ -366,8 +384,7 @@ async def handle_submit(request):
     except Exception:
         log.debug("Could not DM user %s about submission", user_id)
 
-    resp = web.json_response({"ok": True, "id": rec_id})
-    return _add_cors(resp, request)
+    return web.json_response({"ok": True, "id": rec_id})
 
 
 async def handle_review_data(request):
@@ -377,20 +394,17 @@ async def handle_review_data(request):
     token = request.query.get("token", "")
     owner_id = verify_token(token, "review")
     if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
-        resp = web.json_response({"error": "Invalid or expired token"}, status=403)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid or expired token"}, status=403)
 
     rec_id_str = request.query.get("id", "")
     try:
         rec_id = int(rec_id_str)
     except (ValueError, TypeError):
-        resp = web.json_response({"error": "Missing recommendation ID"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Missing recommendation ID"}, status=400)
 
     rec = await get_recommendation_by_id(rec_id)
     if rec is None:
-        resp = web.json_response({"error": "Recommendation not found"}, status=404)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Recommendation not found"}, status=404)
 
     if rec.status == "pending":
         await update_recommendation_status(rec_id, "viewed")
@@ -403,8 +417,7 @@ async def handle_review_data(request):
     if rec_data.get("status") == "pending":
         rec_data["status"] = "viewed"
 
-    resp = web.json_response({"ok": True, "rec": rec_data})
-    return _add_cors(resp, request)
+    return web.json_response({"ok": True, "rec": rec_data})
 
 
 async def handle_decide(request):
@@ -414,35 +427,29 @@ async def handle_decide(request):
     try:
         body = await request.json()
     except Exception:
-        resp = web.json_response({"error": "Invalid JSON"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid JSON"}, status=400)
 
     token = body.get("token", "")
     owner_id = verify_token(token, "review")
     if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
-        resp = web.json_response({"error": "Invalid or expired token"}, status=403)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid or expired token"}, status=403)
 
     rec_id = int(body.get("id", 0))
     decision = body.get("decision", "").strip().lower()
     notes = (body.get("notes") or "").strip()
 
     if decision not in ("accepted", "denied"):
-        resp = web.json_response({"error": "Decision must be 'accepted' or 'denied'"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Decision must be 'accepted' or 'denied'"}, status=400)
     if not rec_id:
-        resp = web.json_response({"error": "Missing recommendation ID"}, status=400)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Missing recommendation ID"}, status=400)
 
     rec = await get_recommendation_by_id(rec_id)
     if rec is None:
-        resp = web.json_response({"error": "Recommendation not found"}, status=404)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Recommendation not found"}, status=404)
 
     ok = await update_recommendation_status(rec_id, decision, notes or None)
     if not ok:
-        resp = web.json_response({"error": "Failed to update"}, status=500)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Failed to update"}, status=500)
 
     if decision == "accepted":
         msg = f"Great news! Your character recommendation **{rec.display_name}** has been **accepted**!"
@@ -458,8 +465,7 @@ async def handle_decide(request):
     except Exception:
         pass
 
-    resp = web.json_response({"ok": True})
-    return _add_cors(resp, request)
+    return web.json_response({"ok": True})
 
 
 async def handle_list(request):
@@ -469,26 +475,18 @@ async def handle_list(request):
     token = request.query.get("token", "")
     owner_id = verify_token(token, "review")
     if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
-        resp = web.json_response({"error": "Invalid or expired token"}, status=403)
-        return _add_cors(resp, request)
+        return web.json_response({"error": "Invalid or expired token"}, status=403)
 
     status_filter = request.query.get("status", "all")
     recs = await list_recommendations(status_filter)
 
-    resp = web.json_response({"ok": True, "recs": recs})
-    return _add_cors(resp, request)
+    return web.json_response({"ok": True, "recs": recs})
 
 
 def register_routes(app, bot) -> None:
     """Register all recommendation API routes on the aiohttp app."""
     global _bot
     _bot = bot
-
-    app.router.add_options("/api/recommend", handle_options)
-    app.router.add_options("/api/recommend/form-data", handle_options)
-    app.router.add_options("/api/recommend/review-data", handle_options)
-    app.router.add_options("/api/recommend/decide", handle_options)
-    app.router.add_options("/api/recommend/list", handle_options)
 
     app.router.add_get("/api/recommend/form-data", handle_form_data)
     app.router.add_post("/api/recommend", handle_submit)
