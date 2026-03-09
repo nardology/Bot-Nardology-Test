@@ -734,7 +734,7 @@ async def start_webhook_server(bot) -> None:
     from aiohttp import web
 
     app = web.Application()
-    app.router.add_get("/", _handle_health)
+    app.router.add_get("/health", _handle_health)
     app.router.add_get("/metrics", _handle_metrics)
 
     if config.STRIPE_SECRET_KEY:
@@ -755,6 +755,13 @@ async def start_webhook_server(bot) -> None:
         _register_lore_routes(app, bot)
     except Exception:
         log.exception("Failed to register lore page routes (non-fatal)")
+
+    # Landing page (serves GET /)
+    try:
+        from core.landing_page import register_routes as _register_landing_routes
+        _register_landing_routes(app)
+    except Exception:
+        log.exception("Failed to register landing page route (non-fatal)")
 
     port = int(os.getenv("PORT", "8080"))
     runner = web.AppRunner(app)

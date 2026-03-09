@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Bot-Nardology — AI-Powered Roleplay, Characters &amp; Community</title>
+<meta name="description" content="Bot-Nardology is a Discord bot featuring AI-driven character roleplay, collectible characters, rich world lore, and a thriving community economy.">
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --accent: #e94560;
+    --accent2: #9b59b6;
+    --accent-hover: #c73a52;
+    --gold: #f1c40f;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --border: #30363d;
+    --radius: 10px;
+    --success: #2ecc71;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.7;
+  }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+
+  /* ---- Navigation ---- */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(13,17,23,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .nav-inner {
+    max-width: 1100px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 56px;
+  }
+  .nav-brand { font-weight: 700; font-size: 1.1rem; color: var(--text); }
+  .nav-brand span { color: var(--accent); }
+  .nav-links { display: flex; gap: 24px; list-style: none; }
+  .nav-links a { color: var(--text-muted); font-size: 0.9rem; font-weight: 500; }
+  .nav-links a:hover { color: var(--text); text-decoration: none; }
+
+  /* ---- Hero ---- */
+  .hero {
+    padding: 140px 24px 80px;
+    text-align: center;
+    background: linear-gradient(135deg, #0d1117 0%, #1a1a2e 40%, #16213e 80%, #0d1117 100%);
+    border-bottom: 1px solid var(--border);
+    position: relative; overflow: hidden;
+  }
+  .hero::before {
+    content: ''; position: absolute; top: -50%; left: -50%;
+    width: 200%; height: 200%;
+    background: radial-gradient(circle at 60% 40%, rgba(233,69,96,0.06) 0%, transparent 50%),
+                radial-gradient(circle at 30% 70%, rgba(155,89,182,0.05) 0%, transparent 50%);
+    animation: drift 20s ease-in-out infinite;
+  }
+  @keyframes drift {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-3%, 2%); }
+  }
+  .hero-content { position: relative; z-index: 1; }
+  .hero h1 { font-size: 3rem; font-weight: 800; margin-bottom: 12px; letter-spacing: -0.5px; }
+  .hero h1 span { color: var(--accent); }
+  .hero .tagline { font-size: 1.2rem; color: var(--text-muted); max-width: 600px; margin: 0 auto 12px; }
+  .hero .sub { font-size: 0.95rem; color: var(--text-muted); margin-bottom: 32px; }
+  .hero .sub em { color: var(--accent2); font-style: normal; font-weight: 600; }
+  .cta-row { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+  .btn {
+    display: inline-block; padding: 14px 32px; border-radius: var(--radius);
+    font-weight: 600; font-size: 1rem; text-decoration: none; transition: all 0.2s;
+    border: none; cursor: pointer;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); text-decoration: none; }
+  .btn-outline { background: transparent; color: var(--text); border: 1px solid var(--border); }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); text-decoration: none; }
+
+  /* ---- Sections ---- */
+  .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+  .section { padding: 80px 0; }
+  .section-alt { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+  .section-title { font-size: 1.8rem; font-weight: 700; text-align: center; margin-bottom: 12px; }
+  .section-title span { color: var(--accent); }
+  .section-subtitle { text-align: center; color: var(--text-muted); max-width: 600px; margin: 0 auto 48px; }
+
+  /* ---- Feature Grid ---- */
+  .features-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    transition: border-color 0.2s, transform 0.15s;
+  }
+  .section-alt .feature-card { background: var(--surface2); }
+  .feature-card:hover { border-color: var(--accent); transform: translateY(-2px); }
+  .feature-icon { font-size: 1.8rem; margin-bottom: 12px; }
+  .feature-card h3 { font-size: 1.1rem; margin-bottom: 8px; }
+  .feature-card p { color: var(--text-muted); font-size: 0.92rem; }
+
+  /* ---- World Teaser ---- */
+  .world-teaser {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 36px;
+    max-width: 800px; margin: 0 auto;
+    text-align: center;
+  }
+  .world-teaser h3 { font-size: 1.3rem; color: var(--accent2); margin-bottom: 12px; }
+  .world-teaser p { color: var(--text-muted); margin-bottom: 20px; font-size: 0.95rem; line-height: 1.8; }
+
+  /* ---- Pricing ---- */
+  .pricing-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; max-width: 740px; margin: 0 auto; }
+  .price-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 32px;
+    text-align: center;
+    position: relative;
+  }
+  .price-card.featured { border-color: var(--accent); }
+  .price-card.featured::before {
+    content: 'MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+    background: var(--accent); color: #fff; font-size: 0.7rem; font-weight: 700;
+    padding: 3px 14px; border-radius: 20px; letter-spacing: 1px;
+  }
+  .price-card .tier { font-size: 1.1rem; font-weight: 700; margin-bottom: 8px; }
+  .price-card .price { font-size: 2.2rem; font-weight: 800; margin-bottom: 4px; }
+  .price-card .price span { font-size: 0.9rem; font-weight: 400; color: var(--text-muted); }
+  .price-card .price-desc { color: var(--text-muted); font-size: 0.85rem; margin-bottom: 20px; }
+  .perk-list { list-style: none; text-align: left; margin-bottom: 24px; }
+  .perk-list li { padding: 6px 0; font-size: 0.9rem; color: var(--text-muted); padding-left: 22px; position: relative; }
+  .perk-list li::before { content: "✓"; position: absolute; left: 0; color: var(--success); font-weight: 700; }
+
+  /* ---- Points Bundles ---- */
+  .bundles { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 32px; }
+  .bundle-tag {
+    background: var(--surface2); border: 1px solid var(--border); border-radius: 20px;
+    padding: 6px 16px; font-size: 0.85rem; color: var(--text-muted);
+  }
+  .bundle-tag strong { color: var(--gold); }
+
+  /* ---- Tech Stack ---- */
+  .tech-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 16px; }
+  .tech-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .tech-card h4 { font-size: 0.95rem; margin-bottom: 6px; color: var(--accent2); }
+  .tech-card p { font-size: 0.85rem; color: var(--text-muted); }
+
+  /* ---- Roadmap ---- */
+  .roadmap-list { max-width: 700px; margin: 0 auto; }
+  .roadmap-item {
+    display: flex; gap: 20px; align-items: flex-start;
+    padding: 20px 0; border-bottom: 1px solid var(--border);
+  }
+  .roadmap-item:last-child { border-bottom: none; }
+  .roadmap-phase {
+    flex-shrink: 0; width: 80px; text-align: center;
+    font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;
+    padding: 4px 0; border-radius: 4px;
+  }
+  .phase-now { color: var(--success); border: 1px solid var(--success); }
+  .phase-next { color: var(--gold); border: 1px solid var(--gold); }
+  .phase-future { color: var(--accent2); border: 1px solid var(--accent2); }
+  .roadmap-item h4 { font-size: 1rem; margin-bottom: 4px; }
+  .roadmap-item p { font-size: 0.88rem; color: var(--text-muted); }
+
+  /* ---- Metrics ---- */
+  .metrics-row { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; }
+  .metric {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 28px 36px; text-align: center; min-width: 180px;
+  }
+  .metric-val { font-size: 2rem; font-weight: 800; color: var(--accent); }
+  .metric-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+
+  /* ---- Contact ---- */
+  .contact-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 24px; max-width: 700px; margin: 0 auto; }
+  .contact-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 24px; text-align: center;
+  }
+  .contact-card h4 { margin-bottom: 8px; font-size: 1rem; }
+  .contact-card p { color: var(--text-muted); font-size: 0.9rem; }
+  .contact-card a { font-weight: 600; }
+
+  /* ---- Footer ---- */
+  .footer {
+    border-top: 1px solid var(--border);
+    padding: 32px 24px;
+    text-align: center; color: var(--text-muted); font-size: 0.85rem;
+  }
+  .footer-links { display: flex; gap: 20px; justify-content: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .footer-links a { color: var(--text-muted); font-size: 0.85rem; }
+  .footer-links a:hover { color: var(--text); }
+
+  @media (max-width: 640px) {
+    .hero h1 { font-size: 2rem; }
+    .hero .tagline { font-size: 1rem; }
+    .nav-links { display: none; }
+    .features-grid { grid-template-columns: 1fr; }
+    .pricing-grid { grid-template-columns: 1fr; }
+    .tech-grid { grid-template-columns: 1fr 1fr; }
+    .metric { min-width: 140px; padding: 20px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav class="nav">
+  <div class="nav-inner">
+    <div class="nav-brand"><span>Bot</span>-Nardology</div>
+    <ul class="nav-links">
+      <li><a href="#features">Features</a></li>
+      <li><a href="#world">World</a></li>
+      <li><a href="#pricing">Pricing</a></li>
+      <li><a href="#tech">Technology</a></li>
+      <li><a href="#roadmap">Roadmap</a></li>
+      <li><a href="#contact">Contact</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="hero-content">
+    <h1><span>Bot</span>-Nardology</h1>
+    <p class="tagline">AI-Powered Roleplay, Characters &amp; Community</p>
+    <p class="sub">Meet <em>KAI</em>, your guide to a living world of AI characters, collectible heroes, rich lore, and a player-driven economy &mdash; all inside Discord.</p>
+    <div class="cta-row">
+      <a href="https://discord.gg/F4TNTDvHP9" class="btn btn-primary" target="_blank" rel="noopener">Join the Community</a>
+      <a href="/lore" class="btn btn-outline">Explore the Lore</a>
+    </div>
+  </div>
+</section>
+
+<!-- Features -->
+<section id="features" class="section">
+  <div class="container">
+    <h2 class="section-title">What <span>Bot-Nardology</span> Does</h2>
+    <p class="section-subtitle">A full-featured Discord experience combining AI storytelling, character collecting, and community interaction.</p>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F3AD;</div>
+        <h3>AI Roleplay</h3>
+        <p>Talk to dozens of unique characters, each with distinct personalities, backstories, and memories that evolve with every conversation.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F3B2;</div>
+        <h3>Character Collection</h3>
+        <p>Roll for characters of varying rarities &mdash; Common to Mythic. Build your collection, level bonds, and unlock hidden interactions.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F4D6;</div>
+        <h3>Rich World Lore</h3>
+        <p>An interconnected world called The Convergence, with medieval kingdoms, modern cities, shattered seas, and an encroaching Void.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F4E6;</div>
+        <h3>Custom Character Packs</h3>
+        <p>Create, publish, and share your own character packs. Build a marketplace of community-created content for any server.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F50A;</div>
+        <h3>Voice Sounds</h3>
+        <p>Play sound effects in voice channels and upload your own custom sounds with Pro. Perfect for tabletop sessions and hangouts.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1FA99;</div>
+        <h3>Points Economy</h3>
+        <p>Daily rewards, streaks, a cosmetics shop, quests, and a full economy system that keeps players engaged day after day.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F3C6;</div>
+        <h3>Leaderboards</h3>
+        <p>Compete across servers with global leaderboards tracking points, streaks, collections, and more.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon">&#x1F6E1;</div>
+        <h3>Moderation &amp; Safety</h3>
+        <p>Built-in reporting, content verification, penalty tracking, and admin tools to keep communities safe and welcoming.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- World Teaser -->
+<section id="world" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">The <span>Convergence</span></h2>
+    <p class="section-subtitle">A merged reality where medieval kingdoms, modern cities, feudal empires, and shattered oceans collide.</p>
+    <div class="world-teaser">
+      <h3>A World Unlike Any Other</h3>
+      <p>
+        Roughly 35 years ago, a catastrophic magical accident called the Shimmer Scar shattered the Veil between dimensions.
+        Multiple worlds fused together &mdash; creating wild magic zones, impossible geography, and a sentient darkness
+        called the Void that lurks at the edges and grows closer every day.
+        <br><br>
+        Queen Isolde rules the Old Realm from Highcross. Nexus Labs in the Modern Quarter studies where technology meets magic.
+        Road-walkers roam the Eastern Reaches. Pirates rule the Shattered Seas beyond the Pale Markers.
+        And Vyraxthion the Dragon watches from the Ember Peaks, remembering a world before civilizations.
+      </p>
+      <a href="/lore" class="btn btn-outline" style="margin-top: 8px;">Explore Full Lore &amp; Characters</a>
+    </div>
+  </div>
+</section>
+
+<!-- Pricing -->
+<section id="pricing" class="section">
+  <div class="container">
+    <h2 class="section-title"><span>Pro</span> Subscription</h2>
+    <p class="section-subtitle">Free to use, with an optional Pro tier that unlocks the full experience.</p>
+    <div class="pricing-grid">
+      <div class="price-card">
+        <div class="tier">Free</div>
+        <div class="price">$0 <span>/ month</span></div>
+        <div class="price-desc">Everything you need to get started</div>
+        <ul class="perk-list">
+          <li>Daily character rolls</li>
+          <li>Talk to AI characters</li>
+          <li>Points economy &amp; streaks</li>
+          <li>Leaderboard access</li>
+          <li>World lore exploration</li>
+          <li>Community reporting tools</li>
+        </ul>
+      </div>
+      <div class="price-card featured">
+        <div class="tier">Pro</div>
+        <div class="price">$4.99 <span>/ month</span></div>
+        <div class="price-desc">The complete Bot-Nardology experience</div>
+        <ul class="perk-list">
+          <li>3&times; character rolls per window</li>
+          <li>AI conversation memory</li>
+          <li>Longer AI responses</li>
+          <li>Public /talk replies</li>
+          <li>Create custom character packs</li>
+          <li>Upload custom voice sounds</li>
+          <li>Streak DM reminders</li>
+          <li>Exclusive cosmetics</li>
+          <li>Higher rate limits</li>
+          <li>20 inventory slots (vs 10)</li>
+        </ul>
+      </div>
+    </div>
+    <div class="bundles">
+      <div class="bundle-tag"><strong>500</strong>&nbsp;pts &mdash; $4.99</div>
+      <div class="bundle-tag"><strong>1,000</strong>&nbsp;pts &mdash; $8.99</div>
+      <div class="bundle-tag"><strong>2,500</strong>&nbsp;pts &mdash; $21.99</div>
+      <div class="bundle-tag"><strong>5,000</strong>&nbsp;pts &mdash; $43.50</div>
+      <div class="bundle-tag"><strong>10,000</strong>&nbsp;pts &mdash; $84.99</div>
+    </div>
+  </div>
+</section>
+
+<!-- Technology -->
+<section id="tech" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Technology &amp; <span>Architecture</span></h2>
+    <p class="section-subtitle">Built on a modern, scalable stack designed for reliability and rapid iteration.</p>
+    <div class="tech-grid">
+      <div class="tech-card">
+        <h4>Discord Bot</h4>
+        <p>discord.py with a full slash-command architecture, cog-based modularity, and automatic shard management.</p>
+      </div>
+      <div class="tech-card">
+        <h4>AI Backend</h4>
+        <p>OpenAI GPT models with per-guild cost caps, tiered rate limiting, and an emergency kill switch.</p>
+      </div>
+      <div class="tech-card">
+        <h4>Database</h4>
+        <p>PostgreSQL for durable data (users, characters, analytics) plus Redis for ephemeral caching and rate limits.</p>
+      </div>
+      <div class="tech-card">
+        <h4>Payments</h4>
+        <p>Stripe integration handling subscriptions, one-time point purchases, gifting, and automated chargeback protection.</p>
+      </div>
+      <div class="tech-card">
+        <h4>Hosting</h4>
+        <p>Railway with Docker for zero-downtime deploys, auto-scaling, and integrated logging.</p>
+      </div>
+      <div class="tech-card">
+        <h4>Web Server</h4>
+        <p>aiohttp serving HTML pages, webhooks, health checks, and API endpoints directly from the bot process.</p>
+      </div>
+      <div class="tech-card">
+        <h4>Analytics</h4>
+        <p>Real-time command tracking, DAU/MAU stickiness, streak distribution, churn detection, and weekly owner reports.</p>
+      </div>
+      <div class="tech-card">
+        <h4>Content System</h4>
+        <p>Modular character packs with a marketplace, verification pipeline, and community upvoting.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Roadmap -->
+<section id="roadmap" class="section">
+  <div class="container">
+    <h2 class="section-title">Vision &amp; <span>Roadmap</span></h2>
+    <p class="section-subtitle">
+      Bot-Nardology is building toward a fully player-driven AI roleplay ecosystem
+      where communities create, share, and experience stories together.
+    </p>
+    <div class="roadmap-list">
+      <div class="roadmap-item">
+        <div class="roadmap-phase phase-now">Live</div>
+        <div>
+          <h4>Core Platform</h4>
+          <p>AI character conversations, collectible rolls, world lore, points economy, custom packs, leaderboards, Pro subscriptions, voice sounds, and analytics.</p>
+        </div>
+      </div>
+      <div class="roadmap-item">
+        <div class="roadmap-phase phase-next">Next</div>
+        <div>
+          <h4>Expanded World Events</h4>
+          <p>Scheduled in-world events where characters react to global story developments, unlocking limited-time interactions and rewards.</p>
+        </div>
+      </div>
+      <div class="roadmap-item">
+        <div class="roadmap-phase phase-next">Next</div>
+        <div>
+          <h4>Creator Marketplace</h4>
+          <p>Enable pack creators to earn revenue from their character packs, building a sustainable creator economy within the platform.</p>
+        </div>
+      </div>
+      <div class="roadmap-item">
+        <div class="roadmap-phase phase-future">Future</div>
+        <div>
+          <h4>Mobile Companion App</h4>
+          <p>A dedicated mobile experience for managing characters, reading lore, and continuing conversations outside Discord.</p>
+        </div>
+      </div>
+      <div class="roadmap-item">
+        <div class="roadmap-phase phase-future">Future</div>
+        <div>
+          <h4>API for Third-Party Integrations</h4>
+          <p>Open APIs allowing developers to build tools, dashboards, and experiences on top of the Bot-Nardology character ecosystem.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Metrics -->
+<section id="metrics" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Growth <span>Metrics</span></h2>
+    <p class="section-subtitle">Key platform numbers. Updated periodically.</p>
+    <div class="metrics-row">
+      <div class="metric">
+        <div class="metric-val">--</div>
+        <div class="metric-label">Servers</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">--</div>
+        <div class="metric-label">Users</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">50+</div>
+        <div class="metric-label">Official Characters</div>
+      </div>
+      <div class="metric">
+        <div class="metric-val">10+</div>
+        <div class="metric-label">Worlds &amp; Regions</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Contact -->
+<section id="contact" class="section">
+  <div class="container">
+    <h2 class="section-title">Get in <span>Touch</span></h2>
+    <p class="section-subtitle">Interested in investing, collaborating, or contributing? We'd love to hear from you.</p>
+    <div class="contact-grid">
+      <div class="contact-card">
+        <h4>Nardology Enterprises</h4>
+        <p>310 Woodspring Lane<br>Greenville, NC 27834</p>
+      </div>
+      <div class="contact-card">
+        <h4>Email</h4>
+        <p><a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a></p>
+      </div>
+      <div class="contact-card">
+        <h4>Discord Community</h4>
+        <p><a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener">Join Support Server</a></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<footer class="footer">
+  <div class="footer-links">
+    <a href="https://neon-cranachan-dfa64a.netlify.app/" target="_blank" rel="noopener">Terms of Service</a>
+    <a href="https://sage-malabi-770900.netlify.app/" target="_blank" rel="noopener">Privacy Policy</a>
+    <a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener">Support Server</a>
+    <a href="/lore">World Lore</a>
+  </div>
+  <p>&copy; 2026 Nardology Enterprises. All rights reserved.</p>
+</footer>
+
+</body>
+</html>
