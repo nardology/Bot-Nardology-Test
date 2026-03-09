@@ -12,7 +12,6 @@ TOPICS = [
     "add",
     "talk",
     "character",
-    "scene",
     "voice",
     "bond",
     "limits",
@@ -66,7 +65,6 @@ def get_help_text(topic: str | None = None) -> str:
             "➕ `/add` — Add two numbers\n\n"
             "**Roleplay / AI**\n"
             "🎭 `/talk` — Talk to a character\n"
-            "🎬 `/scene start` — Start a turn-based RP scene with another user\n"
             "🎲 `/character roll` — Roll for a new character\n"
             "📜 `/character collection` — View your characters\n"
             "✅ `/character select` — Select your active character\n"
@@ -103,7 +101,7 @@ def get_help_text(topic: str | None = None) -> str:
             "🗑️ `/privacy delete` — Delete your account\n"
             "📜 `/legal` — Terms of Service & Privacy Policy\n\n"
             "ℹ️ Use `/help topic:<name>` for details on any section — "
-            "e.g. `scene`, `voice`, `packs`, `premium`, `settings.ai`\n\n"
+            "e.g. `voice`, `packs`, `premium`, `settings.ai`\n\n"
             f"📜 [Terms of Service]({config.TERMS_OF_SERVICE_URL}) · "
             f"[Privacy Policy]({config.PRIVACY_POLICY_URL}) · "
             f"[Support Server]({config.SUPPORT_SERVER_URL})"
@@ -136,18 +134,7 @@ def get_help_text(topic: str | None = None) -> str:
             "• Optional: `character:<id>` lets you pick one you own (otherwise uses server default)\n"
             "• Pro users get conversation memory across messages"
         )
-    if t in {"scene", "scenes"}:
-        return (
-            "🎬 **Scenes** — Turn-based roleplay with another user\n"
-            "• `/scene start` — Start a scene with another user\n"
-            "• `/scene say` — Take your turn (AI generates your character's response)\n"
-            "• `/scene narrate` — Add narration (no AI, doesn't change turn)\n"
-            "• `/scene view` — View recent lines of a scene\n"
-            "• `/scene summary` — Get a short summary so far\n"
-            "• `/scene list` — List active scenes in this channel\n"
-            "• `/scene end` — End a scene\n"
-            "• `/scene forget` — Delete scene memory"
-        )
+
     if t in {"voice", "sounds"}:
         return (
             "🔊 **Voice**\n"
