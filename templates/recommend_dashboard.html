@@ -21,96 +21,36 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
-    padding: 20px;
+    background: var(--bg); color: var(--text); line-height: 1.6; padding: 20px;
   }
   .container { max-width: 900px; margin: 0 auto; }
   h1 { text-align: center; margin-bottom: 8px; color: var(--accent); font-size: 1.8rem; }
   .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 24px; font-size: 0.9rem; }
-
-  .filters {
-    display: flex;
-    justify-content: center;
-    gap: 8px;
-    margin-bottom: 24px;
-    flex-wrap: wrap;
-  }
-  .filter-btn {
-    padding: 8px 20px;
-    border: 1px solid var(--border);
-    border-radius: 20px;
-    background: var(--surface);
-    color: var(--text);
-    cursor: pointer;
-    font-size: 0.9rem;
-    text-decoration: none;
-    transition: all 0.2s;
-  }
+  .filters { display: flex; justify-content: center; gap: 8px; margin-bottom: 24px; flex-wrap: wrap; }
+  .filter-btn { padding: 8px 20px; border: 1px solid var(--border); border-radius: 20px; background: var(--surface); color: var(--text); cursor: pointer; font-size: 0.9rem; transition: all 0.2s; }
   .filter-btn:hover { background: var(--surface2); }
   .filter-btn.active { background: var(--accent); border-color: var(--accent); font-weight: 700; }
-
-  .table-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow-x: auto;
-  }
-  table {
-    width: 100%;
-    border-collapse: collapse;
-  }
-  th {
-    background: var(--surface2);
-    padding: 12px 16px;
-    text-align: left;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    color: var(--text-muted);
-  }
-  td {
-    padding: 12px 16px;
-    border-top: 1px solid var(--border);
-    font-size: 0.95rem;
-    vertical-align: middle;
-  }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th { background: var(--surface2); padding: 12px 16px; text-align: left; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); }
+  td { padding: 12px 16px; border-top: 1px solid var(--border); font-size: 0.95rem; vertical-align: middle; }
   tr:hover td { background: rgba(255,255,255,0.03); }
-
-  .status-badge {
-    display: inline-block;
-    padding: 3px 10px;
-    border-radius: 10px;
-    font-size: 0.75rem;
-    font-weight: 700;
-    text-transform: uppercase;
-  }
+  .status-badge { display: inline-block; padding: 3px 10px; border-radius: 10px; font-size: 0.75rem; font-weight: 700; text-transform: uppercase; }
   .status-pending { background: var(--warning); color: #000; }
   .status-viewed { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
   .status-accepted { background: var(--success); color: #fff; }
   .status-denied { background: var(--error); color: #fff; }
-
   .rarity-common { color: #aaa; }
   .rarity-uncommon { color: #2ecc71; }
   .rarity-rare { color: #3498db; }
   .rarity-legendary { color: #f1c40f; }
   .rarity-mythic { color: #e94560; }
-
-  .review-link {
-    color: var(--accent);
-    text-decoration: none;
-    font-weight: 600;
-  }
+  .review-link { color: var(--accent); text-decoration: none; font-weight: 600; }
   .review-link:hover { text-decoration: underline; }
-
-  .empty-msg {
-    text-align: center;
-    padding: 48px 24px;
-    color: var(--text-muted);
-    font-size: 1rem;
-  }
+  .empty-msg { text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 1rem; }
   .count { text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.85rem; }
+  .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 1.1rem; }
+  .error-msg { text-align: center; padding: 60px 20px; color: var(--error); font-size: 1.1rem; }
 </style>
 </head>
 <body>
@@ -118,66 +58,56 @@
   <h1>Recommendation Dashboard</h1>
   <p class="subtitle">Review and manage character recommendations from users.</p>
 
-  <div class="filters" id="filters"></div>
-  <div class="count" id="countInfo"></div>
+  <div class="loading" id="loadingMsg">Loading recommendations...</div>
+  <div class="error-msg" id="errorMsg" style="display:none;"></div>
 
-  <div class="table-wrap">
-    <table>
-      <thead>
-        <tr>
-          <th>ID</th>
-          <th>Character</th>
-          <th>Rarity</th>
-          <th>User ID</th>
-          <th>Status</th>
-          <th>Date</th>
-          <th>Action</th>
-        </tr>
-      </thead>
-      <tbody id="tbody"></tbody>
-    </table>
-    <div class="empty-msg" id="emptyMsg" style="display:none;">No recommendations found.</div>
+  <div id="content" style="display:none;">
+    <div class="filters" id="filters"></div>
+    <div class="count" id="countInfo"></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Character</th><th>Rarity</th><th>User ID</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="empty-msg" id="emptyMsg" style="display:none;">No recommendations found.</div>
+    </div>
   </div>
 </div>
 
 <script>
-/*__INJECT__*/
+var params = new URLSearchParams(window.location.search);
+var TOKEN = params.get('token') || '';
+var API = (params.get('api') || '').replace(/\/+$/, '');
+var REVIEW_PAGE_URL = 'https://amazing-nasturtium-a282c0.netlify.app';
+var currentFilter = params.get('status') || 'all';
 
-const DATA = window.__DATA__ || {};
-const recs = DATA.recs || [];
-const token = DATA.token || '';
-const currentFilter = DATA.current_filter || 'all';
-const baseUrl = DATA.base_url || window.location.origin;
+function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
-function escapeHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s || '';
-  return d.innerHTML;
+function renderFilters() {
+  var filters = ['all', 'pending', 'viewed', 'accepted', 'denied'];
+  var el = document.getElementById('filters');
+  filters.forEach(function(f) {
+    var btn = document.createElement('button');
+    btn.className = 'filter-btn' + (f === currentFilter ? ' active' : '');
+    btn.textContent = f.charAt(0).toUpperCase() + f.slice(1);
+    btn.onclick = function() { loadData(f); };
+    el.appendChild(btn);
+  });
 }
 
-// Render filters
-const filters = ['all', 'pending', 'viewed', 'accepted', 'denied'];
-const filtersEl = document.getElementById('filters');
-filters.forEach(f => {
-  const a = document.createElement('a');
-  a.className = 'filter-btn' + (f === currentFilter ? ' active' : '');
-  a.href = '/recommend/dashboard?token=' + encodeURIComponent(token) + '&status=' + f;
-  a.textContent = f.charAt(0).toUpperCase() + f.slice(1);
-  filtersEl.appendChild(a);
-});
-
-// Render count
-document.getElementById('countInfo').textContent = recs.length + ' recommendation' + (recs.length !== 1 ? 's' : '');
-
-// Render table
-const tbody = document.getElementById('tbody');
-if (recs.length === 0) {
-  document.getElementById('emptyMsg').style.display = 'block';
-} else {
-  recs.forEach(r => {
-    const tr = document.createElement('tr');
-    const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
-    const reviewUrl = baseUrl + '/recommend/review?token=' + encodeURIComponent(token) + '&id=' + r.id;
+function renderTable(recs) {
+  var tbody = document.getElementById('tbody');
+  tbody.innerHTML = '';
+  document.getElementById('countInfo').textContent = recs.length + ' recommendation' + (recs.length !== 1 ? 's' : '');
+  if (recs.length === 0) {
+    document.getElementById('emptyMsg').style.display = 'block';
+    return;
+  }
+  document.getElementById('emptyMsg').style.display = 'none';
+  recs.forEach(function(r) {
+    var tr = document.createElement('tr');
+    var date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+    var reviewUrl = REVIEW_PAGE_URL + '?token=' + encodeURIComponent(TOKEN) + '&id=' + r.id + '&api=' + encodeURIComponent(API);
     tr.innerHTML =
       '<td>' + r.id + '</td>' +
       '<td><strong>' + escapeHtml(r.display_name) + '</strong></td>' +
@@ -189,6 +119,55 @@ if (recs.length === 0) {
     tbody.appendChild(tr);
   });
 }
+
+async function loadData(statusFilter) {
+  currentFilter = statusFilter || 'all';
+  document.querySelectorAll('.filter-btn').forEach(function(btn) {
+    btn.classList.toggle('active', btn.textContent.toLowerCase() === currentFilter);
+  });
+  try {
+    var res = await fetch(API + '/api/recommend/list?token=' + encodeURIComponent(TOKEN) + '&status=' + encodeURIComponent(currentFilter));
+    var data = await res.json();
+    if (!data.ok) {
+      document.getElementById('errorMsg').style.display = 'block';
+      document.getElementById('errorMsg').textContent = data.error || 'Failed to load.';
+      return;
+    }
+    renderTable(data.recs);
+  } catch (err) {
+    document.getElementById('errorMsg').style.display = 'block';
+    document.getElementById('errorMsg').textContent = 'Could not reach the server.';
+  }
+}
+
+async function init() {
+  if (!TOKEN || !API) {
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'block';
+    document.getElementById('errorMsg').textContent = 'Invalid link. Please use the link from your Discord DM.';
+    return;
+  }
+  renderFilters();
+  try {
+    var res = await fetch(API + '/api/recommend/list?token=' + encodeURIComponent(TOKEN) + '&status=' + encodeURIComponent(currentFilter));
+    var data = await res.json();
+    if (!data.ok) {
+      document.getElementById('loadingMsg').style.display = 'none';
+      document.getElementById('errorMsg').style.display = 'block';
+      document.getElementById('errorMsg').textContent = data.error || 'Failed to load.';
+      return;
+    }
+    renderTable(data.recs);
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('content').style.display = 'block';
+  } catch (err) {
+    document.getElementById('loadingMsg').style.display = 'none';
+    document.getElementById('errorMsg').style.display = 'block';
+    document.getElementById('errorMsg').textContent = 'Could not reach the server. Please try again later.';
+  }
+}
+
+init();
 </script>
 </body>
 </html>

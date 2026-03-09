@@ -27,22 +27,9 @@
     line-height: 1.6;
     padding: 20px;
   }
-  .container {
-    max-width: 800px;
-    margin: 0 auto;
-  }
-  h1 {
-    text-align: center;
-    margin-bottom: 8px;
-    color: var(--accent);
-    font-size: 1.8rem;
-  }
-  .subtitle {
-    text-align: center;
-    color: var(--text-muted);
-    margin-bottom: 32px;
-    font-size: 0.95rem;
-  }
+  .container { max-width: 800px; margin: 0 auto; }
+  h1 { text-align: center; margin-bottom: 8px; color: var(--accent); font-size: 1.8rem; }
+  .subtitle { text-align: center; color: var(--text-muted); margin-bottom: 32px; font-size: 0.95rem; }
   .section {
     background: var(--surface);
     border: 1px solid var(--border);
@@ -50,126 +37,49 @@
     padding: 24px;
     margin-bottom: 20px;
   }
-  .section h2 {
-    font-size: 1.15rem;
-    margin-bottom: 16px;
-    color: var(--accent);
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
-  }
-  .field {
-    margin-bottom: 16px;
-  }
-  .field label {
-    display: block;
-    font-weight: 600;
-    margin-bottom: 4px;
-    font-size: 0.9rem;
-  }
-  .field .hint {
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    margin-bottom: 4px;
-  }
-  .required::after {
-    content: " *";
-    color: var(--accent);
-  }
+  .section h2 { font-size: 1.15rem; margin-bottom: 16px; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 8px; }
+  .field { margin-bottom: 16px; }
+  .field label { display: block; font-weight: 600; margin-bottom: 4px; font-size: 0.9rem; }
+  .field .hint { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 4px; }
+  .required::after { content: " *"; color: var(--accent); }
   input[type="text"], input[type="url"], textarea, select {
-    width: 100%;
-    padding: 10px 12px;
-    background: var(--input-bg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    color: var(--text);
-    font-size: 0.95rem;
-    font-family: inherit;
+    width: 100%; padding: 10px 12px; background: var(--input-bg);
+    border: 1px solid var(--border); border-radius: var(--radius);
+    color: var(--text); font-size: 0.95rem; font-family: inherit;
   }
-  input[type="color"] {
-    width: 60px;
-    height: 38px;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--input-bg);
-    cursor: pointer;
-    padding: 2px;
-  }
-  .color-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-  .color-row input[type="text"] {
-    flex: 1;
-  }
-  textarea {
-    min-height: 80px;
-    resize: vertical;
-  }
+  input[type="color"] { width: 60px; height: 38px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--input-bg); cursor: pointer; padding: 2px; }
+  .color-row { display: flex; align-items: center; gap: 12px; }
+  .color-row input[type="text"] { flex: 1; }
+  textarea { min-height: 80px; resize: vertical; }
   textarea.tall { min-height: 140px; }
-  select {
-    cursor: pointer;
-    appearance: auto;
-  }
+  select { cursor: pointer; appearance: auto; }
   .list-field .items { margin-bottom: 8px; }
-  .list-field .item-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 6px;
-    align-items: center;
-  }
+  .list-field .item-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
   .list-field .item-row input { flex: 1; }
-  .btn-sm {
-    padding: 6px 14px;
-    font-size: 0.85rem;
-    border: none;
-    border-radius: var(--radius);
-    cursor: pointer;
-    color: var(--text);
-    background: var(--surface2);
-  }
+  .btn-sm { padding: 6px 14px; font-size: 0.85rem; border: none; border-radius: var(--radius); cursor: pointer; color: var(--text); background: var(--surface2); }
   .btn-sm:hover { opacity: 0.85; }
   .btn-remove { background: var(--error); color: #fff; padding: 6px 10px; }
-  .dict-field .pair-row {
-    display: flex;
-    gap: 8px;
-    margin-bottom: 6px;
-    align-items: center;
-  }
+  .dict-field .pair-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
   .dict-field .pair-row input { flex: 1; }
-  .actions {
-    text-align: center;
-    margin: 32px 0;
-  }
+  .actions { text-align: center; margin: 32px 0; }
   .btn-submit {
-    padding: 14px 48px;
-    font-size: 1.1rem;
-    font-weight: 700;
-    border: none;
-    border-radius: var(--radius);
-    cursor: pointer;
-    background: var(--accent);
-    color: #fff;
-    transition: background 0.2s;
+    padding: 14px 48px; font-size: 1.1rem; font-weight: 700; border: none;
+    border-radius: var(--radius); cursor: pointer; background: var(--accent);
+    color: #fff; transition: background 0.2s;
   }
   .btn-submit:hover { background: var(--accent-hover); }
   .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
   .toast {
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    padding: 14px 24px;
-    border-radius: var(--radius);
-    color: #fff;
-    font-weight: 600;
-    z-index: 1000;
-    display: none;
-    max-width: 400px;
+    position: fixed; top: 20px; right: 20px; padding: 14px 24px;
+    border-radius: var(--radius); color: #fff; font-weight: 600;
+    z-index: 1000; display: none; max-width: 400px;
   }
   .toast.success { background: var(--success); display: block; }
   .toast.error { background: var(--error); display: block; }
   .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 600px) { .two-col { grid-template-columns: 1fr; } }
+  .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 1.1rem; }
+  .error-msg { text-align: center; padding: 60px 20px; color: var(--error); font-size: 1.1rem; }
 </style>
 </head>
 <body>
@@ -177,8 +87,10 @@
   <h1>Recommend a Character</h1>
   <p class="subtitle">Fill out the details below to recommend an official character for Bot-Nardology. Fields marked with * are required.</p>
 
-  <form id="recForm" autocomplete="off">
+  <div class="loading" id="loadingMsg">Loading your data...</div>
+  <div class="error-msg" id="errorMsg" style="display:none;"></div>
 
+  <form id="recForm" autocomplete="off" style="display:none;">
     <div class="section">
       <h2>Basic Info</h2>
       <div class="two-col">
@@ -352,16 +264,26 @@
 <div class="toast" id="toast"></div>
 
 <script>
-/*__INJECT__*/
-
-const DATA = window.__DATA__ || {};
-const existing = DATA.existing || null;
+const params = new URLSearchParams(window.location.search);
+const TOKEN = params.get('token') || '';
+const API = (params.get('api') || '').replace(/\/+$/, '');
 
 function $(id) { return document.getElementById(id); }
 
+function escapeAttr(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showToast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type;
+  setTimeout(function() { t.className = 'toast'; }, 5000);
+}
+
 function addListItem(field, value) {
-  const container = $(field + '_items');
-  const row = document.createElement('div');
+  var container = $(field + '_items');
+  var row = document.createElement('div');
   row.className = 'item-row';
   row.innerHTML = '<input type="text" value="' + escapeAttr(value || '') + '" placeholder="Enter value...">'
     + '<button type="button" class="btn-sm btn-remove" onclick="this.parentElement.remove()">X</button>';
@@ -369,8 +291,8 @@ function addListItem(field, value) {
 }
 
 function addDictItem(field, key, value) {
-  const container = $(field + '_items');
-  const row = document.createElement('div');
+  var container = $(field + '_items');
+  var row = document.createElement('div');
   row.className = 'pair-row';
   row.innerHTML = '<input type="text" value="' + escapeAttr(key || '') + '" placeholder="Key">'
     + '<input type="text" value="' + escapeAttr(value || '') + '" placeholder="Value">'
@@ -378,76 +300,87 @@ function addDictItem(field, key, value) {
   container.appendChild(row);
 }
 
-function escapeAttr(s) {
-  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
-}
-
 function getListValues(field) {
-  const rows = $(field + '_items').querySelectorAll('.item-row input');
-  return Array.from(rows).map(i => i.value.trim()).filter(Boolean);
+  var rows = $(field + '_items').querySelectorAll('.item-row input');
+  return Array.from(rows).map(function(i) { return i.value.trim(); }).filter(Boolean);
 }
 
 function getDictValues(field) {
-  const rows = $(field + '_items').querySelectorAll('.pair-row');
-  const obj = {};
-  rows.forEach(r => {
-    const inputs = r.querySelectorAll('input');
-    const k = inputs[0].value.trim();
-    const v = inputs[1].value.trim();
+  var rows = $(field + '_items').querySelectorAll('.pair-row');
+  var obj = {};
+  rows.forEach(function(r) {
+    var inputs = r.querySelectorAll('input');
+    var k = inputs[0].value.trim();
+    var v = inputs[1].value.trim();
     if (k) obj[k] = v;
   });
   return obj;
 }
 
-function showToast(msg, type) {
-  const t = $('toast');
-  t.textContent = msg;
-  t.className = 'toast ' + type;
-  setTimeout(() => { t.className = 'toast'; }, 5000);
-}
-
-// Pre-fill from existing data
-if (existing) {
-  const simple = ['display_name','rarity','color','description','image_url','prompt',
+function prefill(existing) {
+  if (!existing) return;
+  var simple = ['display_name','rarity','color','description','image_url','prompt',
     'backstory','age','occupation','speech_style','lore','world','original_world','world_knowledge'];
-  simple.forEach(k => {
-    const el = $(k);
+  simple.forEach(function(k) {
+    var el = $(k);
     if (el && existing[k]) el.value = existing[k];
   });
   if (existing.color) {
     try { $('color_picker').value = existing.color; } catch(e) {}
   }
-
-  const lists = ['tips','personality_traits','quirks','fears','desires','likes','dislikes','catchphrases','secrets','tags'];
-  lists.forEach(k => {
-    const arr = existing[k];
-    if (Array.isArray(arr)) arr.forEach(v => addListItem(k, v));
+  var lists = ['tips','personality_traits','quirks','fears','desires','likes','dislikes','catchphrases','secrets','tags'];
+  lists.forEach(function(k) {
+    var arr = existing[k];
+    if (Array.isArray(arr)) arr.forEach(function(v) { addListItem(k, v); });
   });
-
-  const dicts = ['relationships','topic_reactions'];
-  dicts.forEach(k => {
-    const obj = existing[k];
+  var dicts = ['relationships','topic_reactions'];
+  dicts.forEach(function(k) {
+    var obj = existing[k];
     if (obj && typeof obj === 'object') {
-      Object.entries(obj).forEach(([dk,dv]) => addDictItem(k, dk, dv));
+      Object.entries(obj).forEach(function(pair) { addDictItem(k, pair[0], pair[1]); });
     }
   });
 }
 
-// Sync color picker <-> text input
+async function init() {
+  if (!TOKEN || !API) {
+    $('loadingMsg').style.display = 'none';
+    $('errorMsg').style.display = 'block';
+    $('errorMsg').textContent = 'Invalid link. Please use /recommend in Discord to get a valid link.';
+    return;
+  }
+  try {
+    var res = await fetch(API + '/api/recommend/form-data?token=' + encodeURIComponent(TOKEN));
+    var data = await res.json();
+    if (!data.ok) {
+      $('loadingMsg').style.display = 'none';
+      $('errorMsg').style.display = 'block';
+      $('errorMsg').textContent = data.error || 'Failed to load. Your link may have expired.';
+      return;
+    }
+    prefill(data.existing);
+    $('loadingMsg').style.display = 'none';
+    $('recForm').style.display = 'block';
+  } catch (err) {
+    $('loadingMsg').style.display = 'none';
+    $('errorMsg').style.display = 'block';
+    $('errorMsg').textContent = 'Could not reach the server. Please try again later.';
+  }
+}
+
 $('color_picker').addEventListener('input', function() { $('color').value = this.value; });
 $('color').addEventListener('input', function() {
   if (/^#[0-9a-fA-F]{6}$/.test(this.value)) $('color_picker').value = this.value;
 });
 
-// Form submit
 $('recForm').addEventListener('submit', async function(e) {
   e.preventDefault();
-  const btn = $('submitBtn');
+  var btn = $('submitBtn');
   btn.disabled = true;
   btn.textContent = 'Submitting...';
 
-  const body = {
-    token: DATA.token,
+  var body = {
+    token: TOKEN,
     display_name: $('display_name').value.trim(),
     rarity: $('rarity').value,
     color: $('color').value.trim() || null,
@@ -480,12 +413,12 @@ $('recForm').addEventListener('submit', async function(e) {
   if (!body.rarity) { showToast('Rarity is required.', 'error'); btn.disabled = false; btn.textContent = 'Submit Recommendation'; return; }
 
   try {
-    const res = await fetch('/api/recommend', {
+    var res = await fetch(API + '/api/recommend', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
-    const data = await res.json();
+    var data = await res.json();
     if (data.ok) {
       showToast('Recommendation submitted! You will be notified via DM.', 'success');
       btn.textContent = 'Submitted!';
@@ -500,6 +433,8 @@ $('recForm').addEventListener('submit', async function(e) {
     btn.textContent = 'Submit Recommendation';
   }
 });
+
+init();
 </script>
 </body>
 </html>

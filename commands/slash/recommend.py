@@ -1,4 +1,4 @@
-"""Slash command: /recommend — opens the character recommendation form."""
+"""Slash command: /recommend — opens the character recommendation form on Netlify."""
 from __future__ import annotations
 
 import logging
@@ -21,18 +21,19 @@ class RecommendCog(commands.Cog):
     async def recommend(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
 
-        base_url = config.BASE_URL
-        if not base_url:
+        form_base = config.RECOMMEND_FORM_URL
+        api_base = config.BASE_URL
+        if not form_base or not api_base:
             await interaction.followup.send(
-                "The recommendation system is not configured yet (BASE_URL is missing). "
-                "Please contact the bot owner.",
+                "The recommendation system is not fully configured yet. "
+                "Please contact the bot owner to set BASE_URL.",
                 ephemeral=True,
             )
             return
 
         user_id = interaction.user.id
         token = generate_token(user_id, "submit")
-        url = f"{base_url}/recommend/form?token={token}"
+        url = f"{form_base}?token={token}&api={api_base}"
 
         existing = await get_pending_recommendation(user_id)
 

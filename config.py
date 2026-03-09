@@ -34,6 +34,9 @@ _port = os.getenv("PORT", "8080")
 BASE_URL = (os.getenv("BASE_URL") or "").strip() or (
     f"http://localhost:{_port}" if ENVIRONMENT == "dev" else ""
 )
+RECOMMEND_FORM_URL = (os.getenv("RECOMMEND_FORM_URL") or "").strip() or "https://hilarious-cobbler-1dc87c.netlify.app"
+RECOMMEND_REVIEW_URL = (os.getenv("RECOMMEND_REVIEW_URL") or "").strip() or "https://amazing-nasturtium-a282c0.netlify.app"
+RECOMMEND_DASHBOARD_URL = (os.getenv("RECOMMEND_DASHBOARD_URL") or "").strip() or "https://cozy-begonia-66897a.netlify.app"
 
 # ---- Emergency kill switch ----
 # If true, ALL AI calls are disabled immediately (even if Redis/DB are unhealthy).
