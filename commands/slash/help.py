@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 
 import config
-from utils.text import format_help_header, unknown_command
+from utils.text import unknown_command
 
 TOPICS = [
     "ping",
@@ -37,76 +37,79 @@ TOPICS = [
 ]
 
 
-def get_help_text(topic: str | None = None) -> str:
-    if topic is None:
-        premium_section = (
-            "**Premium (Pro — $4.99/mo)**\n"
-            "⭐ `/premium subscribe` — Subscribe to Pro\n"
-            "🎁 `/premium gift` — Gift Pro to a friend\n"
-            "💎 `/premium buy_points` — Purchase points\n"
-            "📊 `/premium status` — Check your tier\n\n"
-        ) if config.PAYMENTS_ENABLED else (
-            "**Premium**\n"
-            "⭐ `/premium status` — Check your tier\n\n"
-        )
+def build_help_embed() -> discord.Embed:
+    """Build the main /help embed (up to 4096 chars in description)."""
+    premium_section = (
+        "**Premium (Pro — $4.99/mo)**\n"
+        "⭐ `/premium subscribe` — Subscribe to Pro\n"
+        "🎁 `/premium gift` — Gift Pro to a friend\n"
+        "💎 `/premium buy_points` — Purchase points\n"
+        "📊 `/premium status` — Check your tier\n\n"
+    ) if config.PAYMENTS_ENABLED else (
+        "**Premium**\n"
+        "⭐ `/premium status` — Check your tier\n\n"
+    )
 
-        return (
-            format_help_header()
-            + "\n"
-            "Type `/` and choose a command, or pick a topic below for details.\n\n"
-            "**Getting Started**\n"
-            "🐱 `/start` — Meet KAI and get introduced to the bot\n"
-            "📖 `/tutorial` — Interactive setup guide for server admins\n"
-            "🔍 `/inspect` — View your profile or another member's\n\n"
-            "**Basic**\n"
-            "🏓 `/ping` — Check if I'm alive\n"
-            "👋 `/hello` — Greet the bot\n"
-            "🗣️ `/say` — Repeat a message\n"
-            "➕ `/add` — Add two numbers\n\n"
-            "**Roleplay / AI**\n"
-            "🎭 `/talk` — Talk to a character\n"
-            "🎲 `/character roll` — Roll for a new character\n"
-            "📜 `/character collection` — View your characters\n"
-            "✅ `/character select` — Select your active character\n"
-            "💕 `/bond view` — Check your bond with a character\n\n"
-            "**Voice**\n"
-            "🔊 `/voice play` — Play a sound in voice chat\n"
-            "📋 `/voice list` — List available sounds\n\n"
-            "**Points & Economy**\n"
-            "🪙 `/points daily` — Claim daily reward\n"
-            "🛒 `/points shop` — Browse the points shop\n"
-            "🎨 `/points cosmetic-shop` — Buy profile cosmetics\n"
-            "🎯 `/points quests` — View and claim quest rewards\n"
-            "💰 `/points balance` — Check your balance\n"
-            "🍀 `/points luck` — Check your luck modifier\n\n"
-            "**Leaderboard**\n"
-            "🏆 `/leaderboard view` — Server and global rankings\n\n"
-            "**Custom Packs**\n"
-            "📦 `/packs marketplace` — Discover community packs\n"
-            "🔎 `/packs browse` — Preview a pack's characters\n"
-            "✅ `/packs enable` / `disable` — Toggle packs on your server\n\n"
-            "**Community**\n"
-            "💡 `/recommend` — Suggest a new official character\n"
-            "📝 `/feedback` — Send feedback to the developers\n"
-            "🚨 `/report global` — Report a critical issue to bot owners\n"
-            "📣 `/appeal` — Appeal a server ban/nuke\n\n"
-            + premium_section +
-            "**Settings (Admin)**\n"
-            "🛠️ `/settings show` — View current server settings\n"
-            "🛠️ `/settings character` — Set server default character\n"
-            "🛠️ `/settings ai ...` — AI access controls\n"
-            "🛠️ `/penalty view` / `reset` — View or reset user penalties\n\n"
-            "**Privacy & Legal**\n"
-            "🔒 `/privacy export` — Download your data\n"
-            "🗑️ `/privacy delete` — Delete your account\n"
-            "📜 `/legal` — Terms of Service & Privacy Policy\n\n"
-            "ℹ️ Use `/help topic:<name>` for details on any section — "
-            "e.g. `voice`, `packs`, `premium`, `settings.ai`\n\n"
-            f"📜 [Terms of Service]({config.TERMS_OF_SERVICE_URL}) · "
-            f"[Privacy Policy]({config.PRIVACY_POLICY_URL}) · "
-            f"[Support Server]({config.SUPPORT_SERVER_URL})"
-        )
+    desc = (
+        "Type `/` and choose a command, or pick a topic below for details.\n\n"
+        "**Getting Started**\n"
+        "🐱 `/start` — Meet KAI and get introduced\n"
+        "📖 `/tutorial` — Setup guide for admins\n"
+        "🔍 `/inspect` — View your profile\n\n"
+        "**Basic**\n"
+        "🏓 `/ping` · 👋 `/hello` · 🗣️ `/say` · ➕ `/add`\n\n"
+        "**Roleplay / AI**\n"
+        "🎭 `/talk` — Talk to a character\n"
+        "🎲 `/character roll` — Roll for a new character\n"
+        "📜 `/character collection` — View your characters\n"
+        "✅ `/character select` — Select active character\n"
+        "💕 `/bond view` — Check bond with a character\n\n"
+        "**Voice**\n"
+        "🔊 `/voice play` — Play a sound in VC\n"
+        "📋 `/voice list` — List available sounds\n\n"
+        "**Points & Economy**\n"
+        "🪙 `/points daily` — Claim daily reward\n"
+        "🛒 `/points shop` — Browse the shop\n"
+        "🎨 `/points cosmetic-shop` — Buy cosmetics\n"
+        "🎯 `/points quests` — Quest rewards\n"
+        "💰 `/points balance` · 🍀 `/points luck`\n\n"
+        "**Leaderboard**\n"
+        "🏆 `/leaderboard view` — Rankings\n\n"
+        "**Custom Packs**\n"
+        "📦 `/packs marketplace` — Discover packs\n"
+        "🔎 `/packs browse` — Preview a pack\n"
+        "✅ `/packs enable` / `disable` — Toggle packs\n\n"
+        "**Community**\n"
+        "💡 `/recommend` — Suggest a character\n"
+        "📝 `/feedback` — Send feedback\n"
+        "🚨 `/report global` — Report a critical issue\n"
+        "📣 `/appeal` — Appeal a ban/nuke\n\n"
+        + premium_section +
+        "**Settings (Admin)**\n"
+        "🛠️ `/settings show` · `/settings character` · `/settings ai ...`\n"
+        "⚠️ `/penalty view` / `reset` — User penalties\n\n"
+        "**Privacy & Legal**\n"
+        "🔒 `/privacy export` / `delete` · 📜 `/legal`\n\n"
+        "ℹ️ `/help topic:<name>` for details — "
+        "e.g. `voice`, `packs`, `premium`, `settings.ai`"
+    )
 
+    embed = discord.Embed(
+        title="🤖 Bot Commands",
+        description=desc,
+        color=discord.Color.blurple(),
+    )
+    embed.set_footer(
+        text=(
+            f"Terms of Service · Privacy Policy · Support Server\n"
+            f"{config.TERMS_OF_SERVICE_URL}"
+        )
+    )
+    return embed
+
+
+def get_topic_text(topic: str) -> str | None:
+    """Return help text for a specific topic, or None if unrecognised."""
     t = topic.lower().strip()
 
     if t == "ping":
@@ -348,7 +351,7 @@ def get_help_text(topic: str | None = None) -> str:
             "• `/penalty reset member:<user>` — Reset a user's spam penalties"
         )
 
-    return unknown_command()
+    return None
 
 
 class SlashHelp(commands.Cog):
@@ -358,7 +361,13 @@ class SlashHelp(commands.Cog):
     @app_commands.command(name="help", description="Show bot commands and usage")
     @app_commands.describe(topic="Optional: a command/topic like points, talk, character, settings.ai...")
     async def help(self, interaction: discord.Interaction, topic: str | None = None):
-        await interaction.response.send_message(get_help_text(topic), ephemeral=True)
+        if topic is None:
+            await interaction.response.send_message(embed=build_help_embed(), ephemeral=True)
+            return
+        text = get_topic_text(topic)
+        if text is None:
+            text = unknown_command()
+        await interaction.response.send_message(text, ephemeral=True)
 
     @help.autocomplete("topic")
     async def help_topic_autocomplete(self, interaction: discord.Interaction, current: str):
