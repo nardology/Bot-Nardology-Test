@@ -31,7 +31,10 @@ SUPPORT_SERVER_URL = "https://discord.gg/F4TNTDvHP9"
 
 # ---- Web / recommendation system ----
 _port = os.getenv("PORT", "8080")
-BASE_URL = (os.getenv("BASE_URL") or "").strip() or (
+_raw_base = (os.getenv("BASE_URL") or "").strip()
+if _raw_base and not _raw_base.startswith(("http://", "https://")):
+    _raw_base = f"https://{_raw_base}"
+BASE_URL = _raw_base or (
     f"http://localhost:{_port}" if ENVIRONMENT == "dev" else ""
 )
 
