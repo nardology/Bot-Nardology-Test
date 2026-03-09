@@ -135,15 +135,8 @@ logger = logging.getLogger("bot")
 # AutoShardedBot handles shard management automatically.
 class SlashOnlyBot(commands.AutoShardedBot):
     async def setup_hook(self) -> None:
-        # Redis preflight (best-effort): do NOT crash-loop if Redis is down.
-        redis_ok = await ensure_redis_best_effort()
-        if not redis_ok:
-            logger.warning("Redis unavailable at startup; running in degraded mode.")
-
-        # DB preflight for durable data.
-        await init_db()
-
-        # Health-check + Stripe webhook server (must succeed so Railway sees the container as alive).
+        # Start health-check server first so Railway sees the container as healthy quickly
+        # (avoids deploy loop while DB/Redis/extensions load).
         try:
             print("[boot] starting health/webhook server…", flush=True)
             from core.stripe_webhook import start_webhook_server
@@ -151,6 +144,14 @@ class SlashOnlyBot(commands.AutoShardedBot):
             print("[boot] health/webhook server UP", flush=True)
         except Exception:
             logger.exception("Failed to start webhook/health server — Railway may stay stuck on 'Creating containers'")
+
+        # Redis preflight (best-effort): do NOT crash-loop if Redis is down.
+        redis_ok = await ensure_redis_best_effort()
+        if not redis_ok:
+            logger.warning("Redis unavailable at startup; running in degraded mode.")
+
+        # DB preflight for durable data.
+        await init_db()
 
         await load_extensions()
 

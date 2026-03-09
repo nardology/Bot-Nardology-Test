@@ -11,7 +11,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # then copy your code (bust cache: v3)
 COPY . /app
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8080}/ || exit 1
+# Use /health (always registered) so deploy doesn't depend on landing page. Long start-period
+# lets DB/Redis/extension load finish before we're marked unhealthy (avoids deploy loop).
+HEALTHCHECK --interval=30s --timeout=10s --start-period=90s --retries=5 \
+    CMD curl -f http://127.0.0.1:${PORT:-8080}/health || exit 1
 
 CMD ["python", "bot.py"]
