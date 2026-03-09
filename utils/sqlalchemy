@@ -1,0 +1,53 @@
+# utils/say_store.py
+from __future__ import annotations
+
+from sqlalchemy import select, update, func, or_
+
+
+from datetime import datetime
+
+from utils.db import get_sessionmaker
+from utils.models import SaySubmission
+
+
+async def count_say_guild_since(*, guild_id: int, since_utc: datetime) -> int:
+    Session = get_sessionmaker()
+    async with Session() as session:
+        stmt = (
+            select(func.count())
+            .select_from(SaySubmission)
+            .where(
+                SaySubmission.guild_id == guild_id,
+                SaySubmission.created_at >= since_utc,
+            )
+        )
+        res = await session.execute(stmt)
+        return int(res.scalar() or 0)
+
+
+async def count_say_user_since(*, guild_id: int, user_id: int, since_utc: datetime) -> int:
+    Session = get_sessionmaker()
+    async with Session() as session:
+        stmt = (
+            select(func.count())
+            .select_from(SaySubmission)
+            .where(
+                SaySubmission.guild_id == guild_id,
+                SaySubmission.user_id == user_id,
+                SaySubmission.created_at >= since_utc,
+            )
+        )
+        res = await session.execute(stmt)
+        return int(res.scalar() or 0)
+
+
+async def insert_say(*, guild_id: int, channel_id: int, user_id: int, message_len: int) -> None:
+    Session = get_sessionmaker()
+    async with Session() as session:
+        session.add(SaySubmission(
+            guild_id=guild_id,
+            channel_id=channel_id,
+            user_id=user_id,
+            message_len=message_len,
+        ))
+        await session.commit()

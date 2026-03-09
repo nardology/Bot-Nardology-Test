@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Privacy Policy — KAI by Nardology Enterprises</title>
+  <style>
+    :root {
+      --primary: #5865F2;
+      --primary-dark: #4752C4;
+      --bg: #ffffff;
+      --bg-alt: #f8f9fc;
+      --text: #2e3338;
+      --text-muted: #5c6370;
+      --border: #e3e5e8;
+      --accent: #5865F2;
+      --green: #3ba55d;
+      --red: #ed4245;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      color: var(--text);
+      background: var(--bg);
+      line-height: 1.7;
+      font-size: 15px;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 40px 24px 80px;
+    }
+
+    .header {
+      text-align: center;
+      padding: 48px 24px 40px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 40px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 20px;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+      margin-bottom: 16px;
+    }
+
+    .brand-icon {
+      width: 36px;
+      height: 36px;
+      background: var(--primary);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 800;
+      font-size: 18px;
+    }
+
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: var(--text);
+      margin-bottom: 8px;
+      letter-spacing: -0.5px;
+    }
+
+    .last-updated {
+      color: var(--text-muted);
+      font-size: 14px;
+    }
+
+    h2 {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--text);
+      margin: 48px 0 16px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+    }
+
+    h3 {
+      font-size: 17px;
+      font-weight: 600;
+      color: var(--text);
+      margin: 28px 0 10px;
+    }
+
+    p {
+      margin-bottom: 14px;
+      color: var(--text-muted);
+    }
+
+    a {
+      color: var(--accent);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    ul, ol {
+      margin: 10px 0 16px 28px;
+      color: var(--text-muted);
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .toc {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 24px 0 40px;
+    }
+
+    .toc-title {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--text);
+      margin-bottom: 12px;
+    }
+
+    .toc ol {
+      margin: 0;
+      padding-left: 20px;
+    }
+
+    .toc li {
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    .toc a {
+      color: var(--text-muted);
+    }
+
+    .toc a:hover {
+      color: var(--accent);
+    }
+
+    .summary-box {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin: 24px 0;
+    }
+
+    .summary-box p {
+      font-size: 14px;
+      margin-bottom: 10px;
+    }
+
+    .summary-box strong {
+      color: var(--text);
+    }
+
+    .callout {
+      background: var(--bg-alt);
+      border-left: 4px solid var(--primary);
+      padding: 16px 20px;
+      margin: 16px 0;
+      border-radius: 0 8px 8px 0;
+      font-size: 14px;
+    }
+
+    .contact-card {
+      background: var(--bg-alt);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      margin: 16px 0;
+    }
+
+    .contact-card p {
+      margin-bottom: 4px;
+      font-size: 14px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0 24px;
+      font-size: 14px;
+    }
+
+    th, td {
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      text-align: left;
+    }
+
+    th {
+      background: var(--bg-alt);
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    td {
+      color: var(--text-muted);
+    }
+
+    .badge-yes {
+      display: inline-block;
+      background: #e8f5e9;
+      color: var(--green);
+      font-weight: 600;
+      font-size: 12px;
+      padding: 2px 10px;
+      border-radius: 4px;
+    }
+
+    .badge-no {
+      display: inline-block;
+      background: #fce4ec;
+      color: var(--red);
+      font-weight: 600;
+      font-size: 12px;
+      padding: 2px 10px;
+      border-radius: 4px;
+    }
+
+    .retention-table td:first-child {
+      font-weight: 600;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    .footer {
+      text-align: center;
+      padding: 32px 24px;
+      border-top: 1px solid var(--border);
+      margin-top: 48px;
+      color: var(--text-muted);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <div class="brand">
+      <div class="brand-icon">K</div>
+      Nardology Enterprises
+    </div>
+    <h1>Privacy Policy</h1>
+    <p class="last-updated">Last updated: February 21, 2026</p>
+  </div>
+
+  <!-- INTRO -->
+  <p>This Privacy Policy for <strong>Nardology Enterprises</strong> ("<strong>we</strong>," "<strong>us</strong>," or "<strong>our</strong>") describes how and why we might access, collect, store, use, and/or share ("process") your personal information when you use our services ("Services"), including when you:</p>
+
+  <ul>
+    <li>Use <strong>KAI</strong>, our AI-powered Discord bot that lets users have interactive conversations with a roster of collectible custom characters. Users can roll for, collect, trade, and purchase characters &mdash; each with unique personalities, rarity tiers, emotions, and artwork. The bot features a virtual economy where users earn and spend points, upgrade their inventory, and unlock premium features through optional paid subscriptions and in-app purchases. Character conversations are powered by OpenAI's language models, and payments are processed through Stripe. KAI operates exclusively within the Discord platform.</li>
+    <li>Engage with us in other related ways, including any marketing or events.</li>
+  </ul>
+
+  <p>Questions or concerns? Reading this Privacy Policy will help you understand your privacy rights and choices. We are responsible for making decisions about how your personal information is processed. If you do not agree with our policies and practices, please do not use our Services. If you still have any questions or concerns, please contact us at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>.</p>
+
+  <!-- SUMMARY -->
+  <div class="summary-box">
+    <p><strong>Summary of Key Points</strong></p>
+    <p><strong>What personal information do we process?</strong> When you use or interact with our Services, we may process personal information depending on how you interact with us and the Services, the choices you make, and the features you use.</p>
+    <p><strong>Do we process any sensitive personal information?</strong> We do not process sensitive personal information.</p>
+    <p><strong>Do we collect any information from third parties?</strong> We do not collect any information from third parties.</p>
+    <p><strong>How do we process your information?</strong> We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with law.</p>
+    <p><strong>In what situations and with which parties do we share personal information?</strong> We may share information in specific situations and with specific third parties (OpenAI for AI features, Stripe for payments).</p>
+    <p><strong>How do we keep your information safe?</strong> We have organizational and technical processes in place to protect your personal information. However, no electronic transmission over the internet can be guaranteed to be 100% secure.</p>
+    <p><strong>What are your rights?</strong> Depending on where you are located geographically, you may have certain rights regarding your personal information.</p>
+    <p><strong>How do you exercise your rights?</strong> The easiest way is by joining our <a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener noreferrer">Discord support server</a>, or by contacting us at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>.</p>
+  </div>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc">
+    <div class="toc-title">Table of Contents</div>
+    <ol>
+      <li><a href="#collect">What Information Do We Collect?</a></li>
+      <li><a href="#process">How Do We Process Your Information?</a></li>
+      <li><a href="#legal-bases">What Legal Bases Do We Rely On to Process Your Personal Information?</a></li>
+      <li><a href="#share">When and With Whom Do We Share Your Personal Information?</a></li>
+      <li><a href="#ai">Do We Offer Artificial Intelligence-Based Products?</a></li>
+      <li><a href="#retention">How Long Do We Keep Your Information?</a></li>
+      <li><a href="#security">How Do We Keep Your Information Safe?</a></li>
+      <li><a href="#rights">What Are Your Privacy Rights?</a></li>
+      <li><a href="#us-rights">Do United States Residents Have Specific Privacy Rights?</a></li>
+      <li><a href="#discord">Discord Platform</a></li>
+      <li><a href="#user-content">User-Created Content</a></li>
+      <li><a href="#retention-details">Data Retention Details</a></li>
+      <li><a href="#children">Children's Privacy</a></li>
+      <li><a href="#ai-content">AI-Generated Content</a></li>
+      <li><a href="#international">International Data Transfers</a></li>
+      <li><a href="#updates">Do We Make Updates to This Notice?</a></li>
+      <li><a href="#contact">How Can You Contact Us About This Notice?</a></li>
+      <li><a href="#review">How Can You Review, Update, or Delete the Data We Collect From You?</a></li>
+    </ol>
+  </div>
+
+  <!-- 1. WHAT INFORMATION DO WE COLLECT? -->
+  <h2 id="collect">1. What Information Do We Collect?</h2>
+
+  <h3>Personal information you disclose to us</h3>
+
+  <p><strong>In Short:</strong> We collect personal information that you provide to us through your use of the KAI Discord bot.</p>
+
+  <p>We collect personal information that you voluntarily provide to us when you interact with the Services, participate in activities on the Services, or otherwise contact us. The personal information we collect depends on how you interact with us and the Services, the choices you make, and the features you use.</p>
+
+  <p><strong>Personal Information Provided by You.</strong> The personal information we collect may include the following:</p>
+  <ul>
+    <li><strong>Discord User IDs and usernames</strong> &mdash; received from Discord as part of normal bot operation</li>
+    <li><strong>Usage data</strong> &mdash; talk counts, roll counts, daily active tracking, quest progress, and other interaction analytics</li>
+    <li><strong>Conversation content</strong> &mdash; messages sent to AI-powered characters within KAI</li>
+    <li><strong>Moderation records</strong> &mdash; bans, reports, and appeals</li>
+    <li><strong>Bond/relationship data</strong> &mdash; XP, nicknames, streaks, and other character interaction data</li>
+    <li><strong>User-generated content</strong> &mdash; custom characters and content packs created by users</li>
+  </ul>
+
+  <p><strong>Sensitive Information.</strong> We do not process sensitive personal information.</p>
+
+  <p><strong>Payment Data.</strong> We may collect data necessary to process your payment if you choose to make purchases. All payment processing is handled entirely by <a href="https://stripe.com/privacy" target="_blank" rel="noopener noreferrer">Stripe</a>. <strong>We do not collect, store, or have access to your credit card numbers, bank account details, or billing address.</strong> We only store a Stripe Customer ID linked to your Discord User ID for the purpose of managing subscriptions and purchase history.</p>
+
+  <p>All personal information that you provide to us must be true, complete, and accurate, and you must notify us of any changes to such personal information.</p>
+
+  <h3>Information automatically collected</h3>
+
+  <p><strong>In Short:</strong> Some usage information is collected automatically when you interact with the KAI bot.</p>
+
+  <p>Because KAI operates exclusively as a Discord bot, the information we automatically collect is limited to your interactions with the bot within Discord. This includes:</p>
+  <ul>
+    <li><strong>Command usage data</strong> &mdash; which bot commands you use, when, and how frequently</li>
+    <li><strong>Interaction timestamps</strong> &mdash; date/time stamps associated with your usage of the Services</li>
+    <li><strong>Server context</strong> &mdash; the Discord server (guild) ID where interactions take place</li>
+  </ul>
+
+  <p>We do <strong>not</strong> collect your IP address, browser characteristics, device information, operating system, or referring URLs. That information is held by Discord and governed by <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer">Discord's Privacy Policy</a>.</p>
+
+  <!-- 2. HOW DO WE PROCESS YOUR INFORMATION? -->
+  <h2 id="process">2. How Do We Process Your Information?</h2>
+
+  <p><strong>In Short:</strong> We process your information to provide, improve, and administer our Services, communicate with you, for security and fraud prevention, and to comply with law.</p>
+
+  <p>We process your personal information for a variety of reasons, depending on how you interact with our Services, including:</p>
+  <ul>
+    <li><strong>To provide and maintain the Services</strong> &mdash; including processing your interactions with AI characters, managing your collection, tracking quests and progression, and handling payments.</li>
+    <li><strong>To improve the Services</strong> &mdash; analyzing usage patterns to make the bot better and more enjoyable.</li>
+    <li><strong>To communicate with you</strong> &mdash; responding to support requests and providing service-related notifications.</li>
+    <li><strong>To ensure security and prevent fraud</strong> &mdash; monitoring for abuse, exploits, and violations of our Terms of Service.</li>
+    <li><strong>To comply with legal obligations</strong> &mdash; such as tax reporting, responding to lawful requests, and protecting our rights.</li>
+    <li><strong>To save or protect an individual's vital interest</strong> &mdash; such as to prevent harm.</li>
+  </ul>
+
+  <!-- 3. WHAT LEGAL BASES? -->
+  <h2 id="legal-bases">3. What Legal Bases Do We Rely On to Process Your Personal Information?</h2>
+
+  <p><strong>In Short:</strong> We only process your personal information when we believe it is necessary and we have a valid legal reason to do so under applicable law.</p>
+
+  <h3>If you are located in the EU or UK</h3>
+
+  <p>The General Data Protection Regulation (GDPR) and UK GDPR require us to explain the valid legal bases we rely on in order to process your personal information. We may rely on the following legal bases:</p>
+  <ul>
+    <li><strong>Consent.</strong> We may process your information if you have given us permission to use your personal information for a specific purpose. You can withdraw your consent at any time.</li>
+    <li><strong>Performance of a Contract.</strong> We may process your information when we believe it is necessary to fulfill our contractual obligations to you, including providing the Services or at your request prior to entering into a contract.</li>
+    <li><strong>Legal Obligations.</strong> We may process your information where we believe it is necessary for compliance with our legal obligations, such as to cooperate with a law enforcement body or regulatory agency, exercise or defend our legal rights, or disclose your information as evidence in litigation in which we are involved.</li>
+    <li><strong>Vital Interests.</strong> We may process your information where we believe it is necessary to protect your vital interests or the vital interests of a third party, such as situations involving potential threats to the safety of any person.</li>
+  </ul>
+
+  <h3>If you are located in Canada</h3>
+
+  <p>We may process your information if you have given us specific permission (i.e., express consent) to use your personal information for a specific purpose, or in situations where your permission can be inferred (i.e., implied consent). You can withdraw your consent at any time.</p>
+
+  <p>In some exceptional cases, we may be legally permitted under applicable law to process your information without your consent, including, for example:</p>
+  <ul>
+    <li>If collection is clearly in the interests of an individual and consent cannot be obtained in a timely way</li>
+    <li>For investigations and fraud detection and prevention</li>
+    <li>For business transactions provided certain conditions are met</li>
+    <li>If it is contained in a witness statement and the collection is necessary to assess, process, or settle an insurance claim</li>
+    <li>For identifying injured, ill, or deceased persons and communicating with next of kin</li>
+    <li>If we have reasonable grounds to believe an individual has been, is, or may be victim of financial abuse</li>
+    <li>If it is reasonable to expect collection and use with consent would compromise the availability or the accuracy of the information and the collection is reasonable for purposes related to investigating a breach of an agreement or a contravention of the laws of Canada or a province</li>
+    <li>If disclosure is required to comply with a subpoena, warrant, court order, or rules of the court relating to the production of records</li>
+    <li>If it was produced by an individual in the course of their employment, business, or profession and the collection is consistent with the purposes for which the information was produced</li>
+    <li>If the collection is solely for journalistic, artistic, or literary purposes</li>
+    <li>If the information is publicly available and is specified by the regulations</li>
+  </ul>
+
+  <!-- 4. WHEN AND WITH WHOM? -->
+  <h2 id="share">4. When and With Whom Do We Share Your Personal Information?</h2>
+
+  <p><strong>In Short:</strong> We may share information in specific situations described in this section and/or with the following third parties.</p>
+
+  <p>We may share your data with third-party vendors, service providers, contractors, or agents ("third parties") who perform services for us or on our behalf and require access to such information to do that work. We have contracts in place with our third parties, which are designed to help safeguard your personal information. They cannot do anything with your personal information unless we have instructed them to do it. They will also not share your personal information with any organization apart from us. They also commit to protect the data they hold on our behalf and to retain it for the period we instruct.</p>
+
+  <p>The third parties we share personal information with are:</p>
+
+  <table>
+    <tr>
+      <th>Service Provider</th>
+      <th>Purpose</th>
+      <th>Data Shared</th>
+    </tr>
+    <tr>
+      <td><strong>OpenAI</strong></td>
+      <td>AI-powered character conversations and content moderation</td>
+      <td>Conversation content (messages sent to AI characters)</td>
+    </tr>
+    <tr>
+      <td><strong>Stripe</strong></td>
+      <td>Payment processing for subscriptions and purchases</td>
+      <td>Payment instrument data (handled directly by Stripe; we only store the Stripe Customer ID)</td>
+    </tr>
+  </table>
+
+  <p>We also may need to share your personal information in the following situations:</p>
+  <ul>
+    <li><strong>Business Transfers.</strong> We may share or transfer your information in connection with, or during negotiations of, any merger, sale of company assets, financing, or acquisition of all or a portion of our business to another company.</li>
+  </ul>
+
+  <!-- 5. AI PRODUCTS -->
+  <h2 id="ai">5. Do We Offer Artificial Intelligence-Based Products?</h2>
+
+  <p><strong>In Short:</strong> We offer products, features, or tools powered by artificial intelligence, machine learning, or similar technologies.</p>
+
+  <p>As part of our Services, we offer products, features, or tools powered by artificial intelligence, machine learning, or similar technologies (collectively, "AI Products"). These tools are designed to enhance your experience and provide you with interactive character conversations.</p>
+
+  <h3>Use of AI Technologies</h3>
+  <p>We provide the AI Products through third-party service providers ("AI Service Providers"), including <strong>OpenAI</strong>. As outlined in this Privacy Policy, your input, output, and personal information will be shared with and processed by these AI Service Providers to enable your use of our AI Products. You must not use the AI Products in any way that violates the terms or policies of any AI Service Provider.</p>
+
+  <h3>Our AI Products</h3>
+  <p>Our AI Products are designed for the following functions:</p>
+  <ul>
+    <li>AI-powered character chatbots with distinct personalities</li>
+    <li>Natural language processing for interactive conversations</li>
+    <li>Content moderation assistance</li>
+  </ul>
+
+  <h3>How We Process Your Data Using AI</h3>
+  <p>All personal information processed using our AI Products is handled in line with this Privacy Policy and our agreements with third-party service providers. This ensures high security and safeguards your personal information throughout the process.</p>
+
+  <!-- 6. HOW LONG? -->
+  <h2 id="retention">6. How Long Do We Keep Your Information?</h2>
+
+  <p><strong>In Short:</strong> We keep your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy unless otherwise required by law.</p>
+
+  <p>We will only keep your personal information for as long as it is necessary for the purposes set out in this Privacy Policy, unless a longer retention period is required or permitted by law (such as tax, accounting, or other legal requirements). See <a href="#retention-details">Section 12 (Data Retention Details)</a> for specific retention periods by data category.</p>
+
+  <p>When we have no ongoing legitimate business need to process your personal information, we will either delete or anonymize such information, or, if this is not possible (for example, because your personal information has been stored in backup archives), then we will securely store your personal information and isolate it from any further processing until deletion is possible.</p>
+
+  <!-- 7. HOW DO WE KEEP IT SAFE? -->
+  <h2 id="security">7. How Do We Keep Your Information Safe?</h2>
+
+  <p><strong>In Short:</strong> We aim to protect your personal information through a system of organizational and technical security measures.</p>
+
+  <p>We have implemented appropriate and reasonable technical and organizational security measures designed to protect the security of any personal information we process. These measures include:</p>
+  <ul>
+    <li><strong>Encryption in transit:</strong> All data transmitted between our Services and third-party providers (OpenAI, Stripe) uses TLS encryption.</li>
+    <li><strong>Secure credential storage:</strong> API keys, tokens, and secrets are stored securely and are not exposed in client-facing code.</li>
+    <li><strong>Access controls:</strong> Access to user data is restricted to authorized personnel only.</li>
+    <li><strong>Payment security:</strong> All payment processing is handled by Stripe, a PCI DSS Level 1 certified payment processor. We never store full credit card numbers or bank account details.</li>
+    <li><strong>Automatic data deletion:</strong> Conversation memory and temporary data are automatically purged on defined schedules (see <a href="#retention-details">Data Retention Details</a>).</li>
+  </ul>
+
+  <p>However, despite our safeguards and efforts to secure your information, no electronic transmission over the Internet or information storage technology can be guaranteed to be 100% secure, so we cannot promise or guarantee that hackers, cybercriminals, or other unauthorized third parties will not be able to defeat our security and improperly collect, access, steal, or modify your information. Although we will do our best to protect your personal information, transmission of personal information to and from our Services is at your own risk. You should only access the Services within a secure environment.</p>
+
+  <!-- 8. YOUR PRIVACY RIGHTS -->
+  <h2 id="rights">8. What Are Your Privacy Rights?</h2>
+
+  <p><strong>In Short:</strong> Depending on your state of residence in the US or in some regions, such as the European Economic Area (EEA), United Kingdom (UK), Switzerland, and Canada, you have rights that allow you greater access to and control over your personal information.</p>
+
+  <p>In some regions (like the EEA, UK, Switzerland, and Canada), you have certain rights under applicable data protection laws. These may include the right:</p>
+  <ul>
+    <li>To request access and obtain a copy of your personal information</li>
+    <li>To request rectification or erasure</li>
+    <li>To restrict the processing of your personal information</li>
+    <li>If applicable, to data portability</li>
+    <li>Not to be subject to automated decision-making</li>
+    <li>To object to the processing of your personal information</li>
+  </ul>
+
+  <p>If a decision that produces legal or similarly significant effects is made solely by automated means, we will inform you, explain the main factors, and offer a simple way to request human review.</p>
+
+  <p>You can make such a request by contacting us using the contact details provided in the "<a href="#contact">How Can You Contact Us</a>" section below.</p>
+
+  <p>We will consider and act upon any request in accordance with applicable data protection laws.</p>
+
+  <p>If you are located in the EEA or UK and you believe we are unlawfully processing your personal information, you also have the right to complain to your <a href="https://ec.europa.eu/justice/data-protection/bodies/authorities/index_en.htm" target="_blank" rel="noopener noreferrer">Member State data protection authority</a> or <a href="https://ico.org.uk/make-a-complaint/data-protection-complaints/data-protection-complaints/" target="_blank" rel="noopener noreferrer">UK data protection authority</a>.</p>
+
+  <p>If you are located in Switzerland, you may contact the <a href="https://www.edoeb.admin.ch/edoeb/en/home.html" target="_blank" rel="noopener noreferrer">Federal Data Protection and Information Commissioner</a>.</p>
+
+  <p><strong>Withdrawing your consent:</strong> If we are relying on your consent to process your personal information, you have the right to withdraw your consent at any time. You can withdraw your consent by contacting us using the contact details provided in the "<a href="#contact">How Can You Contact Us</a>" section below. However, please note that this will not affect the lawfulness of the processing before its withdrawal nor, when applicable law allows, will it affect the processing of your personal information conducted in reliance on lawful processing grounds other than consent.</p>
+
+  <p>If you have questions or comments about your privacy rights, you may email us at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>.</p>
+
+  <!-- 9. US RESIDENTS -->
+  <h2 id="us-rights">9. Do United States Residents Have Specific Privacy Rights?</h2>
+
+  <p><strong>In Short:</strong> If you are a resident of California, Colorado, Connecticut, Delaware, Florida, Indiana, Iowa, Kentucky, Maryland, Minnesota, Montana, Nebraska, New Hampshire, New Jersey, Oregon, Rhode Island, Tennessee, Texas, Utah, or Virginia, you may have the right to request access to and receive details about the personal information we maintain about you and how we have processed it, correct inaccuracies, get a copy of, or delete your personal information.</p>
+
+  <h3>Categories of Personal Information We Collect</h3>
+
+  <p>The following table shows the categories of personal information we have collected in the past twelve (12) months.</p>
+
+  <table>
+    <tr>
+      <th>Category</th>
+      <th>Examples</th>
+      <th>Collected</th>
+    </tr>
+    <tr>
+      <td><strong>A. Identifiers</strong></td>
+      <td>Discord User IDs, usernames, Stripe Customer IDs</td>
+      <td><span class="badge-yes">YES</span></td>
+    </tr>
+    <tr>
+      <td><strong>B. Personal information (CA Customer Records)</strong></td>
+      <td>Name and financial information (processed by Stripe on our behalf)</td>
+      <td><span class="badge-yes">YES</span></td>
+    </tr>
+    <tr>
+      <td><strong>C. Protected classification characteristics</strong></td>
+      <td>Gender, age, race, ethnicity, national origin, marital status</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>D. Commercial information</strong></td>
+      <td>Subscription status, purchase history, transaction records</td>
+      <td><span class="badge-yes">YES</span></td>
+    </tr>
+    <tr>
+      <td><strong>E. Biometric information</strong></td>
+      <td>Fingerprints and voiceprints</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>F. Internet or similar network activity</strong></td>
+      <td>Bot command usage, interaction history, feature usage patterns</td>
+      <td><span class="badge-yes">YES</span></td>
+    </tr>
+    <tr>
+      <td><strong>G. Geolocation data</strong></td>
+      <td>Device location</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>H. Audio, electronic, sensory, or similar information</strong></td>
+      <td>Images, audio, video recordings</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>I. Professional or employment-related information</strong></td>
+      <td>Job title, work history, professional qualifications</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>J. Education information</strong></td>
+      <td>Student records and directory information</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>K. Inferences drawn from collected personal information</strong></td>
+      <td>Profiles or summaries about preferences and characteristics</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+    <tr>
+      <td><strong>L. Sensitive personal information</strong></td>
+      <td>Racial/ethnic origin, religious beliefs, health data, sexual orientation</td>
+      <td><span class="badge-no">NO</span></td>
+    </tr>
+  </table>
+
+  <p>We may also collect other personal information outside of these categories through instances where you interact with us via our Discord support server or email.</p>
+
+  <h3>How We Use and Share Personal Information</h3>
+  <p>Learn more about how we use your personal information in the section "<a href="#process">How Do We Process Your Information?</a>"</p>
+
+  <p><strong>Will your information be shared with anyone else?</strong> We may disclose your personal information with our service providers pursuant to a written contract between us and each service provider. Learn more in the section "<a href="#share">When and With Whom Do We Share Your Personal Information?</a>"</p>
+
+  <p>We have <strong>not sold or shared any personal information</strong> to third parties for a business or commercial purpose in the preceding twelve (12) months.</p>
+
+  <h3>Your Rights</h3>
+  <p>You have rights under certain US state data protection laws. However, these rights are not absolute, and in certain cases, we may decline your request as permitted by law. These rights include:</p>
+  <ul>
+    <li>Right to know whether or not we are processing your personal data</li>
+    <li>Right to access your personal data</li>
+    <li>Right to correct inaccuracies in your personal data</li>
+    <li>Right to request the deletion of your personal data</li>
+    <li>Right to obtain a copy of the personal data you previously shared with us</li>
+    <li>Right to non-discrimination for exercising your rights</li>
+    <li>Right to opt out of the processing of your personal data if it is used for targeted advertising, the sale of personal data, or profiling</li>
+  </ul>
+
+  <p>Depending upon the state where you live, you may also have the following rights:</p>
+  <ul>
+    <li>Right to access the categories of personal data being processed (as permitted by applicable law, including Minnesota)</li>
+    <li>Right to obtain a list of the categories of third parties to which we have disclosed personal data (as permitted by applicable law, including California, Delaware, and Maryland)</li>
+    <li>Right to obtain a list of specific third parties to which we have disclosed personal data (as permitted by applicable law, including Minnesota and Oregon)</li>
+    <li>Right to limit use and disclosure of sensitive personal data (as permitted by applicable law, including California)</li>
+  </ul>
+
+  <h3>How to Exercise Your Rights</h3>
+  <p>To exercise these rights, you can contact us by joining our <a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener noreferrer">Discord support server</a>, by emailing us at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>, or by referring to the contact details at the bottom of this document.</p>
+
+  <p>Under certain US state data protection laws, you can designate an authorized agent to make a request on your behalf. We may deny a request from an authorized agent that does not submit proof that they have been validly authorized to act on your behalf in accordance with applicable laws.</p>
+
+  <h3>Request Verification</h3>
+  <p>Upon receiving your request, we will need to verify your identity to determine you are the same person about whom we have the information in our system. We will only use personal information provided in your request to verify your identity or authority to make the request. If we cannot verify your identity from the information already maintained by us, we may request additional information for the purposes of verifying your identity and for security or fraud-prevention purposes.</p>
+
+  <h3>Appeals</h3>
+  <p>Under certain US state data protection laws, if we decline to take action regarding your request, you may appeal our decision by emailing us at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>. We will inform you in writing of any action taken or not taken in response to the appeal, including a written explanation of the reasons for the decisions. If your appeal is denied, you may submit a complaint to your state attorney general.</p>
+
+  <h3>California "Shine The Light" Law</h3>
+  <p>California Civil Code Section 1798.83, also known as the "Shine The Light" law, permits our users who are California residents to request and obtain from us, once a year and free of charge, information about categories of personal information (if any) we disclosed to third parties for direct marketing purposes and the names and addresses of all third parties with which we shared personal information in the immediately preceding calendar year. If you are a California resident and would like to make such a request, please submit your request in writing to us using the contact details in the "<a href="#contact">How Can You Contact Us</a>" section.</p>
+
+  <!-- 10. DISCORD PLATFORM -->
+  <h2 id="discord">10. Discord Platform</h2>
+
+  <p>Our service operates exclusively as a Discord bot. By using our service, you interact with us through the Discord platform, which is governed by Discord's own <a href="https://discord.com/terms" target="_blank" rel="noopener noreferrer">Terms of Service</a> and <a href="https://discord.com/privacy" target="_blank" rel="noopener noreferrer">Privacy Policy</a>.</p>
+
+  <p>We receive limited information about you from Discord, including your Discord User ID and username, as part of normal bot operation. <strong>We do not have access to your email address, password, IP address, or any other account information held by Discord.</strong></p>
+
+  <!-- 11. USER-CREATED CONTENT -->
+  <h2 id="user-content">11. User-Created Content</h2>
+
+  <p>Users may create custom characters and content packs through our service. By submitting custom content, you represent that your submissions are entirely original and do not infringe upon any third party's intellectual property rights. We reserve the right to remove any user-created content that violates our content policies without notice.</p>
+
+  <!-- 12. DATA RETENTION DETAILS -->
+  <h2 id="retention-details">12. Data Retention Details</h2>
+
+  <p>We retain different categories of data for different periods:</p>
+
+  <table class="retention-table">
+    <tr>
+      <th>Data Category</th>
+      <th>Retention Period</th>
+    </tr>
+    <tr>
+      <td>Conversation memory</td>
+      <td>Automatically deleted after <strong>7 days</strong></td>
+    </tr>
+    <tr>
+      <td>Usage counters and rate limits</td>
+      <td>Automatically deleted after <strong>8 days</strong></td>
+    </tr>
+    <tr>
+      <td>Cooldowns and temporary penalties</td>
+      <td>Automatically deleted after <strong>minutes to hours</strong></td>
+    </tr>
+    <tr>
+      <td>Account data (collections, bonds, points, quest progress)</td>
+      <td>Retained until user requests deletion</td>
+    </tr>
+    <tr>
+      <td>Payment references (Stripe Customer ID, subscription IDs)</td>
+      <td>Retained as long as necessary for billing, dispute resolution, and legal compliance</td>
+    </tr>
+    <tr>
+      <td>Custom character content</td>
+      <td>Retained until the creator deletes it or an administrator removes it</td>
+    </tr>
+    <tr>
+      <td>User-generated content</td>
+      <td>Retained until the creator deletes it or an administrator removes it</td>
+    </tr>
+  </table>
+
+  <p>Users may request deletion of their personal data at any time by contacting us via our <a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener noreferrer">Discord support server</a> or by emailing <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>.</p>
+
+  <!-- 13. CHILDREN'S PRIVACY -->
+  <h2 id="children">13. Children's Privacy</h2>
+
+  <p>Our service is not directed to children under 13. We rely on Discord's Terms of Service, which require users to be at least 13 years old. We do not knowingly collect personal information from children under 13. If we become aware that a user is under 13, we will take steps to delete their data promptly. If you believe we have inadvertently collected data from a child under 13, please contact us immediately at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>.</p>
+
+  <!-- 14. AI-GENERATED CONTENT -->
+  <h2 id="ai-content">14. AI-Generated Content</h2>
+
+  <p>Our service uses OpenAI's language models to generate character conversations and perform content moderation. When you use our conversation features, the text you submit is sent to OpenAI for processing. OpenAI's use of this data is governed by their <a href="https://openai.com/policies/api-data-usage-policies" target="_blank" rel="noopener noreferrer">API Data Usage Policy</a>. Conversation memory is automatically deleted after 7 days.</p>
+
+  <!-- 15. INTERNATIONAL DATA TRANSFERS -->
+  <h2 id="international">15. International Data Transfers</h2>
+
+  <p>Our Services are hosted in the United States, and our third-party service providers (OpenAI and Stripe) also operate primarily in the United States. If you access the Services from outside the United States, please be aware that your information may be transferred to, stored, and processed in the United States, where data protection laws may differ from those in your jurisdiction.</p>
+
+  <p>If you are located in the European Economic Area (EEA), United Kingdom, or Switzerland, we rely on the following legal mechanisms for international data transfers:</p>
+  <ul>
+    <li><strong>Your explicit consent</strong> to the transfer, given when you choose to use our Services</li>
+    <li><strong>Contractual necessity</strong> &mdash; the transfer is necessary for the performance of a contract between us and you (i.e., providing the Services)</li>
+    <li><strong>Standard Contractual Clauses</strong> &mdash; where applicable, we ensure our third-party service providers have appropriate safeguards in place, including Standard Contractual Clauses approved by the European Commission</li>
+  </ul>
+
+  <p>By continuing to use the Services, you acknowledge and consent to the transfer of your information to the United States and other jurisdictions where our service providers operate.</p>
+
+  <!-- 16. UPDATES -->
+  <h2 id="updates">16. Do We Make Updates to This Notice?</h2>
+
+  <p><strong>In Short:</strong> Yes, we will update this notice as necessary to stay compliant with relevant laws.</p>
+
+  <p>We may update this Privacy Policy from time to time. The updated version will be indicated by an updated "Last updated" date at the top of this Privacy Policy. If we make material changes to this Privacy Policy, we may notify you either by prominently posting a notice of such changes in our Discord support server or by directly sending you a notification. We encourage you to review this Privacy Policy frequently to be informed of how we are protecting your information.</p>
+
+  <!-- 17. CONTACT -->
+  <h2 id="contact">17. How Can You Contact Us About This Notice?</h2>
+
+  <p>If you have questions or comments about this notice, you may contact us at:</p>
+
+  <div class="contact-card">
+    <p><strong>Nardology Enterprises</strong></p>
+    <p>310 Woodspring Lane</p>
+    <p>Greenville, NC 27834</p>
+    <p>United States</p>
+    <p>Phone: <a href="tel:+12522143084">+1 (252) 214-3084</a></p>
+    <p>Email: <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a></p>
+    <p>Discord: <a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener noreferrer">Support Server</a></p>
+  </div>
+
+  <!-- 18. REVIEW/UPDATE/DELETE -->
+  <h2 id="review">18. How Can You Review, Update, or Delete the Data We Collect From You?</h2>
+
+  <p>You have the right to request access to the personal information we collect from you, details about how we have processed it, correct inaccuracies, or delete your personal information. You may also have the right to withdraw your consent to our processing of your personal information. These rights may be limited in some circumstances by applicable law.</p>
+
+  <p>To request to review, update, or delete your personal information, please join our <a href="https://discord.gg/F4TNTDvHP9" target="_blank" rel="noopener noreferrer">Discord support server</a> or email us at <a href="mailto:fontanafletcher@gmail.com">fontanafletcher@gmail.com</a>.</p>
+
+  <div class="footer">
+    <p>&copy; 2026 Nardology Enterprises. All rights reserved.</p>
+  </div>
+
+</div>
+
+</body>
+</html>
