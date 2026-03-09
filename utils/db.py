@@ -242,6 +242,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                     PointsLedger,
                     QuestProgress,
                     QuestClaim,
+                    CharacterRecommendation,
                 )  # type: ignore
 
                 await conn.run_sync(lambda sync_conn: AnalyticsDailyMetric.__table__.create(sync_conn, checkfirst=True))
@@ -252,6 +253,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                 await conn.run_sync(lambda sync_conn: PointsLedger.__table__.create(sync_conn, checkfirst=True))
                 await conn.run_sync(lambda sync_conn: QuestProgress.__table__.create(sync_conn, checkfirst=True))
                 await conn.run_sync(lambda sync_conn: QuestClaim.__table__.create(sync_conn, checkfirst=True))
+                await conn.run_sync(lambda sync_conn: CharacterRecommendation.__table__.create(sync_conn, checkfirst=True))
                 await _ensure_stripe_columns(conn)
                 log.info("DB preflight OK (env=%s). Analytics + points tables ensured.", env)
             except Exception:

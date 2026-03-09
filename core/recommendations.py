@@ -83,31 +83,33 @@ async def get_pending_recommendation(user_id: int):
         from sqlalchemy import select
         from utils.db import get_sessionmaker
         from utils.models import CharacterRecommendation
-    except Exception:
-        return None
 
-    Session = get_sessionmaker()
-    async with Session() as session:
-        res = await session.execute(
-            select(CharacterRecommendation)
-            .where(CharacterRecommendation.user_id == user_id)
-            .where(CharacterRecommendation.status.in_(["pending", "viewed"]))
-            .order_by(CharacterRecommendation.created_at.desc())
-            .limit(1)
-        )
-        return res.scalar_one_or_none()
+        Session = get_sessionmaker()
+        async with Session() as session:
+            res = await session.execute(
+                select(CharacterRecommendation)
+                .where(CharacterRecommendation.user_id == user_id)
+                .where(CharacterRecommendation.status.in_(["pending", "viewed"]))
+                .order_by(CharacterRecommendation.created_at.desc())
+                .limit(1)
+            )
+            return res.scalar_one_or_none()
+    except Exception:
+        log.debug("get_pending_recommendation failed (table may not exist yet)", exc_info=True)
+        return None
 
 
 async def get_recommendation_by_id(rec_id: int):
     try:
         from utils.db import get_sessionmaker
         from utils.models import CharacterRecommendation
-    except Exception:
-        return None
 
-    Session = get_sessionmaker()
-    async with Session() as session:
-        return await session.get(CharacterRecommendation, rec_id)
+        Session = get_sessionmaker()
+        async with Session() as session:
+            return await session.get(CharacterRecommendation, rec_id)
+    except Exception:
+        log.debug("get_recommendation_by_id failed", exc_info=True)
+        return None
 
 
 async def save_recommendation(user_id: int, data: dict) -> int:
