@@ -59,92 +59,84 @@
   .toast.error { background: var(--error); display: block; }
   .back-link { display: inline-block; margin-bottom: 20px; color: var(--accent); text-decoration: none; font-weight: 600; }
   .back-link:hover { text-decoration: underline; }
-  .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 1.1rem; }
-  .error-msg { text-align: center; padding: 60px 20px; color: var(--error); font-size: 1.1rem; }
 </style>
 </head>
 <body>
 <div class="container">
-  <div class="loading" id="loadingMsg">Loading recommendation...</div>
-  <div class="error-msg" id="errorMsg" style="display:none;"></div>
-  <div id="content" style="display:none;">
-    <a class="back-link" id="backLink" href="#">&larr; Back to Dashboard</a>
-    <h1 id="charName">Character Review</h1>
-    <div class="meta">
-      <span>Submitted by User <strong id="userId"></strong></span> &nbsp;|&nbsp;
-      <span class="status-badge" id="statusBadge"></span> &nbsp;|&nbsp;
-      <span id="dateInfo"></span>
+  <a class="back-link" id="backLink" href="#">&larr; Back to Dashboard</a>
+  <h1 id="charName">Character Review</h1>
+  <div class="meta">
+    <span>Submitted by User <strong id="userId"></strong></span> &nbsp;|&nbsp;
+    <span class="status-badge" id="statusBadge"></span> &nbsp;|&nbsp;
+    <span id="dateInfo"></span>
+  </div>
+
+  <div class="card"><h2>Basic Info</h2>
+    <div class="two-col">
+      <div class="field-row"><div class="label">Name</div><div class="value" id="rv_display_name"></div></div>
+      <div class="field-row"><div class="label">Rarity</div><div class="value" id="rv_rarity"></div></div>
     </div>
-
-    <div class="card"><h2>Basic Info</h2>
-      <div class="two-col">
-        <div class="field-row"><div class="label">Name</div><div class="value" id="rv_display_name"></div></div>
-        <div class="field-row"><div class="label">Rarity</div><div class="value" id="rv_rarity"></div></div>
-      </div>
-      <div class="two-col">
-        <div class="field-row"><div class="label">Color</div><div class="value" id="rv_color"></div></div>
-        <div class="field-row"><div class="label">Image</div><div class="value" id="rv_image_url"></div></div>
-      </div>
-      <div class="field-row"><div class="label">Description</div><div class="value" id="rv_description"></div></div>
+    <div class="two-col">
+      <div class="field-row"><div class="label">Color</div><div class="value" id="rv_color"></div></div>
+      <div class="field-row"><div class="label">Image</div><div class="value" id="rv_image_url"></div></div>
     </div>
+    <div class="field-row"><div class="label">Description</div><div class="value" id="rv_description"></div></div>
+  </div>
 
-    <div class="card"><h2>AI Prompt</h2>
-      <div class="field-row"><div class="label">System Prompt</div><div class="value" id="rv_prompt"></div></div>
-      <div class="field-row"><div class="label">Tips</div><div class="value" id="rv_tips"></div></div>
+  <div class="card"><h2>AI Prompt</h2>
+    <div class="field-row"><div class="label">System Prompt</div><div class="value" id="rv_prompt"></div></div>
+    <div class="field-row"><div class="label">Tips</div><div class="value" id="rv_tips"></div></div>
+  </div>
+
+  <div class="card"><h2>Persona</h2>
+    <div class="two-col">
+      <div class="field-row"><div class="label">Age</div><div class="value" id="rv_age"></div></div>
+      <div class="field-row"><div class="label">Occupation</div><div class="value" id="rv_occupation"></div></div>
     </div>
+    <div class="field-row"><div class="label">Backstory</div><div class="value" id="rv_backstory"></div></div>
+    <div class="field-row"><div class="label">Speech Style</div><div class="value" id="rv_speech_style"></div></div>
+    <div class="field-row"><div class="label">Lore</div><div class="value" id="rv_lore"></div></div>
+    <div class="field-row"><div class="label">Personality Traits</div><div class="value" id="rv_personality_traits"></div></div>
+    <div class="field-row"><div class="label">Quirks</div><div class="value" id="rv_quirks"></div></div>
+    <div class="field-row"><div class="label">Fears</div><div class="value" id="rv_fears"></div></div>
+    <div class="field-row"><div class="label">Desires</div><div class="value" id="rv_desires"></div></div>
+    <div class="field-row"><div class="label">Likes</div><div class="value" id="rv_likes"></div></div>
+    <div class="field-row"><div class="label">Dislikes</div><div class="value" id="rv_dislikes"></div></div>
+    <div class="field-row"><div class="label">Catchphrases</div><div class="value" id="rv_catchphrases"></div></div>
+    <div class="field-row"><div class="label">Secrets</div><div class="value" id="rv_secrets"></div></div>
+  </div>
 
-    <div class="card"><h2>Persona</h2>
-      <div class="two-col">
-        <div class="field-row"><div class="label">Age</div><div class="value" id="rv_age"></div></div>
-        <div class="field-row"><div class="label">Occupation</div><div class="value" id="rv_occupation"></div></div>
-      </div>
-      <div class="field-row"><div class="label">Backstory</div><div class="value" id="rv_backstory"></div></div>
-      <div class="field-row"><div class="label">Speech Style</div><div class="value" id="rv_speech_style"></div></div>
-      <div class="field-row"><div class="label">Lore</div><div class="value" id="rv_lore"></div></div>
-      <div class="field-row"><div class="label">Personality Traits</div><div class="value" id="rv_personality_traits"></div></div>
-      <div class="field-row"><div class="label">Quirks</div><div class="value" id="rv_quirks"></div></div>
-      <div class="field-row"><div class="label">Fears</div><div class="value" id="rv_fears"></div></div>
-      <div class="field-row"><div class="label">Desires</div><div class="value" id="rv_desires"></div></div>
-      <div class="field-row"><div class="label">Likes</div><div class="value" id="rv_likes"></div></div>
-      <div class="field-row"><div class="label">Dislikes</div><div class="value" id="rv_dislikes"></div></div>
-      <div class="field-row"><div class="label">Catchphrases</div><div class="value" id="rv_catchphrases"></div></div>
-      <div class="field-row"><div class="label">Secrets</div><div class="value" id="rv_secrets"></div></div>
+  <div class="card"><h2>World Context</h2>
+    <div class="two-col">
+      <div class="field-row"><div class="label">World</div><div class="value" id="rv_world"></div></div>
+      <div class="field-row"><div class="label">Original World</div><div class="value" id="rv_original_world"></div></div>
     </div>
+    <div class="field-row"><div class="label">World Knowledge</div><div class="value" id="rv_world_knowledge"></div></div>
+  </div>
 
-    <div class="card"><h2>World Context</h2>
-      <div class="two-col">
-        <div class="field-row"><div class="label">World</div><div class="value" id="rv_world"></div></div>
-        <div class="field-row"><div class="label">Original World</div><div class="value" id="rv_original_world"></div></div>
-      </div>
-      <div class="field-row"><div class="label">World Knowledge</div><div class="value" id="rv_world_knowledge"></div></div>
-    </div>
+  <div class="card"><h2>Tags</h2>
+    <div class="field-row"><div class="tag-list" id="rv_tags"></div></div>
+  </div>
 
-    <div class="card"><h2>Tags</h2>
-      <div class="field-row"><div class="tag-list" id="rv_tags"></div></div>
-    </div>
+  <div class="card"><h2>Relationships</h2><table class="kv-table" id="rv_relationships"></table></div>
+  <div class="card"><h2>Topic Reactions</h2><table class="kv-table" id="rv_topic_reactions"></table></div>
 
-    <div class="card"><h2>Relationships</h2><table class="kv-table" id="rv_relationships"></table></div>
-    <div class="card"><h2>Topic Reactions</h2><table class="kv-table" id="rv_topic_reactions"></table></div>
-
-    <div class="decision-section" id="decisionSection">
-      <h2>Your Decision</h2>
-      <textarea id="reviewerNotes" placeholder="Optional notes (visible to the user)..."></textarea>
-      <div class="btn-row">
-        <button class="btn btn-accept" id="btnAccept" onclick="decide('accepted')">Accept</button>
-        <button class="btn btn-deny" id="btnDeny" onclick="decide('denied')">Deny</button>
-      </div>
+  <div class="decision-section" id="decisionSection">
+    <h2>Your Decision</h2>
+    <textarea id="reviewerNotes" placeholder="Optional notes (visible to the user)..."></textarea>
+    <div class="btn-row">
+      <button class="btn btn-accept" id="btnAccept" onclick="decide('accepted')">Accept</button>
+      <button class="btn btn-deny" id="btnDeny" onclick="decide('denied')">Deny</button>
     </div>
   </div>
 </div>
 <div class="toast" id="toast"></div>
 
 <script>
-var params = new URLSearchParams(window.location.search);
-var TOKEN = params.get('token') || '';
-var API = (params.get('api') || '').replace(/\/+$/, '');
-var REC_ID = params.get('id') || '';
-var DASHBOARD_URL = '';
-var rec = {};
+/*__INJECT__*/
+var TOKEN = (window.__DATA__ && window.__DATA__.token) || '';
+var rec = (window.__DATA__ && window.__DATA__.rec) || {};
+var DASHBOARD_URL = (window.__DATA__ && window.__DATA__.dashboard_url) || '#';
 
 function $(id) { return document.getElementById(id); }
 function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
@@ -172,13 +164,13 @@ function setDict(id, val) {
 }
 
 function render(r) {
-  rec = r;
   $('charName').textContent = r.display_name || 'Unknown Character';
   $('userId').textContent = r.user_id || '?';
   var badge = $('statusBadge');
   badge.textContent = r.status || 'unknown';
   badge.className = 'status-badge status-' + (r.status || 'pending');
   $('dateInfo').textContent = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
+  $('backLink').href = DASHBOARD_URL;
 
   setText('rv_display_name', r.display_name);
   setText('rv_rarity', r.rarity);
@@ -211,41 +203,16 @@ function render(r) {
   if (r.status === 'accepted' || r.status === 'denied') { $('decisionSection').style.display = 'none'; }
 }
 
-async function init() {
-  if (!TOKEN || !API || !REC_ID) {
-    $('loadingMsg').style.display = 'none';
-    $('errorMsg').style.display = 'block';
-    $('errorMsg').textContent = 'Invalid link. Please use the link from your Discord DM.';
-    return;
-  }
-  try {
-    var res = await fetch(API + '/api/recommend/review-data?token=' + encodeURIComponent(TOKEN) + '&id=' + encodeURIComponent(REC_ID));
-    var data = await res.json();
-    if (!data.ok) {
-      $('loadingMsg').style.display = 'none';
-      $('errorMsg').style.display = 'block';
-      $('errorMsg').textContent = data.error || 'Failed to load recommendation.';
-      return;
-    }
-    render(data.rec);
-    $('backLink').href = DASHBOARD_URL || '#';
-    $('loadingMsg').style.display = 'none';
-    $('content').style.display = 'block';
-  } catch (err) {
-    $('loadingMsg').style.display = 'none';
-    $('errorMsg').style.display = 'block';
-    $('errorMsg').textContent = 'Could not reach the server. Please try again later.';
-  }
-}
+render(rec);
 
 async function decide(decision) {
   $('btnAccept').disabled = true;
   $('btnDeny').disabled = true;
   try {
-    var res = await fetch(API + '/api/recommend/decide', {
+    var res = await fetch('/api/recommend/decide', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token: TOKEN, id: parseInt(REC_ID), decision: decision, notes: $('reviewerNotes').value.trim() }),
+      body: JSON.stringify({ token: TOKEN, id: rec.id, decision: decision, notes: $('reviewerNotes').value.trim() }),
     });
     var data = await res.json();
     if (data.ok) {
@@ -265,8 +232,6 @@ async function decide(decision) {
     $('btnDeny').disabled = false;
   }
 }
-
-init();
 </script>
 </body>
 </html>

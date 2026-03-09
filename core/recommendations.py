@@ -1,7 +1,10 @@
-"""Character recommendation system: token auth, DB helpers, JSON API handlers, DM notifications.
+"""Character recommendation system: token auth, DB helpers, HTML serving, API handlers, DM notifications.
 
-HTML pages are hosted on Netlify (static). This module provides only JSON API
-endpoints that the Netlify pages call via fetch(). CORS is handled per-response.
+HTML pages are served directly from the bot's aiohttp web server — no external
+hosting needed.  The server reads templates from the ``templates/`` directory,
+injects data via a ``/*__INJECT__*/`` placeholder, and returns the page.  POST
+endpoints live under ``/api/`` and are called from the same origin, so CORS is
+not required.
 """
 from __future__ import annotations
 
@@ -10,6 +13,7 @@ import hashlib
 import hmac
 import json
 import logging
+import pathlib
 import time
 from datetime import datetime, timezone
 from typing import Any
@@ -21,72 +25,7 @@ log = logging.getLogger("recommendations")
 _bot = None
 _TOKEN_MAX_AGE_S = 30 * 24 * 3600  # 30 days
 
-_ALLOWED_ORIGINS: set[str] | None = None
-
-
-def _get_allowed_origins() -> set[str]:
-    global _ALLOWED_ORIGINS
-    if _ALLOWED_ORIGINS is not None:
-        return _ALLOWED_ORIGINS
-    origins: set[str] = set()
-    for url in (config.RECOMMEND_FORM_URL, config.RECOMMEND_REVIEW_URL, config.RECOMMEND_DASHBOARD_URL):
-        if url:
-            origins.add(url.rstrip("/"))
-    if config.ENVIRONMENT == "dev":
-        origins.add("http://localhost:5500")
-        origins.add("http://127.0.0.1:5500")
-    _ALLOWED_ORIGINS = origins
-    log.info("CORS allowed origins: %s", origins)
-    return origins
-
-
-# ---------------------------------------------------------------------------
-# CORS middleware (applied to all /api/recommend responses automatically)
-# ---------------------------------------------------------------------------
-
-def _match_origin(request) -> str | None:
-    origin = (request.headers.get("Origin") or "").rstrip("/")
-    if not origin:
-        return None
-    allowed = _get_allowed_origins()
-    if origin in allowed:
-        return origin
-    return None
-
-
-def _set_cors_headers(response, origin: str) -> None:
-    response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
-    response.headers["Access-Control-Max-Age"] = "86400"
-
-
-def make_cors_middleware():
-    """Return aiohttp middleware that adds CORS headers to every /api/ response."""
-    from aiohttp import web
-
-    @web.middleware
-    async def cors_middleware(request, handler):
-        origin = _match_origin(request)
-
-        if request.method == "OPTIONS" and origin and request.path.startswith("/api/"):
-            resp = web.Response(status=204)
-            _set_cors_headers(resp, origin)
-            return resp
-
-        try:
-            resp = await handler(request)
-        except web.HTTPException as exc:
-            resp = exc
-        except Exception:
-            log.exception("Unhandled error in %s %s", request.method, request.path)
-            resp = web.json_response({"error": "Internal server error"}, status=500)
-
-        if origin and request.path.startswith("/api/"):
-            _set_cors_headers(resp, origin)
-        return resp
-
-    return cors_middleware
+_TEMPLATE_DIR = pathlib.Path(__file__).resolve().parent.parent / "templates"
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +59,18 @@ def verify_token(token: str, expected_purpose: str) -> int | None:
         return int(payload["uid"])
     except Exception:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Template rendering
+# ---------------------------------------------------------------------------
+
+def _render_template(filename: str, inject_data: dict) -> str:
+    """Read an HTML template and replace ``/*__INJECT__*/`` with a JSON data assignment."""
+    path = _TEMPLATE_DIR / filename
+    html = path.read_text(encoding="utf-8")
+    inject_js = f"window.__DATA__ = {json.dumps(inject_data)};"
+    return html.replace("/*__INJECT__*/", inject_js)
 
 
 # ---------------------------------------------------------------------------
@@ -269,22 +220,20 @@ async def _dm_user(user_id: int, message: str) -> None:
 
 
 async def _dm_owners_recommendation(rec_id: int, display_name: str, rarity: str, user_id: int) -> None:
-    review_base = config.RECOMMEND_REVIEW_URL
-    dash_base = config.RECOMMEND_DASHBOARD_URL
-    api_base = config.BASE_URL
-    if not review_base or not api_base:
-        log.warning("RECOMMEND_REVIEW_URL or BASE_URL not configured; cannot generate review link")
+    base = config.BASE_URL
+    if not base:
+        log.warning("BASE_URL not configured; cannot generate review link")
         return
     for owner_id in sorted(config.BOT_OWNER_IDS or []):
         token = generate_token(owner_id, "review")
-        url = f"{review_base}?token={token}&id={rec_id}&api={api_base}"
-        dash_url = f"{dash_base}?token={token}&api={api_base}"
+        review_url = f"{base}/recommend/review?token={token}&id={rec_id}"
+        dash_url = f"{base}/recommend/dashboard?token={token}"
         msg = (
             f"**New Character Recommendation!**\n"
             f"**Character:** {display_name}\n"
             f"**Rarity:** {rarity}\n"
             f"**From:** <@{user_id}> (ID: {user_id})\n"
-            f"**Review:** {url}\n"
+            f"**Review:** {review_url}\n"
             f"**Dashboard:** {dash_url}"
         )
         try:
@@ -299,23 +248,93 @@ async def _dm_owners_recommendation(rec_id: int, display_name: str, rarity: str,
 
 
 # ---------------------------------------------------------------------------
-# JSON API route handlers (called by Netlify-hosted HTML pages)
+# HTML page handlers (served directly by aiohttp — same origin, no CORS)
 # ---------------------------------------------------------------------------
 
-async def handle_form_data(request):
-    """GET /api/recommend/form-data?token=... — return existing recommendation as JSON."""
+async def handle_form_page(request):
+    """GET /recommend/form?token=... — serve the recommendation form."""
     from aiohttp import web
 
     token = request.query.get("token", "")
     user_id = verify_token(token, "submit")
     if user_id is None:
-        return web.json_response({"error": "Invalid or expired token"}, status=403)
+        return web.Response(
+            text="<h2>Invalid or expired link.</h2><p>Please use <code>/recommend</code> in Discord to get a fresh link.</p>",
+            content_type="text/html", status=403,
+        )
 
     existing = await get_pending_recommendation(user_id)
     existing_data = _rec_to_dict(existing) if existing else None
 
-    return web.json_response({"ok": True, "user_id": user_id, "existing": existing_data})
+    html = _render_template("recommend_form.html", {
+        "token": token,
+        "user_id": user_id,
+        "existing": existing_data,
+    })
+    return web.Response(text=html, content_type="text/html")
 
+
+async def handle_review_page(request):
+    """GET /recommend/review?token=...&id=... — serve the review page."""
+    from aiohttp import web
+
+    token = request.query.get("token", "")
+    owner_id = verify_token(token, "review")
+    if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
+        return web.Response(text="<h2>Invalid or expired link.</h2>", content_type="text/html", status=403)
+
+    rec_id_str = request.query.get("id", "")
+    try:
+        rec_id = int(rec_id_str)
+    except (ValueError, TypeError):
+        return web.Response(text="<h2>Missing recommendation ID.</h2>", content_type="text/html", status=400)
+
+    rec = await get_recommendation_by_id(rec_id)
+    if rec is None:
+        return web.Response(text="<h2>Recommendation not found.</h2>", content_type="text/html", status=404)
+
+    if rec.status == "pending":
+        await update_recommendation_status(rec_id, "viewed")
+        try:
+            await _dm_user(rec.user_id, f"Your character recommendation **{rec.display_name}** is being reviewed!")
+        except Exception:
+            pass
+
+    rec_data = _rec_to_dict(rec)
+    if rec_data.get("status") == "pending":
+        rec_data["status"] = "viewed"
+
+    html = _render_template("recommend_review.html", {
+        "token": token,
+        "rec": rec_data,
+        "dashboard_url": f"/recommend/dashboard?token={token}",
+    })
+    return web.Response(text=html, content_type="text/html")
+
+
+async def handle_dashboard_page(request):
+    """GET /recommend/dashboard?token=... — serve the owner dashboard."""
+    from aiohttp import web
+
+    token = request.query.get("token", "")
+    owner_id = verify_token(token, "review")
+    if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
+        return web.Response(text="<h2>Invalid or expired link.</h2>", content_type="text/html", status=403)
+
+    status_filter = request.query.get("status", "all")
+    recs = await list_recommendations(status_filter)
+
+    html = _render_template("recommend_dashboard.html", {
+        "token": token,
+        "recs": recs,
+        "current_filter": status_filter,
+    })
+    return web.Response(text=html, content_type="text/html")
+
+
+# ---------------------------------------------------------------------------
+# JSON API handlers (POST endpoints called from same-origin HTML pages)
+# ---------------------------------------------------------------------------
 
 async def handle_submit(request):
     """POST /api/recommend — submit or update a recommendation."""
@@ -387,39 +406,6 @@ async def handle_submit(request):
     return web.json_response({"ok": True, "id": rec_id})
 
 
-async def handle_review_data(request):
-    """GET /api/recommend/review-data?token=...&id=... — return recommendation for owner review."""
-    from aiohttp import web
-
-    token = request.query.get("token", "")
-    owner_id = verify_token(token, "review")
-    if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
-        return web.json_response({"error": "Invalid or expired token"}, status=403)
-
-    rec_id_str = request.query.get("id", "")
-    try:
-        rec_id = int(rec_id_str)
-    except (ValueError, TypeError):
-        return web.json_response({"error": "Missing recommendation ID"}, status=400)
-
-    rec = await get_recommendation_by_id(rec_id)
-    if rec is None:
-        return web.json_response({"error": "Recommendation not found"}, status=404)
-
-    if rec.status == "pending":
-        await update_recommendation_status(rec_id, "viewed")
-        try:
-            await _dm_user(rec.user_id, f"Your character recommendation **{rec.display_name}** is being reviewed!")
-        except Exception:
-            pass
-
-    rec_data = _rec_to_dict(rec)
-    if rec_data.get("status") == "pending":
-        rec_data["status"] = "viewed"
-
-    return web.json_response({"ok": True, "rec": rec_data})
-
-
 async def handle_decide(request):
     """POST /api/recommend/decide — owner accepts or denies."""
     from aiohttp import web
@@ -468,8 +454,8 @@ async def handle_decide(request):
     return web.json_response({"ok": True})
 
 
-async def handle_list(request):
-    """GET /api/recommend/list?token=...&status=... — return all recommendations for owner dashboard."""
+async def handle_list_api(request):
+    """GET /api/recommend/list?token=...&status=... — JSON for dashboard filtering."""
     from aiohttp import web
 
     token = request.query.get("token", "")
@@ -483,14 +469,20 @@ async def handle_list(request):
     return web.json_response({"ok": True, "recs": recs})
 
 
+# ---------------------------------------------------------------------------
+# Route registration
+# ---------------------------------------------------------------------------
+
 def register_routes(app, bot) -> None:
-    """Register all recommendation API routes on the aiohttp app."""
+    """Register all recommendation routes on the aiohttp app."""
     global _bot
     _bot = bot
 
-    app.router.add_get("/api/recommend/form-data", handle_form_data)
+    app.router.add_get("/recommend/form", handle_form_page)
+    app.router.add_get("/recommend/review", handle_review_page)
+    app.router.add_get("/recommend/dashboard", handle_dashboard_page)
+
     app.router.add_post("/api/recommend", handle_submit)
-    app.router.add_get("/api/recommend/review-data", handle_review_data)
     app.router.add_post("/api/recommend/decide", handle_decide)
-    app.router.add_get("/api/recommend/list", handle_list)
-    log.info("Recommendation API routes registered (Netlify mode)")
+    app.router.add_get("/api/recommend/list", handle_list_api)
+    log.info("Recommendation routes registered (self-hosted mode)")

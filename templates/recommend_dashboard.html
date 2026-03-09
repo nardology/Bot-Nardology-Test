@@ -49,8 +49,6 @@
   .review-link:hover { text-decoration: underline; }
   .empty-msg { text-align: center; padding: 48px 24px; color: var(--text-muted); font-size: 1rem; }
   .count { text-align: center; color: var(--text-muted); margin-bottom: 16px; font-size: 0.85rem; }
-  .loading { text-align: center; padding: 60px 20px; color: var(--text-muted); font-size: 1.1rem; }
-  .error-msg { text-align: center; padding: 60px 20px; color: var(--error); font-size: 1.1rem; }
 </style>
 </head>
 <body>
@@ -58,34 +56,28 @@
   <h1>Recommendation Dashboard</h1>
   <p class="subtitle">Review and manage character recommendations from users.</p>
 
-  <div class="loading" id="loadingMsg">Loading recommendations...</div>
-  <div class="error-msg" id="errorMsg" style="display:none;"></div>
-
-  <div id="content" style="display:none;">
-    <div class="filters" id="filters"></div>
-    <div class="count" id="countInfo"></div>
-    <div class="table-wrap">
-      <table>
-        <thead><tr><th>ID</th><th>Character</th><th>Rarity</th><th>User ID</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
-        <tbody id="tbody"></tbody>
-      </table>
-      <div class="empty-msg" id="emptyMsg" style="display:none;">No recommendations found.</div>
-    </div>
+  <div class="filters" id="filters"></div>
+  <div class="count" id="countInfo"></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Character</th><th>Rarity</th><th>User ID</th><th>Status</th><th>Date</th><th>Action</th></tr></thead>
+      <tbody id="tbody"></tbody>
+    </table>
+    <div class="empty-msg" id="emptyMsg" style="display:none;">No recommendations found.</div>
   </div>
 </div>
 
 <script>
-var params = new URLSearchParams(window.location.search);
-var TOKEN = params.get('token') || '';
-var API = (params.get('api') || '').replace(/\/+$/, '');
-var REVIEW_PAGE_URL = 'https://amazing-nasturtium-a282c0.netlify.app';
-var currentFilter = params.get('status') || 'all';
+/*__INJECT__*/
+var TOKEN = (window.__DATA__ && window.__DATA__.token) || '';
+var currentFilter = (window.__DATA__ && window.__DATA__.current_filter) || 'all';
 
 function escapeHtml(s) { var d = document.createElement('div'); d.textContent = s || ''; return d.innerHTML; }
 
 function renderFilters() {
   var filters = ['all', 'pending', 'viewed', 'accepted', 'denied'];
   var el = document.getElementById('filters');
+  el.innerHTML = '';
   filters.forEach(function(f) {
     var btn = document.createElement('button');
     btn.className = 'filter-btn' + (f === currentFilter ? ' active' : '');
@@ -107,7 +99,7 @@ function renderTable(recs) {
   recs.forEach(function(r) {
     var tr = document.createElement('tr');
     var date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '';
-    var reviewUrl = REVIEW_PAGE_URL + '?token=' + encodeURIComponent(TOKEN) + '&id=' + r.id + '&api=' + encodeURIComponent(API);
+    var reviewUrl = '/recommend/review?token=' + encodeURIComponent(TOKEN) + '&id=' + r.id;
     tr.innerHTML =
       '<td>' + r.id + '</td>' +
       '<td><strong>' + escapeHtml(r.display_name) + '</strong></td>' +
@@ -122,52 +114,20 @@ function renderTable(recs) {
 
 async function loadData(statusFilter) {
   currentFilter = statusFilter || 'all';
-  document.querySelectorAll('.filter-btn').forEach(function(btn) {
-    btn.classList.toggle('active', btn.textContent.toLowerCase() === currentFilter);
-  });
-  try {
-    var res = await fetch(API + '/api/recommend/list?token=' + encodeURIComponent(TOKEN) + '&status=' + encodeURIComponent(currentFilter));
-    var data = await res.json();
-    if (!data.ok) {
-      document.getElementById('errorMsg').style.display = 'block';
-      document.getElementById('errorMsg').textContent = data.error || 'Failed to load.';
-      return;
-    }
-    renderTable(data.recs);
-  } catch (err) {
-    document.getElementById('errorMsg').style.display = 'block';
-    document.getElementById('errorMsg').textContent = 'Could not reach the server.';
-  }
-}
-
-async function init() {
-  if (!TOKEN || !API) {
-    document.getElementById('loadingMsg').style.display = 'none';
-    document.getElementById('errorMsg').style.display = 'block';
-    document.getElementById('errorMsg').textContent = 'Invalid link. Please use the link from your Discord DM.';
-    return;
-  }
   renderFilters();
   try {
-    var res = await fetch(API + '/api/recommend/list?token=' + encodeURIComponent(TOKEN) + '&status=' + encodeURIComponent(currentFilter));
+    var res = await fetch('/api/recommend/list?token=' + encodeURIComponent(TOKEN) + '&status=' + encodeURIComponent(currentFilter));
     var data = await res.json();
-    if (!data.ok) {
-      document.getElementById('loadingMsg').style.display = 'none';
-      document.getElementById('errorMsg').style.display = 'block';
-      document.getElementById('errorMsg').textContent = data.error || 'Failed to load.';
-      return;
+    if (data.ok) {
+      renderTable(data.recs);
     }
-    renderTable(data.recs);
-    document.getElementById('loadingMsg').style.display = 'none';
-    document.getElementById('content').style.display = 'block';
   } catch (err) {
-    document.getElementById('loadingMsg').style.display = 'none';
-    document.getElementById('errorMsg').style.display = 'block';
-    document.getElementById('errorMsg').textContent = 'Could not reach the server. Please try again later.';
+    console.error('Filter error:', err);
   }
 }
 
-init();
+renderFilters();
+renderTable((window.__DATA__ && window.__DATA__.recs) || []);
 </script>
 </body>
 </html>
