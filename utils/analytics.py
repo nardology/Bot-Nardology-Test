@@ -292,6 +292,57 @@ async def _touch_active(day_utc: str, guild_id: int, user_id: int) -> None:
         return
 
 
+# ---------------------------------------------------------------------------
+# Command popularity tracking (Redis counters)
+# ---------------------------------------------------------------------------
+
+def _k_cmd_pop(day_utc: str, command: str) -> str:
+    return f"cmd_pop:{day_utc}:{command}"
+
+
+def _k_cmd_set(day_utc: str) -> str:
+    return f"cmd_pop:commands:{day_utc}"
+
+
+async def track_command(command_path: str) -> None:
+    """Increment a per-day counter for a slash command (fire-and-forget)."""
+    if not command_path:
+        return
+    r = await get_redis_or_none()
+    if r is None:
+        return
+    day = utc_day_str()
+    try:
+        k = _k_cmd_pop(day, command_path)
+        await r.incrby(k, 1)
+        await r.expire(k, 86400 * 10)
+        sk = _k_cmd_set(day)
+        await r.sadd(sk, command_path)
+        await r.expire(sk, 86400 * 10)
+    except Exception:
+        pass
+
+
+async def read_command_popularity(*, days: int = 1) -> list[tuple[str, int]]:
+    """Return (command_path, total_count) sorted descending over the last N days."""
+    r = await get_redis_or_none()
+    if r is None:
+        return []
+    now_ts = _now()
+    aggregated: Dict[str, int] = {}
+    for i in range(min(days, 30)):
+        day = utc_day_str(now_ts - 86400 * i)
+        try:
+            members = await r.smembers(_k_cmd_set(day))
+            for m in (members or []):
+                cmd = m.decode("utf-8", errors="ignore") if isinstance(m, (bytes, bytearray)) else str(m)
+                v = await r.get(_k_cmd_pop(day, cmd))
+                aggregated[cmd] = aggregated.get(cmd, 0) + int(v or 0)
+        except Exception:
+            continue
+    return sorted(aggregated.items(), key=lambda x: x[1], reverse=True)
+
+
 # Global guild ID for global rolls
 GLOBAL_GUILD_ID = 0
 

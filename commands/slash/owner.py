@@ -2955,6 +2955,95 @@ class SlashOwner(commands.Cog):
             logger.exception("analytics churn failed")
             await _ephemeral(interaction, "⚠️ Failed to load churn.")
 
+    @analytics.command(name="commands", description="Top slash commands by usage (today or last N days)")
+    @_owner_only()
+    @app_commands.describe(days="Number of days to aggregate (1-7, default 1)")
+    async def analytics_commands(self, interaction: discord.Interaction, days: int = 1):
+        from utils.analytics import read_command_popularity
+
+        try:
+            days = max(1, min(days, 7))
+            top = await read_command_popularity(days=days)
+            if not top:
+                await _ephemeral(interaction, "No command usage data yet.")
+                return
+            lines = [f"**Top commands** (last {'today' if days == 1 else f'{days}d'}):"]
+            for i, (cmd, count) in enumerate(top[:15], 1):
+                lines.append(f"`{i:>2}.` **/{cmd}** — {count:,}")
+            total = sum(c for _, c in top)
+            lines.append(f"\nTotal invocations: **{total:,}** across **{len(top)}** commands")
+            await _ephemeral(interaction, "\n".join(lines)[:1900])
+        except Exception:
+            logger.exception("analytics commands failed")
+            await _ephemeral(interaction, "⚠️ Failed to load command popularity.")
+
+    @analytics.command(name="stickiness", description="DAU/WAU/MAU and stickiness ratio")
+    @_owner_only()
+    async def analytics_stickiness(self, interaction: discord.Interaction):
+        from utils.dashboard_queries import get_stickiness_stats
+
+        try:
+            s = await get_stickiness_stats()
+            lines = [
+                "**Engagement Stickiness**",
+                f"DAU (today): **{s.dau:,}**",
+                f"WAU (7d): **{s.wau:,}**",
+                f"MAU (30d): **{s.mau:,}**",
+                f"Stickiness (DAU/MAU): **{s.stickiness_pct:.1f}%**",
+            ]
+            if s.mau > 0:
+                wau_mau = s.wau / s.mau * 100
+                lines.append(f"WAU/MAU: **{wau_mau:.1f}%**")
+            await _ephemeral(interaction, "\n".join(lines))
+        except Exception:
+            logger.exception("analytics stickiness failed")
+            await _ephemeral(interaction, "⚠️ Failed to load stickiness stats.")
+
+    @analytics.command(name="streaks", description="Daily streak length distribution")
+    @_owner_only()
+    async def analytics_streaks(self, interaction: discord.Interaction):
+        from utils.dashboard_queries import get_streak_distribution
+
+        try:
+            buckets = await get_streak_distribution()
+            if not buckets:
+                await _ephemeral(interaction, "No streak data available.")
+                return
+            total = sum(b.count for b in buckets)
+            lines = ["**Streak Distribution**", f"Total wallets: **{total:,}**\n"]
+            for b in buckets:
+                pct = (b.count / total * 100) if total else 0
+                bar = "█" * max(1, int(pct / 5))
+                lines.append(f"`{b.label:>5}` {bar} **{b.count:,}** ({pct:.0f}%)")
+            power = sum(b.count for b in buckets if b.label not in ("0", "1-2", "3-6"))
+            lines.append(f"\n7+ day streakers (power users): **{power:,}**")
+            await _ephemeral(interaction, "\n".join(lines)[:1900])
+        except Exception:
+            logger.exception("analytics streaks failed")
+            await _ephemeral(interaction, "⚠️ Failed to load streak distribution.")
+
+    @analytics.command(name="inactive", description="Users at risk of churning (active recently but gone silent)")
+    @_owner_only()
+    async def analytics_inactive(self, interaction: discord.Interaction):
+        from utils.dashboard_queries import get_inactive_users
+
+        try:
+            stats = await get_inactive_users()
+            lines = [
+                "**Inactive User Detection**",
+                f"At-risk users (3+ active days in 30d, silent for 7d): **{stats.total_at_risk:,}**",
+            ]
+            if stats.sample_user_ids:
+                lines.append("\nSample user IDs:")
+                for uid in stats.sample_user_ids[:10]:
+                    lines.append(f"• `{uid}`")
+            else:
+                lines.append("No at-risk users found.")
+            await _ephemeral(interaction, "\n".join(lines)[:1900])
+        except Exception:
+            logger.exception("analytics inactive failed")
+            await _ephemeral(interaction, "⚠️ Failed to load inactive users.")
+
     # ----------------------------
     # Error handling
     # ----------------------------

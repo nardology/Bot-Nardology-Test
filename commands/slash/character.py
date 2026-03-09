@@ -716,7 +716,7 @@ class OutOfRollsView(discord.ui.View):
 
 class DupeRollView(discord.ui.View):
     """
-    View for a DUPLICATE roll: Roll again, Close, and optionally Extra Roll (100 pts) when out of rolls.
+    View for a DUPLICATE roll: Roll again, Close, and optionally Extra Roll (60 pts) when out of rolls.
     """
 
     def __init__(self, *, bot: commands.Bot, user_id: int, guild_id: int, out_of_rolls: bool = False):

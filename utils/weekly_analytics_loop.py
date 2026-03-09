@@ -118,11 +118,28 @@ async def _aggregate_last_7_days() -> dict:
         return {}
 
 
-def _build_embed(data: dict, guild_count: int) -> discord.Embed:
+async def _gather_engagement_data() -> dict:
+    """Gather stickiness, command popularity, streak distribution, and churn risk."""
+    out: dict = {}
+    try:
+        from utils.dashboard_queries import get_stickiness_stats, get_streak_distribution, get_inactive_users
+        from utils.analytics import read_command_popularity
+
+        out["stickiness"] = await get_stickiness_stats()
+        out["top_commands"] = await read_command_popularity(days=7)
+        out["streak_buckets"] = await get_streak_distribution()
+        out["inactive"] = await get_inactive_users()
+    except Exception:
+        logger.exception("Failed to gather engagement data for weekly DM")
+    return out
+
+
+def _build_embed(data: dict, guild_count: int, engagement: dict | None = None) -> discord.Embed:
     """Build the weekly analytics embed."""
     totals = data.get("totals") or {}
     days = data.get("days") or []
     top_guilds = data.get("top_guilds_by_tokens") or []
+    engagement = engagement or {}
 
     total_tokens = int(totals.get("daily_ai_token_budget", 0) or 0)
     est_cost = estimate_ai_cost_usd_from_tokens(total_tokens)
@@ -145,6 +162,42 @@ def _build_embed(data: dict, guild_count: int) -> discord.Embed:
         f"5-pulls: **{totals.get('pull_5', 0)}** | 10-pulls: **{totals.get('pull_10', 0)}**",
     ]
     e.add_field(name="Usage", value="\n".join(usage_lines), inline=False)
+
+    # Stickiness section
+    sticky = engagement.get("stickiness")
+    if sticky and hasattr(sticky, "mau"):
+        sticky_lines = [
+            f"DAU: **{sticky.dau:,}** | WAU: **{sticky.wau:,}** | MAU: **{sticky.mau:,}**",
+            f"Stickiness (DAU/MAU): **{sticky.stickiness_pct:.1f}%**",
+        ]
+        e.add_field(name="Engagement", value="\n".join(sticky_lines), inline=False)
+
+    # Top commands section
+    top_cmds = engagement.get("top_commands") or []
+    if top_cmds:
+        cmd_lines = []
+        for cmd, count in top_cmds[:5]:
+            cmd_lines.append(f"`/{cmd}` — {count:,}")
+        e.add_field(name="Top Commands (7d)", value="\n".join(cmd_lines), inline=True)
+
+    # Streak health section
+    streak_buckets = engagement.get("streak_buckets") or []
+    if streak_buckets:
+        total_wallets = sum(b.count for b in streak_buckets)
+        power_users = sum(b.count for b in streak_buckets if b.label not in ("0", "1-2", "3-6"))
+        long_streakers = sum(b.count for b in streak_buckets if b.label in ("30-59", "60-89", "90+"))
+        streak_lines = [
+            f"Total wallets: **{total_wallets:,}**",
+            f"7+ day streakers: **{power_users:,}**",
+            f"30+ day streakers: **{long_streakers:,}**",
+        ]
+        e.add_field(name="Streak Health", value="\n".join(streak_lines), inline=True)
+
+    # Churn risk section
+    inactive = engagement.get("inactive")
+    if inactive and hasattr(inactive, "total_at_risk"):
+        churn_lines = [f"At-risk users: **{inactive.total_at_risk:,}**"]
+        e.add_field(name="Churn Risk", value="\n".join(churn_lines), inline=True)
 
     # Cost section
     cost_lines = [
@@ -187,8 +240,9 @@ async def _send_weekly_dm(bot: discord.Client) -> None:
         logger.warning("Weekly analytics: no data aggregated; skipping DM.")
         return
 
+    engagement = await _gather_engagement_data()
     guild_count = len(list(getattr(bot, "guilds", []) or []))
-    embed = _build_embed(data, guild_count)
+    embed = _build_embed(data, guild_count, engagement)
 
     sent = 0
     for owner_id in BOT_OWNER_IDS:

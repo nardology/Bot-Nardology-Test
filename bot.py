@@ -222,6 +222,24 @@ class SlashOnlyBot(commands.AutoShardedBot):
                         pass
                     return False
 
+                # Track command popularity (fire-and-forget, never blocks gate)
+                try:
+                    from utils.analytics import track_command
+                    data = getattr(interaction, "data", None) or {}
+                    parts = [str(data.get("name") or "")]
+                    for opt in (data.get("options") or []):
+                        if isinstance(opt, dict) and opt.get("type") in (1, 2):
+                            parts.append(str(opt.get("name") or ""))
+                            for sub in (opt.get("options") or []):
+                                if isinstance(sub, dict) and sub.get("type") in (1, 2):
+                                    parts.append(str(sub.get("name") or ""))
+                            break
+                    cmd_path = " ".join(p for p in parts if p)
+                    if cmd_path:
+                        asyncio.ensure_future(track_command(cmd_path))
+                except Exception:
+                    pass
+
                 return True
             except Exception:
                 return True

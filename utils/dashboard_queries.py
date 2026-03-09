@@ -235,6 +235,133 @@ async def get_ai_cost_stats(*, days: int = 7, guild_id: int | None = None) -> AI
         return AICostStats([], {}, 0, 0.0)
 
 
+@dataclass
+class StickinessStats:
+    dau: int
+    wau: int
+    mau: int
+    stickiness_pct: float  # DAU / MAU * 100
+
+
+@dataclass
+class StreakBucket:
+    label: str
+    count: int
+
+
+@dataclass
+class InactiveUserStats:
+    total_at_risk: int
+    sample_user_ids: list[int]
+
+
+async def get_stickiness_stats(*, guild_id: int | None = None) -> StickinessStats:
+    """DAU / WAU / MAU from UserActivityDay. Stickiness = DAU/MAU."""
+    if select is None or func is None:
+        return StickinessStats(0, 0, 0, 0.0)
+    try:
+        from utils.models import UserActivityDay
+
+        Session = get_sessionmaker()
+        now_ts = int(__import__("time").time())
+        today = utc_day_str(now_ts)
+        last_7 = [utc_day_str(now_ts - 86400 * i) for i in range(7)]
+        last_30 = [utc_day_str(now_ts - 86400 * i) for i in range(30)]
+
+        async with Session() as session:
+            def _q(day_list: list[str]):
+                q = select(func.count(func.distinct(UserActivityDay.user_id))).where(
+                    UserActivityDay.day_utc.in_(day_list)
+                )
+                if guild_id is not None:
+                    q = q.where(UserActivityDay.guild_id == guild_id)
+                return q
+
+            dau = (await session.execute(_q([today]))).scalar() or 0
+            wau = (await session.execute(_q(last_7))).scalar() or 0
+            mau = (await session.execute(_q(last_30))).scalar() or 0
+
+        stickiness = (dau / mau * 100) if mau > 0 else 0.0
+        return StickinessStats(dau=int(dau), wau=int(wau), mau=int(mau), stickiness_pct=round(stickiness, 1))
+    except Exception as e:
+        logger.exception("get_stickiness_stats failed: %s", e)
+        return StickinessStats(0, 0, 0, 0.0)
+
+
+async def get_streak_distribution() -> list[StreakBucket]:
+    """Group PointsWallet.streak into buckets."""
+    if select is None or func is None:
+        return []
+    try:
+        from utils.models import PointsWallet
+        from sqlalchemy import case, literal_column  # type: ignore
+
+        Session = get_sessionmaker()
+        async with Session() as session:
+            bucket_expr = case(
+                (PointsWallet.streak == 0, literal_column("'0'")),
+                (PointsWallet.streak <= 2, literal_column("'1-2'")),
+                (PointsWallet.streak <= 6, literal_column("'3-6'")),
+                (PointsWallet.streak <= 13, literal_column("'7-13'")),
+                (PointsWallet.streak <= 29, literal_column("'14-29'")),
+                (PointsWallet.streak <= 59, literal_column("'30-59'")),
+                (PointsWallet.streak <= 89, literal_column("'60-89'")),
+                else_=literal_column("'90+'"),
+            ).label("bucket")
+
+            rows = (
+                await session.execute(
+                    select(bucket_expr, func.count())
+                    .group_by(bucket_expr)
+                )
+            ).all()
+
+        order = ["0", "1-2", "3-6", "7-13", "14-29", "30-59", "60-89", "90+"]
+        by_label = {str(label): int(cnt) for label, cnt in rows}
+        return [StreakBucket(label=lab, count=by_label.get(lab, 0)) for lab in order]
+    except Exception as e:
+        logger.exception("get_streak_distribution failed: %s", e)
+        return []
+
+
+async def get_inactive_users(*, active_min_days: int = 3, inactive_days: int = 7, limit: int = 20) -> InactiveUserStats:
+    """Users active 3+ days in last 30d but not seen in last 7d."""
+    if select is None or func is None:
+        return InactiveUserStats(0, [])
+    try:
+        from utils.models import UserActivityDay
+
+        Session = get_sessionmaker()
+        now_ts = int(__import__("time").time())
+        last_30 = [utc_day_str(now_ts - 86400 * i) for i in range(30)]
+        recent = [utc_day_str(now_ts - 86400 * i) for i in range(inactive_days)]
+
+        async with Session() as session:
+            active_sub = (
+                select(UserActivityDay.user_id)
+                .where(UserActivityDay.day_utc.in_(last_30))
+                .group_by(UserActivityDay.user_id)
+                .having(func.count(func.distinct(UserActivityDay.day_utc)) >= active_min_days)
+            ).subquery()
+
+            recent_sub = (
+                select(func.distinct(UserActivityDay.user_id))
+                .where(UserActivityDay.day_utc.in_(recent))
+            ).subquery()
+
+            q = (
+                select(active_sub.c.user_id)
+                .where(active_sub.c.user_id.notin_(select(recent_sub)))
+            )
+            rows = (await session.execute(q)).all()
+
+        user_ids = [int(r[0]) for r in rows]
+        return InactiveUserStats(total_at_risk=len(user_ids), sample_user_ids=user_ids[:limit])
+    except Exception as e:
+        logger.exception("get_inactive_users failed: %s", e)
+        return InactiveUserStats(0, [])
+
+
 async def get_churn_stats(*, guild_ids: list[int] | None = None) -> ChurnStats:
     """Guilds with declining activity, trials ended."""
     if select is None or func is None:
