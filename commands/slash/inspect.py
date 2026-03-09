@@ -256,10 +256,10 @@ class SlashInspect(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
 
-    @app_commands.command(name="inspect", description="View stats for a member or yourself (public or private)")
+    @app_commands.command(name="inspect", description="View stats for a member or yourself (private by default, Pro can make public)")
     @app_commands.describe(
         user="Member to inspect (leave blank to view your own stats)",
-        public="If viewing your own: show in channel (true) or only to you (false)",
+        public="Show publicly in channel (Pro only)",
     )
     async def inspect(
         self,
@@ -279,7 +279,20 @@ class SlashInspect(commands.Cog):
         display_name = (user.display_name if user else interaction.user.display_name) or "Someone"
         is_self = target_id == interaction.user.id
 
-        ephemeral = is_self and not public
+        ephemeral = True
+        if public:
+            caller_tier = await get_premium_tier(interaction.user.id)
+            if caller_tier == "pro":
+                ephemeral = False
+            else:
+                try:
+                    await interaction.response.send_message(
+                        "⭐ The `public` option is a **Pro** perk. Use `/premium subscribe` to unlock it!",
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
+                return
         try:
             await interaction.response.defer(ephemeral=ephemeral)
         except Exception:

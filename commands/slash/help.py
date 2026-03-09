@@ -164,7 +164,8 @@ def get_topic_text(topic: str) -> str | None:
         return (
             "🔍 **/inspect**\n"
             "• `/inspect` — View your own profile (characters, bond, stats, cosmetics)\n"
-            "• `/inspect member:<user>` — View another member's profile"
+            "• `/inspect member:<user>` — View another member's profile\n"
+            "• Always private by default — Pro users can set `public:true`"
         )
 
     if t in {"settings", "config"}:
