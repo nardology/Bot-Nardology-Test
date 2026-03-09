@@ -469,7 +469,7 @@ class RollView(discord.ui.View):
 
             s = get_style(self.rolled_style_id)
             if not s:
-                await interaction.response.send_message("⚠️ Character not found.", ephemeral=True)
+                await interaction.followup.send("⚠️ Character not found.", ephemeral=True)
                 return
 
             f, attach_url = _image_attachment_for_style(s)
@@ -792,7 +792,7 @@ class DupeRollView(discord.ui.View):
         except Exception:
             logger.exception("DupeRollView.close_btn failed")
             try:
-                await interaction.response.send_message("⚠️ Something went wrong. Check logs.", ephemeral=True)
+                await _safe_ephemeral_send(interaction, "⚠️ Something went wrong. Check logs.")
             except Exception:
                 pass
 

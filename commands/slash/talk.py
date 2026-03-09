@@ -238,12 +238,11 @@ class SlashTalk(commands.Cog):
     ) -> discord.Message | None:
         """Safely send a reply (supports embeds and files).
 
-        - If deferred/already responded -> followup.send (returns a Message/WebhookMessage)
-        - Else -> response.send_message then original_response (returns Message)
+        Always tries followup.send first (we defer at the top of /talk),
+        then falls back to response.send_message if followup fails.
         """
         try:
             send_content = content if content is not None else ""
-            # Prefer 'embeds' if provided; otherwise fall back to single 'embed'.
             payload_embeds: list[discord.Embed] | None = None
             if embeds is not None:
                 payload_embeds = embeds
@@ -256,11 +255,15 @@ class SlashTalk(commands.Cog):
 
             if interaction.response.is_done():
                 return await interaction.followup.send(**kwargs)
-            await interaction.response.send_message(**kwargs)
+
             try:
-                return await interaction.original_response()
-            except Exception:
-                return None
+                await interaction.response.send_message(**kwargs)
+                try:
+                    return await interaction.original_response()
+                except Exception:
+                    return None
+            except discord.NotFound:
+                return await interaction.followup.send(**kwargs)
         except Exception:
             logger.exception("Failed sending /talk reply")
             return None
