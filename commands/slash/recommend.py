@@ -41,24 +41,26 @@ class RecommendCog(commands.Cog):
                 title="Edit Your Recommendation",
                 description=(
                     f"You already have a pending recommendation for **{existing.display_name}**.\n\n"
-                    f"Click the link below to edit it:\n{url}"
+                    "Click the button below to edit it."
                 ),
                 color=0xF39C12,
             )
+            btn_label = "Edit Recommendation"
         else:
             embed = discord.Embed(
                 title="Recommend a Character",
                 description=(
-                    "Click the link below to open the recommendation form. "
                     "Fill out as much detail as you'd like about your character idea.\n\n"
-                    f"**Form:** {url}\n\n"
                     "You'll be notified via DM when your recommendation is reviewed."
                 ),
                 color=0xE94560,
             )
+            btn_label = "Open Recommendation Form"
 
         embed.set_footer(text="This link expires in 30 days.")
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label=btn_label, url=url, style=discord.ButtonStyle.link))
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:

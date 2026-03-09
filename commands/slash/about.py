@@ -22,25 +22,18 @@ class SlashAbout(commands.Cog):
         embed = discord.Embed(
             title="About Bot-Nardology",
             description=(
-                f"AI-Powered Roleplay, Characters & Community\n\n"
-                f"**[Visit Landing Page]({base})**\n\n"
-                f"Learn about our features, Pro subscription, technology stack, "
-                f"roadmap, and how to get in touch."
+                "AI-Powered Roleplay, Characters & Community\n\n"
+                "Learn about our features, Pro subscription, technology stack, "
+                "roadmap, and how to get in touch."
             ),
             color=discord.Color.blurple(),
         )
-        embed.add_field(
-            name="Quick Links",
-            value=(
-                f"[World Lore]({base}/lore)\n"
-                f"[Support Server]({config.SUPPORT_SERVER_URL})\n"
-                f"[Terms of Service]({config.TERMS_OF_SERVICE_URL})\n"
-                f"[Privacy Policy]({config.PRIVACY_POLICY_URL})"
-            ),
-            inline=False,
-        )
         embed.set_footer(text="Nardology Enterprises")
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        view = discord.ui.View()
+        view.add_item(discord.ui.Button(label="Visit Landing Page", url=base, style=discord.ButtonStyle.link))
+        view.add_item(discord.ui.Button(label="World Lore", url=f"{base}/lore", style=discord.ButtonStyle.link))
+        view.add_item(discord.ui.Button(label="Support Server", url=config.SUPPORT_SERVER_URL, style=discord.ButtonStyle.link))
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
