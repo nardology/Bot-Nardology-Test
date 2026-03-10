@@ -763,6 +763,13 @@ async def start_webhook_server(bot) -> None:
     except Exception:
         log.exception("Failed to register landing page route (non-fatal)")
 
+    # Admin panel (owner-only, magic-link auth)
+    try:
+        from core.admin_panel import register_routes as _register_admin_routes
+        _register_admin_routes(app, bot)
+    except Exception:
+        log.exception("Failed to register admin panel routes (non-fatal)")
+
     port = int(os.getenv("PORT", "8080"))
     runner = web.AppRunner(app)
     await runner.setup()

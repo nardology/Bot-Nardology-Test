@@ -9,6 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import config
 from utils.owner import is_bot_owner
 from utils.storage import set_guild_setting
 from utils.premium import get_premium_tier
@@ -516,6 +517,31 @@ class SlashOwner(commands.Cog):
             f"Circuit breaker: **{breaker}**"
         )
         await _ephemeral(interaction, msg)
+
+    # ----------------------------
+    # /z_owner admin_link
+    # ----------------------------
+
+    @owner.command(name="admin_link", description="Get a magic link to the admin panel (owner only)")
+    @_owner_only()
+    async def owner_admin_link(self, interaction: discord.Interaction):
+        base = (getattr(config, "BASE_URL") or "").strip().rstrip("/")
+        if not base:
+            await _ephemeral(interaction, "Set **BASE_URL** in the environment to use the admin panel.")
+            return
+        from core.recommendations import generate_token
+        token = generate_token(int(interaction.user.id), "admin")
+        url = f"{base}/admin?token={token}"
+        await _ephemeral(interaction, "Check your DMs for the admin panel link.")
+        try:
+            await interaction.user.send(
+                "**Admin panel link** (valid for 30 days):\n" + url + "\n\nDo not share this link."
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't DM you. Enable DMs and try again, or use this link here (do not share):\n" + url,
+                ephemeral=True,
+            )
 
     # ----------------------------
     # /owner packs ...

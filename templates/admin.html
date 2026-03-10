@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Bot-Nardology</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --surface: #161b22;
+    --surface2: #1c2333;
+    --accent: #e94560;
+    --accent2: #9b59b6;
+    --accent-hover: #c73a52;
+    --text: #e6edf3;
+    --text-muted: #8b949e;
+    --border: #30363d;
+    --radius: 10px;
+    --success: #2ecc71;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+  }
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(13,17,23,0.95); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+  }
+  .nav-inner {
+    max-width: 1200px; margin: 0 auto;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 52px;
+  }
+  .nav-brand { font-weight: 700; color: var(--text); }
+  .nav-brand span { color: var(--accent); }
+  .tabs { display: flex; gap: 4px; list-style: none; }
+  .tabs button {
+    background: none; border: none; color: var(--text-muted);
+    padding: 8px 16px; border-radius: var(--radius); cursor: pointer;
+    font-size: 0.9rem; font-weight: 500;
+  }
+  .tabs button:hover { color: var(--text); background: var(--surface); }
+  .tabs button.active { color: var(--accent); background: var(--surface); }
+  .main { max-width: 1200px; margin: 0 auto; padding: 72px 24px 48px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px 24px;
+    margin-bottom: 20px;
+  }
+  .card h3 { font-size: 1rem; margin-bottom: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .card-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 16px; }
+  .stat { background: var(--surface2); border-radius: 8px; padding: 16px; }
+  .stat-value { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+  .stat-label { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  th { color: var(--text-muted); font-weight: 600; font-size: 0.85rem; }
+  tr:hover { background: var(--surface2); }
+  .msg { padding: 16px; border-radius: var(--radius); margin-bottom: 16px; }
+  .msg.err { background: rgba(233,69,96,0.15); border: 1px solid var(--accent); color: var(--accent); }
+  .msg.loading { background: var(--surface); color: var(--text-muted); }
+  .empty { color: var(--text-muted); padding: 24px; text-align: center; }
+</style>
+</head>
+<body>
+  <nav class="nav">
+    <div class="nav-inner">
+      <span class="nav-brand">Admin <span>Panel</span></span>
+      <ul class="tabs">
+        <li><button type="button" data-panel="servers">Servers</button></li>
+        <li><button type="button" data-panel="limits">Limits</button></li>
+        <li><button type="button" data-panel="analytics">Analytics</button></li>
+        <li><button type="button" data-panel="reports">Reports</button></li>
+      </ul>
+    </div>
+  </nav>
+  <main class="main">
+    <div id="msg" class="msg" style="display:none;"></div>
+    <div id="panel-servers" class="panel">
+      <div class="card">
+        <h3>Servers (guilds)</h3>
+        <div id="servers-content"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+    <div id="panel-limits" class="panel">
+      <div class="card">
+        <h3>Limit configuration (read-only)</h3>
+        <div id="limits-content"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+    <div id="panel-analytics" class="panel active">
+      <div class="card">
+        <h3>Engagement overview</h3>
+        <div id="analytics-overview"><p class="empty">Loading…</p></div>
+      </div>
+      <div class="card">
+        <h3>Retention (cohorts)</h3>
+        <div id="analytics-retention"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+    <div id="panel-reports" class="panel">
+      <div class="card">
+        <h3>Open reports</h3>
+        <div id="reports-content"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+  </main>
+  <script>
+(function () {
+  const token = typeof window.__ADMIN_TOKEN__ !== 'undefined' ? window.__ADMIN_TOKEN__ : '';
+  if (!token) {
+    showMsg('Session expired or missing token. Run /z_owner admin_link in Discord to get a new link.', true);
+    return;
+  }
+  const q = (s) => '?token=' + encodeURIComponent(token);
+  function showMsg(text, isErr) {
+    const el = document.getElementById('msg');
+    el.textContent = text;
+    el.className = 'msg ' + (isErr ? 'err' : 'loading');
+    el.style.display = 'block';
+  }
+  function hideMsg() {
+    document.getElementById('msg').style.display = 'none';
+  }
+  function handle403() {
+    showMsg('Session expired. Run /z_owner admin_link in Discord for a new link.', true);
+  }
+  async function fetchJSON(url) {
+    const r = await fetch(url);
+    if (r.status === 403) {
+      handle403();
+      return null;
+    }
+    if (!r.ok) {
+      const t = await r.text();
+      try {
+        const j = JSON.parse(t);
+        throw new Error(j.error || t);
+      } catch (e) {
+        if (e instanceof Error && e.message) throw e;
+        throw new Error(t || r.statusText);
+      }
+    }
+    return r.json();
+  }
+  function tabSwitch() {
+    document.querySelectorAll('.tabs button').forEach(b => {
+      b.classList.toggle('active', b.getAttribute('data-panel') === this);
+    });
+    document.querySelectorAll('.panel').forEach(p => {
+      p.classList.toggle('active', p.id === 'panel-' + this);
+    });
+  }
+  document.querySelectorAll('.tabs button').forEach(b => {
+    b.addEventListener('click', () => tabSwitch.call(b.getAttribute('data-panel')));
+  });
+  document.querySelector('.tabs button[data-panel="analytics"]').classList.add('active');
+  document.getElementById('panel-analytics').classList.add('active');
+
+  async function loadServers() {
+    try {
+      const data = await fetchJSON('/api/admin/servers' + q());
+      if (!data) return;
+      const el = document.getElementById('servers-content');
+      if (!Array.isArray(data) || data.length === 0) {
+        el.innerHTML = '<p class="empty">No guilds</p>';
+        return;
+      }
+      el.innerHTML = '<table><thead><tr><th>Name</th><th>ID</th><th>Members</th></tr></thead><tbody>' +
+        data.map(g => '<tr><td>' + escapeHtml(g.name || '') + '</td><td><code>' + escapeHtml(String(g.id)) + '</code></td><td>' + (g.member_count != null ? g.member_count : '—') + '</td></tr>').join('') +
+        '</tbody></table>';
+    } catch (e) {
+      document.getElementById('servers-content').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+  }
+  async function loadLimits() {
+    try {
+      const data = await fetchJSON('/api/admin/limits' + q());
+      if (!data) return;
+      const el = document.getElementById('limits-content');
+      el.innerHTML = '<table><tbody>' +
+        Object.entries(data).map(([k, v]) => '<tr><td><code>' + escapeHtml(k) + '</code></td><td>' + escapeHtml(String(v)) + '</td></tr>').join('') +
+        '</tbody></table>';
+    } catch (e) {
+      document.getElementById('limits-content').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+  }
+  async function loadAnalytics() {
+    try {
+      const data = await fetchJSON('/api/admin/analytics/overview' + q());
+      if (!data) return;
+      const ov = document.getElementById('analytics-overview');
+      const s = data.stickiness || {};
+      const ai = data.ai_cost || {};
+      const ec = data.economy || {};
+      const ch = data.churn || {};
+      const str = data.streak_distribution || [];
+      const inact = data.inactive_users || {};
+      ov.innerHTML =
+        '<div class="card-grid">' +
+        '<div class="stat"><span class="stat-value">' + (s.dau ?? '—') + '</span><span class="stat-label">DAU</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (s.wau ?? '—') + '</span><span class="stat-label">WAU</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (s.mau ?? '—') + '</span><span class="stat-label">MAU</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (s.stickiness_pct != null ? s.stickiness_pct + '%' : '—') + '</span><span class="stat-label">Stickiness (DAU/MAU)</span></div>' +
+        '<div class="stat"><span class="stat-value">$' + (ai.estimated_usd != null ? Number(ai.estimated_usd).toFixed(2) : '—') + '</span><span class="stat-label">AI cost (7d est.)</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (ec.total_points_spent ?? '—') + '</span><span class="stat-label">Points spent (7d)</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (ch.trials_ended_recently ?? '—') + '</span><span class="stat-label">Trials ended</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (inact.total_at_risk ?? '—') + '</span><span class="stat-label">Inactive at risk</span></div>' +
+        '</div>' +
+        (Array.isArray(str) && str.length > 0 ? '<p style="margin-top:16px;color:var(--text-muted);">Streak distribution: ' + str.map(x => x.label + ': ' + x.count).join(', ') + '</p>' : '');
+    } catch (e) {
+      document.getElementById('analytics-overview').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+    try {
+      const ret = await fetchJSON('/api/admin/analytics/retention' + q());
+      if (!ret) return;
+      const rel = document.getElementById('analytics-retention');
+      if (!Array.isArray(ret) || ret.length === 0) {
+        rel.innerHTML = '<p class="empty">No retention data</p>';
+        return;
+      }
+      rel.innerHTML = '<table><thead><tr><th>Cohort</th><th>Size</th><th>D1</th><th>D7</th><th>D30</th><th>D1%</th><th>D7%</th><th>D30%</th></tr></thead><tbody>' +
+        ret.map(r => '<tr><td>' + escapeHtml(r.cohort_day || '') + '</td><td>' + r.cohort_size + '</td><td>' + r.d1_retained + '</td><td>' + r.d7_retained + '</td><td>' + r.d30_retained + '</td><td>' + (r.d1_pct != null ? r.d1_pct.toFixed(1) + '%' : '—') + '</td><td>' + (r.d7_pct != null ? r.d7_pct.toFixed(1) + '%' : '—') + '</td><td>' + (r.d30_pct != null ? r.d30_pct.toFixed(1) + '%' : '—') + '</td></tr>').join('') +
+        '</tbody></table>';
+    } catch (e) {
+      document.getElementById('analytics-retention').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+  }
+  async function loadReports() {
+    try {
+      const data = await fetchJSON('/api/admin/reports' + q());
+      if (!data) return;
+      const el = document.getElementById('reports-content');
+      if (!Array.isArray(data) || data.length === 0) {
+        el.innerHTML = '<p class="empty">No open reports</p>';
+        return;
+      }
+      el.innerHTML = '<table><thead><tr><th>ID</th><th>Guild</th><th>Category</th><th>Severity</th><th>Description</th><th>Status</th></tr></thead><tbody>' +
+        data.map(r => '<tr><td><code>' + escapeHtml(String(r.report_id || r.id || '')) + '</code></td><td>' + escapeHtml(String(r.guild_id || '')) + '</td><td>' + escapeHtml(String(r.category || '')) + '</td><td>' + escapeHtml(String(r.severity || '')) + '</td><td>' + escapeHtml((r.description || '').slice(0, 80)) + (r.description && r.description.length > 80 ? '…' : '') + '</td><td>' + escapeHtml(String(r.status || '')) + '</td></tr>').join('') +
+        '</tbody></table>';
+    } catch (e) {
+      document.getElementById('reports-content').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+  }
+  function escapeHtml(s) {
+    const div = document.createElement('div');
+    div.textContent = s;
+    return div.innerHTML;
+  }
+  loadServers();
+  loadLimits();
+  loadAnalytics();
+  loadReports();
+})();
+  </script>
+</body>
+</html>
