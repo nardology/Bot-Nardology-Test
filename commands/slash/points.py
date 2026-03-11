@@ -952,6 +952,7 @@ class PointsQuestsView(discord.ui.View):
             await _safe_ephemeral_send(interaction, "This isn't your quest panel.")
             return
         try:
+            await interaction.response.defer(ephemeral=True)
             total, new_bal, claimed_defs = await claim_all_rewards(guild_id=self.guild_id, user_id=self.user_id)
             if total <= 0:
                 await _safe_ephemeral_send(interaction, "Nothing to claim right now.")
@@ -979,6 +980,7 @@ class PointsQuestsView(discord.ui.View):
                 await _safe_ephemeral_send(interaction, "This isn't your quest panel.")
                 return
             try:
+                await interaction.response.defer(ephemeral=True)
                 ok, msg, awarded, new_bal = await claim_quest_reward(
                     guild_id=self.guild_id,
                     user_id=self.user_id,

@@ -108,7 +108,7 @@ _PAGES: list[tuple[str, str, int]] = [
             "have Pro get perks everywhere.\n\n"
             "**What Pro gives your members:**\n"
             "- 2x daily rolls (vs 1 free)\n"
-            "- 20 character slots (vs 6 free)\n"
+            "- 10 character slots (vs 3 free)\n"
             "- AI conversation memory\n"
             "- Character streak DMs (characters message them!)\n"
             "- Custom character pack creation\n"

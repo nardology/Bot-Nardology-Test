@@ -253,8 +253,9 @@ async def apply_quest_event(*, guild_id: int, user_id: int, event: str, meta: di
                     session.add(row)
                     await session.flush()
 
-                # Reset if period changed
-                if (row.period_key or "") != pkey:
+                # Reset only when the period has actually rolled (new day/week/month).
+                # Claiming a quest never modifies progress; only apply_quest_event can reset.
+                if (row.period_key or "").strip() != (pkey or "").strip():
                     row.period_key = pkey
                     row.progress = 0
                     row.completed = False
