@@ -36,6 +36,11 @@ async def _update_points_leaderboard(guild_id: int, user_id: int, balance: int) 
     except Exception:
         pass
 
+
+async def update_points_leaderboard(guild_id: int, user_id: int, balance: int) -> None:
+    """Public helper to refresh points leaderboard after balance changes (e.g. quest claims)."""
+    await _update_points_leaderboard(guild_id, user_id, balance)
+
 try:
     from sqlalchemy import select  # type: ignore
 except Exception:  # pragma: no cover

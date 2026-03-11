@@ -18,6 +18,7 @@ import discord
 from utils.db import get_sessionmaker
 from utils.analytics import utc_day_str
 from utils.models import PointsWallet, PointsLedger, QuestProgress, QuestClaim
+from utils.points_store import GLOBAL_GUILD_ID, update_points_leaderboard
 
 try:
     from sqlalchemy import select  # type: ignore
@@ -195,7 +196,6 @@ async def apply_quest_event(*, guild_id: int, user_id: int, event: str, meta: di
     if select is None:
         return []
 
-    gid = int(guild_id)
     uid = int(user_id)
     ev = (event or "").strip().lower()
     if not ev:
@@ -211,28 +211,28 @@ async def apply_quest_event(*, guild_id: int, user_id: int, event: str, meta: di
 
     async with Session() as session:
         try:
-            # Ensure wallet row exists (so /points displays don't look broken)
+            # Use global wallet so quest rewards go to same balance as daily
             wres = await session.execute(
                 select(PointsWallet)
-                .where(PointsWallet.guild_id == gid)
+                .where(PointsWallet.guild_id == GLOBAL_GUILD_ID)
                 .where(PointsWallet.user_id == uid)
                 .with_for_update()
                 .limit(1)
             )
             wallet = wres.scalar_one_or_none()
             if wallet is None:
-                wallet = PointsWallet(guild_id=gid, user_id=uid)
+                wallet = PointsWallet(guild_id=GLOBAL_GUILD_ID, user_id=uid)
                 session.add(wallet)
                 await session.flush()
 
-            # Process each quest
+            # Process each quest (global progress so one balance everywhere)
             for q in relevant:
                 pkey = _period_key(q.period, now)
 
                 # Lock progress row
                 qres = await session.execute(
                     select(QuestProgress)
-                    .where(QuestProgress.guild_id == gid)
+                    .where(QuestProgress.guild_id == GLOBAL_GUILD_ID)
                     .where(QuestProgress.user_id == uid)
                     .where(QuestProgress.period == q.period)
                     .where(QuestProgress.quest_id == q.quest_id)
@@ -242,7 +242,7 @@ async def apply_quest_event(*, guild_id: int, user_id: int, event: str, meta: di
                 row = qres.scalar_one_or_none()
                 if row is None:
                     row = QuestProgress(
-                        guild_id=gid,
+                        guild_id=GLOBAL_GUILD_ID,
                         user_id=uid,
                         period=q.period,
                         period_key=pkey,
@@ -307,7 +307,6 @@ async def get_claimable_quest_ids(*, guild_id: int, user_id: int) -> list[str]:
     if select is None:
         return []
 
-    gid = int(guild_id)
     uid = int(user_id)
     now = _now_utc()
 
@@ -316,14 +315,14 @@ async def get_claimable_quest_ids(*, guild_id: int, user_id: int) -> list[str]:
         try:
             pres = await session.execute(
                 select(QuestProgress)
-                .where(QuestProgress.guild_id == gid)
+                .where(QuestProgress.guild_id == GLOBAL_GUILD_ID)
                 .where(QuestProgress.user_id == uid)
             )
             prog_rows = pres.scalars().all()
 
             cres = await session.execute(
                 select(QuestClaim)
-                .where(QuestClaim.guild_id == gid)
+                .where(QuestClaim.guild_id == GLOBAL_GUILD_ID)
                 .where(QuestClaim.user_id == uid)
             )
             claim_rows = cres.scalars().all()
@@ -362,11 +361,11 @@ async def claim_quest_reward(*, guild_id: int, user_id: int, quest_id: str) -> t
     """Claim a single quest reward.
 
     Returns: (ok, message, awarded_points, new_balance)
+    Uses global wallet so rewards go to same balance as daily/shop.
     """
     if select is None:
         return False, "Quests are unavailable.", 0, 0
 
-    gid = int(guild_id)
     uid = int(user_id)
     qid = (quest_id or "").strip()
     qdef = _quest_by_id(qid)
@@ -379,24 +378,24 @@ async def claim_quest_reward(*, guild_id: int, user_id: int, quest_id: str) -> t
     Session = get_sessionmaker()
     async with Session() as session:
         try:
-            # Lock wallet
+            # Lock global wallet (same as daily/balance)
             wres = await session.execute(
                 select(PointsWallet)
-                .where(PointsWallet.guild_id == gid)
+                .where(PointsWallet.guild_id == GLOBAL_GUILD_ID)
                 .where(PointsWallet.user_id == uid)
                 .with_for_update()
                 .limit(1)
             )
             wallet = wres.scalar_one_or_none()
             if wallet is None:
-                wallet = PointsWallet(guild_id=gid, user_id=uid)
+                wallet = PointsWallet(guild_id=GLOBAL_GUILD_ID, user_id=uid)
                 session.add(wallet)
                 await session.flush()
 
-            # Lock quest progress
+            # Lock quest progress (global)
             qres = await session.execute(
                 select(QuestProgress)
-                .where(QuestProgress.guild_id == gid)
+                .where(QuestProgress.guild_id == GLOBAL_GUILD_ID)
                 .where(QuestProgress.user_id == uid)
                 .where(QuestProgress.period == qdef.period)
                 .where(QuestProgress.quest_id == qid)
@@ -412,7 +411,7 @@ async def claim_quest_reward(*, guild_id: int, user_id: int, quest_id: str) -> t
             # Already claimed?
             cres = await session.execute(
                 select(QuestClaim)
-                .where(QuestClaim.guild_id == gid)
+                .where(QuestClaim.guild_id == GLOBAL_GUILD_ID)
                 .where(QuestClaim.user_id == uid)
                 .where(QuestClaim.period == qdef.period)
                 .where(QuestClaim.period_key == pkey)
@@ -423,13 +422,13 @@ async def claim_quest_reward(*, guild_id: int, user_id: int, quest_id: str) -> t
             if existing is not None:
                 return False, "Already claimed.", 0, int(wallet.balance or 0)
 
-            # Award
+            # Award to global wallet
             delta = int(qdef.points or 0)
             wallet.balance = int(wallet.balance or 0) + delta
             wallet.updated_at = now
             session.add(
                 PointsLedger(
-                    guild_id=gid,
+                    guild_id=GLOBAL_GUILD_ID,
                     user_id=uid,
                     delta=delta,
                     reason="quest_claim",
@@ -441,7 +440,7 @@ async def claim_quest_reward(*, guild_id: int, user_id: int, quest_id: str) -> t
             )
             session.add(
                 QuestClaim(
-                    guild_id=gid,
+                    guild_id=GLOBAL_GUILD_ID,
                     user_id=uid,
                     period=qdef.period,
                     period_key=pkey,
@@ -450,7 +449,9 @@ async def claim_quest_reward(*, guild_id: int, user_id: int, quest_id: str) -> t
                 )
             )
             await session.commit()
-            return True, "Claimed!", delta, int(wallet.balance or 0)
+            new_bal = int(wallet.balance or 0)
+            await update_points_leaderboard(guild_id, uid, new_bal)
+            return True, "Claimed!", delta, new_bal
         except Exception:
             logger.exception("claim_quest_reward failed")
             try:
@@ -488,38 +489,37 @@ async def claim_all_rewards(*, guild_id: int, user_id: int) -> tuple[int, int, l
 
 
 async def build_quest_status_embed(*, guild_id: int, user_id: int) -> discord.Embed:
-    """Build an embed showing current quest progress."""
-    gid = int(guild_id)
+    """Build an embed showing current quest progress. Uses global wallet/progress so balance matches daily."""
     uid = int(user_id)
     now = _now_utc()
     if select is None:
         e = discord.Embed(title="🎯 Quests", description="Quests are unavailable (DB not configured).")
         return e
 
-    # Load wallet balance + progress rows + claim rows
+    # Load global wallet balance + progress rows + claim rows (same as daily/balance)
     Session = get_sessionmaker()
     async with Session() as session:
         try:
             wres = await session.execute(
                 select(PointsWallet)
-                .where(PointsWallet.guild_id == gid)
+                .where(PointsWallet.guild_id == GLOBAL_GUILD_ID)
                 .where(PointsWallet.user_id == uid)
                 .limit(1)
             )
             wallet = wres.scalar_one_or_none()
             bal = int(getattr(wallet, "balance", 0) or 0)
 
-            # Fetch all progress rows for this user
+            # Fetch all progress rows for this user (global)
             pres = await session.execute(
                 select(QuestProgress)
-                .where(QuestProgress.guild_id == gid)
+                .where(QuestProgress.guild_id == GLOBAL_GUILD_ID)
                 .where(QuestProgress.user_id == uid)
             )
             rows = pres.scalars().all()
 
             cres = await session.execute(
                 select(QuestClaim)
-                .where(QuestClaim.guild_id == gid)
+                .where(QuestClaim.guild_id == GLOBAL_GUILD_ID)
                 .where(QuestClaim.user_id == uid)
             )
             claim_rows = cres.scalars().all()
