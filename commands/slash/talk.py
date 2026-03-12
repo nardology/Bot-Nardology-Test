@@ -922,9 +922,6 @@ class SlashTalk(commands.Cog):
             # ---- Send reply FIRST (so user always gets output) ----
             # Build an embed so the reply always includes the character image + the message.
             desc = text
-            usage_warning = getattr(resp, "usage_warning", "") or ""
-            if usage_warning:
-                desc = desc + usage_warning
             if len(desc) > 4096:
                 desc = desc[:4093] + "..."
             title = getattr(style_obj, "display_name", None) or getattr(style_obj, "name", None) or "Reply"

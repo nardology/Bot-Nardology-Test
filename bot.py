@@ -306,11 +306,12 @@ class SlashOnlyBot(commands.AutoShardedBot):
         except Exception:
             logger.exception("Shop sync failed (non-fatal)")
 
-        # Sync slash commands (dev guild or global) after extensions are loaded.
+        # Sync slash commands in background so Discord rate limits (429) don't block startup.
+        # If sync is delayed or retries, the bot still becomes ready and can serve.
         try:
-            await sync_commands()
+            asyncio.create_task(_sync_commands_background())
         except Exception:
-            logger.exception("sync_commands() failed")
+            logger.exception("Failed to schedule sync_commands()")
 
     async def on_message(self, message: discord.Message):
         return  # ignore message-based commands entirely
@@ -391,6 +392,28 @@ async def load_extensions() -> None:
         logger.error("Extensions that failed to load: %s", failed)
 
 
+_SYNC_GUILD_DELAY = 2.5  # seconds between guild syncs to avoid Discord rate limit
+
+
+def _sync_initial_delay() -> float:
+    try:
+        return float(os.getenv("SYNC_COMMANDS_DELAY_SECONDS", "0").strip() or "0")
+    except Exception:
+        return 0.0
+
+
+async def _sync_commands_background() -> None:
+    """Run sync_commands() in background so 429 retries don't block bot startup."""
+    delay = _sync_initial_delay()
+    if delay > 0:
+        logger.info("Slash command sync delayed by %.1fs (SYNC_COMMANDS_DELAY_SECONDS)", delay)
+        await asyncio.sleep(delay)
+    try:
+        await sync_commands()
+    except Exception:
+        logger.exception("sync_commands() failed (non-fatal; bot is already running)")
+
+
 async def sync_commands() -> None:
     env = str(getattr(config, "ENVIRONMENT", "prod")).lower().strip()
     
@@ -404,6 +427,7 @@ async def sync_commands() -> None:
             bot.tree.add_command(cmd)
         logger.info("🧨 Stale GLOBAL commands cleared. Fresh set will be synced below. "
                      "Set CLEAR_GLOBAL_COMMANDS_ONCE=false for next restart.")
+        await asyncio.sleep(_SYNC_GUILD_DELAY)
 
     if env == "dev":
         # Support comma-separated IDs in SYNC_GUILD_ID / DEV_GUILD_ID via config.SYNC_GUILD_IDS / DEV_GUILD_IDS.
@@ -425,7 +449,9 @@ async def sync_commands() -> None:
 
         cleanup_once = bool(getattr(config, "CLEANUP_DEV_COMMANDS_ONCE", False))
 
-        for guild_id in guild_ids:
+        for i, guild_id in enumerate(guild_ids):
+            if i > 0:
+                await asyncio.sleep(_SYNC_GUILD_DELAY)
             guild = discord.Object(id=int(guild_id))
             if cleanup_once:
                 logger.info("🧹 CLEANUP_DEV_COMMANDS_ONCE=True — clearing guild commands then re-adding (guild=%s)...", guild_id)
@@ -467,7 +493,9 @@ async def sync_commands() -> None:
                 single = getattr(config, "SYNC_GUILD_ID", None) or getattr(config, "DEV_GUILD_ID", None)
                 if single:
                     guild_ids = [int(single)]
-            for gid in guild_ids:
+            for i, gid in enumerate(guild_ids):
+                if i > 0:
+                    await asyncio.sleep(_SYNC_GUILD_DELAY)
                 guild = discord.Object(id=int(gid))
                 bot.tree.clear_commands(guild=guild)
                 await bot.tree.sync(guild=guild)
@@ -476,6 +504,7 @@ async def sync_commands() -> None:
                 logger.warning("CLEAR_GUILD_COMMANDS_ONCE=True but no guild IDs configured — nothing to clear")
             else:
                 logger.info("🧹 Guild command cleanup done. Set CLEAR_GUILD_COMMANDS_ONCE=false and restart.")
+            await asyncio.sleep(_SYNC_GUILD_DELAY)
 
         await bot.tree.sync()
         logger.info("✅ Synced slash commands globally (prod)")

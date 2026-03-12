@@ -311,22 +311,6 @@ async def request_text(
             except Exception:
                 pass
 
-            # User-facing warning when they exceed the flag threshold (so they see it in the reply; owners get warning too)
-            usage_warning_msg = ""
-            try:
-                from utils.cost_tracker import get_today_cost_cents_user
-                flag_cents = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 1))
-                if flag_cents > 0:
-                    cents_now = await get_today_cost_cents_user(int(user_id))
-                    if cents_now >= flag_cents:
-                        usage_warning_msg = (
-                            f"\n\n⚠️ **Usage notice:** You've exceeded the daily AI usage threshold "
-                            f"(${cents_now/100:.2f} today, threshold ${flag_cents/100:.2f}). "
-                            "Your access may be limited until tomorrow (UTC)."
-                        )
-            except Exception:
-                pass
-
             # Hard truncate output so we never pass downstream more than requested (anti-abuse: API may ignore max_tokens)
             approx_chars_per_token = 3  # stricter than 4 to reduce displayed/stored length
             max_chars = max(64, int(max_tokens * approx_chars_per_token))
@@ -353,7 +337,7 @@ async def request_text(
                 except Exception:
                     pass
 
-            return AIGatewayResponse(ok=True, text=text, usage_warning=usage_warning_msg)
+            return AIGatewayResponse(ok=True, text=text)
 
         # 5) Exception mapping
         except AIConfigError as e:
