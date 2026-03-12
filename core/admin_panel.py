@@ -106,7 +106,7 @@ async def handle_api_limits(request: web.Request) -> web.Response:
         "rolls_per_day_free": rolls_free,
         "rolls_per_day_pro": rolls_pro,
         "ai_cost_cap_free_daily_cents": getattr(config, "AI_COST_CAP_FREE_DAILY_CENTS", 5),
-        "ai_cost_cap_pro_daily_cents": getattr(config, "AI_COST_CAP_PRO_DAILY_CENTS", 50),
+        "ai_cost_cap_pro_daily_cents": getattr(config, "AI_COST_CAP_PRO_DAILY_CENTS", 10),
         "max_custom_packs_per_guild": getattr(config, "MAX_CUSTOM_PACKS_PER_GUILD", 3),
         "max_custom_chars_total_per_guild": getattr(config, "MAX_CUSTOM_CHARS_TOTAL_PER_GUILD", 100),
         "max_custom_chars_total_per_guild_pro": getattr(config, "MAX_CUSTOM_CHARS_TOTAL_PER_GUILD_PRO", 250),

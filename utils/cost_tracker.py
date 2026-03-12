@@ -174,7 +174,7 @@ async def is_within_budget(guild_id: int, tier: str) -> tuple[bool, float, float
 
     tier_l = (tier or "").strip().lower()
     if tier_l == "pro":
-        cap = float(getattr(config, "AI_COST_CAP_PRO_DAILY_CENTS", 50))
+        cap = float(getattr(config, "AI_COST_CAP_PRO_DAILY_CENTS", 10))
     else:
         cap = float(getattr(config, "AI_COST_CAP_FREE_DAILY_CENTS", 5))
 
