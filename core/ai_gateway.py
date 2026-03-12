@@ -47,6 +47,8 @@ class AIGatewayResponse:
     retry_after_s: int = 0
     # Stable-ish label for metrics/logging
     error_type: str = ""
+    # When set, show in the same reply so the user sees they exceeded the usage threshold
+    usage_warning: str = ""
 
 
 async def request_text(
@@ -112,7 +114,7 @@ async def request_text(
         # Budget checks must never crash a command.
         pass
 
-    # 0.6) Revenue-linked cost cap (guild + per-user)
+    # 0.6) Revenue-linked cost cap (guild + per-user) — fail closed on error
     try:
         from utils.cost_tracker import is_within_budget, is_within_budget_user
         allowed, current_cents, cap_cents = await is_within_budget(int(guild_id), str(tier or ""))
@@ -135,9 +137,14 @@ async def request_text(
                 ),
                 error_type="UserCostCapExceeded",
             )
-    except Exception:
-        # Cost cap must never crash a command.
-        pass
+    except Exception as e:
+        import logging
+        logging.getLogger("bot.ai_gateway").warning("Cost cap check failed, blocking request: %s", e)
+        return AIGatewayResponse(
+            ok=False,
+            user_message="⛔ Usage limit check is temporarily unavailable. Please try again in a moment.",
+            error_type="CostCapCheckFailed",
+        )
 
     # 0.7) Response cache (short talk prompts without memory)
     _cache_eligible = False
@@ -280,6 +287,22 @@ async def request_text(
             except Exception:
                 pass
 
+            # User-facing warning when they exceed the flag threshold (so they see it in the reply; owners get warning too)
+            usage_warning_msg = ""
+            try:
+                from utils.cost_tracker import get_today_cost_cents_user
+                flag_cents = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 6))
+                if flag_cents > 0:
+                    cents_now = await get_today_cost_cents_user(int(user_id))
+                    if cents_now >= flag_cents:
+                        usage_warning_msg = (
+                            f"\n\n⚠️ **Usage notice:** You've exceeded the daily AI usage threshold "
+                            f"(${cents_now/100:.2f} today, threshold ${flag_cents/100:.2f}). "
+                            "Your access may be limited until tomorrow (UTC)."
+                        )
+            except Exception:
+                pass
+
             # Hard truncate output so we never pass downstream more than requested (anti-abuse: API may ignore max_tokens)
             approx_chars_per_token = 3  # stricter than 4 to reduce displayed/stored length
             max_chars = max(64, int(max_tokens * approx_chars_per_token))
@@ -306,7 +329,7 @@ async def request_text(
                 except Exception:
                     pass
 
-            return AIGatewayResponse(ok=True, text=text)
+            return AIGatewayResponse(ok=True, text=text, usage_warning=usage_warning_msg)
 
         # 5) Exception mapping
         except AIConfigError as e:

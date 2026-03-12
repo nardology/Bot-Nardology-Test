@@ -447,6 +447,43 @@ class SlashTalk(commands.Cog):
         user_limiter = await get_user_limiter(guild_id)
         guild_limiter = await get_guild_limiter(guild_id)
 
+        # Peek first: if at or close to limit, block with cooldown (don't consume a slot)
+        u_peek = await user_limiter.peek(f"user:{user_id}")
+        if not u_peek.allowed:
+            audit_log(
+                "TALK_COOLDOWN_USER",
+                guild_id=guild_id,
+                channel_id=interaction.channel_id,
+                user_id=user_id,
+                username=interaction.user.name,
+                command="talk",
+                result="cooldown",
+                reason="user_rate_limit",
+                fields={"retry_after_s": u_peek.retry_after_seconds, "prompt_len": len(prompt), "public": bool(public)},
+            )
+            await send_warning(
+                interaction,
+                f"⏳ You're at your AI limit for this time window. Try again in **{u_peek.retry_after_seconds}s**.",
+            )
+            return
+        if u_peek.remaining <= 1:
+            audit_log(
+                "TALK_COOLDOWN_USER",
+                guild_id=guild_id,
+                channel_id=interaction.channel_id,
+                user_id=user_id,
+                username=interaction.user.name,
+                command="talk",
+                result="cooldown",
+                reason="user_near_limit",
+                fields={"window_s": user_limiter.window_seconds, "prompt_len": len(prompt), "public": bool(public)},
+            )
+            await send_warning(
+                interaction,
+                f"⚠️ You're at your AI limit for this time window. Try again in **{user_limiter.window_seconds}s**.",
+            )
+            return
+
         u = await user_limiter.check(f"user:{user_id}")
         if not u.allowed:
             ps = await record_cooldown_strike(guild_id, user_id)
@@ -473,9 +510,9 @@ class SlashTalk(commands.Cog):
                 },
             )
 
-            msg = f"⏳ You’re on cooldown. Try again in **{u.retry_after_seconds}s**."
+            msg = f"⏳ You're on cooldown. Try again in **{u.retry_after_seconds}s**."
             if penalty_applied:
-                msg += f"\n⛔ Repeated spam detected — you’re restricted for **{penalty_s}s**."
+                msg += f"\n⛔ Repeated spam detected — you're restricted for **{penalty_s}s**."
 
             await send_warning(interaction, msg)
             return
@@ -545,7 +582,7 @@ class SlashTalk(commands.Cog):
             return
 
         try:
-            if getattr(u, "remaining", 9999) <= 1:
+            if False and getattr(u, "remaining", 9999) <= 1:  # cooldown now applied earlier via peek
                 try:
                     await interaction.followup.send(
                         "⚠️ Heads up: you’re close to your AI limit for this time window.",
@@ -885,6 +922,9 @@ class SlashTalk(commands.Cog):
             # ---- Send reply FIRST (so user always gets output) ----
             # Build an embed so the reply always includes the character image + the message.
             desc = text
+            usage_warning = getattr(resp, "usage_warning", "") or ""
+            if usage_warning:
+                desc = desc + usage_warning
             if len(desc) > 4096:
                 desc = desc[:4093] + "..."
             title = getattr(style_obj, "display_name", None) or getattr(style_obj, "name", None) or "Reply"
