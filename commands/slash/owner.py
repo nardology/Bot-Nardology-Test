@@ -2153,7 +2153,7 @@ class SlashOwner(commands.Cog):
             await _ephemeral(
                 interaction,
                 f"✅ This server's daily AI cost counter has been reset (was ~{before:.2f}¢ today). "
-                "The cap is unchanged; use env `AI_COST_CAP_FREE_DAILY_CENTS` / `AI_COST_CAP_PRO_DAILY_CENTS` to change it.",
+                "The cap is unchanged; use env `AI_COST_CAP_GUILD_DAILY_CENTS` to change it.",
             )
         else:
             await _ephemeral(interaction, "⚠️ Could not reset (Redis unavailable).")

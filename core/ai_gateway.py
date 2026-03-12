@@ -283,8 +283,10 @@ async def request_text(
                     from utils.ai_abuse import increment_talk_calls_user_today, record_user_talk_tokens_today
                     await increment_talk_calls_user_today(int(user_id))
                     await record_user_talk_tokens_today(int(user_id), tokens_to_record)
-                except Exception:
-                    pass
+                except Exception as e:
+                    __import__("logging").getLogger("bot.ai_gateway").warning(
+                        "talk abuse counters failed: %s", e, exc_info=True
+                    )
 
             # Record estimated cost for revenue-linked cap (guild + user)
             # If API didn't return usage, use conservative estimates so caps still apply

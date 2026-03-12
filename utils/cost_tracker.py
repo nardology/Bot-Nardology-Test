@@ -182,19 +182,16 @@ async def is_within_budget_user(user_id: int, cap_cents: float | None = None) ->
     return current < cap, current, cap
 
 
-async def is_within_budget(guild_id: int, tier: str) -> tuple[bool, float, float]:
+async def is_within_budget(guild_id: int, tier: str = "") -> tuple[bool, float, float]:
     """Check if the guild is within its daily cost cap.
 
+    One cap for all guilds; tier is ignored (premium is per-user, not per-server).
     Returns (allowed, current_cents, cap_cents).
     If Redis is unavailable, returns (True, 0, cap) to degrade safely.
     """
     import config
 
-    tier_l = (tier or "").strip().lower()
-    if tier_l == "pro":
-        cap = float(getattr(config, "AI_COST_CAP_PRO_DAILY_CENTS", 10))
-    else:
-        cap = float(getattr(config, "AI_COST_CAP_FREE_DAILY_CENTS", 5))
+    cap = float(getattr(config, "AI_COST_CAP_GUILD_DAILY_CENTS", 10))
 
     # Cap of 0 means disabled (no limit)
     if cap <= 0:

@@ -138,15 +138,12 @@ async def record_user_talk_tokens_today(user_id: int, tokens: int) -> None:
         return
     try:
         from utils.analytics import utc_day_str
+        from utils.redis_kv import incr
         day = utc_day_str(int(datetime.now(timezone.utc).timestamp()))
-        r = await get_redis_or_none()
-        if r is None:
-            return
         key = _key_tokens(int(user_id), day)
-        await r.incrby(key, int(tokens))
-        await r.expire(key, _TTL_TOKENS_DAY)
-    except Exception:
-        pass
+        await incr(key, int(tokens), ex=_TTL_TOKENS_DAY)
+    except Exception as e:
+        log.warning("record_user_talk_tokens_today failed: %s", e)
 
 
 async def get_today_talk_tokens_user(user_id: int) -> int:
@@ -189,6 +186,10 @@ async def maybe_flag_user_after_usage(user_id: int) -> None:
 
         if token_threshold > 0:
             tokens_today = await get_today_talk_tokens_user(uid)
+            log.info(
+                "Token flag check: user_id=%s token_threshold=%s tokens_today=%s",
+                uid, token_threshold, tokens_today,
+            )
             if tokens_today >= token_threshold:
                 reason_parts.append(f"daily tokens {tokens_today} >= {token_threshold}")
 

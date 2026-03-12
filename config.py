@@ -44,8 +44,10 @@ BASE_URL = _raw_base or (
 AI_DISABLED = _as_bool("AI_DISABLED", "false")
 
 # ---- Revenue-linked cost caps (Phase 4) ----
-# Daily AI spend cap per guild in cents. Prevents any single guild from becoming
-# unprofitable. Free default: 5 cents/day (~$1.50/month). Pro default: 10 cents/day. Set to 0 to disable.
+# Daily AI spend cap per guild (server) in cents. One cap for all servers; premium is per-user, not per-server. Set to 0 to disable.
+# If unset, falls back to AI_COST_CAP_PRO_DAILY_CENTS for backward compatibility.
+AI_COST_CAP_GUILD_DAILY_CENTS: float = float((os.getenv("AI_COST_CAP_GUILD_DAILY_CENTS") or os.getenv("AI_COST_CAP_PRO_DAILY_CENTS", "10")).strip() or "10")
+# Legacy: kept for env backward compatibility; guild cap uses AI_COST_CAP_GUILD_DAILY_CENTS only.
 AI_COST_CAP_FREE_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_FREE_DAILY_CENTS", "5").strip() or "5")
 AI_COST_CAP_PRO_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_PRO_DAILY_CENTS", "10").strip() or "10")
 # Per-user daily cost cap (stops one user from draining a server). Default 1 cent for strict limit. Set 0 to disable.
