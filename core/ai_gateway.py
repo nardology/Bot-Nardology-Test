@@ -281,7 +281,7 @@ async def request_text(
                 pass
 
             # Hard truncate output so we never pass downstream more than requested (anti-abuse: API may ignore max_tokens)
-            approx_chars_per_token = 4
+            approx_chars_per_token = 3  # stricter than 4 to reduce displayed/stored length
             max_chars = max(64, int(max_tokens * approx_chars_per_token))
             if text and len(text) > max_chars:
                 trimmed = text[:max_chars].rsplit(maxsplit=1)[0] if max_chars > 20 else text[:max_chars]

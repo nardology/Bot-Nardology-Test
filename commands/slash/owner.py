@@ -2201,17 +2201,17 @@ class SlashOwner(commands.Cog):
     # /owner token_limits ... (bypass output token caps for specific users, e.g. testers)
     # ----------------------------
 
-    @token_limits.command(name="add", description="Allow a user to bypass token limits (for testing/auditing)")
+    @token_limits.command(name="add", description="Add user to bypass list (currently only bot owners get bypass)")
     @_owner_only()
-    @app_commands.describe(user="User to grant bypass (they get high output token limit)")
+    @app_commands.describe(user="User to add to list (bypass is owner-only for hardening)")
     async def token_limits_add(self, interaction: discord.Interaction, user: discord.User):
-        from utils.token_bypass import add_token_bypass, get_token_bypass_user_ids
+        from utils.token_bypass import add_token_bypass
         uid = user.id
         if uid in (config.BOT_OWNER_IDS or set()):
             await _ephemeral(interaction, f"ℹ️ <@{uid}> is already an owner (unlimited by default).")
             return
         await add_token_bypass(uid)
-        await _ephemeral(interaction, f"✅ <@{uid}> (`{uid}`) can now bypass token limits. Use `/z_owner token_limits remove` to revoke.")
+        await _ephemeral(interaction, f"✅ <@{uid}> added to list. Note: token bypass is currently **owner-only** for security; only BOT_OWNER_IDS get unlimited tokens.")
 
     @token_limits.command(name="remove", description="Revoke token limit bypass for a user")
     @_owner_only()
@@ -2221,19 +2221,20 @@ class SlashOwner(commands.Cog):
         await remove_token_bypass(user.id)
         await _ephemeral(interaction, f"✅ Token limit bypass removed for <@{user.id}> (`{user.id}`).")
 
-    @token_limits.command(name="list", description="List user IDs that have token limit bypass (excluding owners)")
+    @token_limits.command(name="list", description="List user IDs in bypass list (bypass is owner-only)")
     @_owner_only()
     async def token_limits_list(self, interaction: discord.Interaction):
         from utils.token_bypass import get_token_bypass_user_ids
         await interaction.response.defer(ephemeral=True)
         ids = await get_token_bypass_user_ids()
+        msg = "**Token limit bypass:** Only **BOT_OWNER_IDS** get unlimited tokens (hardening). Stored list:\n"
         if not ids:
-            await interaction.followup.send("No users in the bypass list (owners always have unlimited).", ephemeral=True)
+            await interaction.followup.send(msg + "No users in the stored list.", ephemeral=True)
             return
         lines = [f"• <@{uid}> `{uid}`" for uid in sorted(ids)[:50]]
         if len(ids) > 50:
             lines.append(f"... and {len(ids) - 50} more")
-        await interaction.followup.send("**Token limit bypass list:**\n" + "\n".join(lines), ephemeral=True)
+        await interaction.followup.send(msg + "\n".join(lines), ephemeral=True)
 
     # ----------------------------
     # /owner global ...

@@ -133,13 +133,13 @@ async def maybe_flag_user_after_usage(user_id: int) -> None:
 
         reason_parts = []
 
-        cost_threshold = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 10))
+        cost_threshold = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 6))
         if cost_threshold > 0:
             cents = await get_today_cost_cents_user(uid)
             if cents >= cost_threshold:
                 reason_parts.append(f"daily cost ${cents/100:.2f} >= ${cost_threshold/100:.2f}")
 
-        calls_threshold = int(getattr(config, "AI_ABUSE_FLAG_USER_CALLS_PER_DAY", 50))
+        calls_threshold = int(getattr(config, "AI_ABUSE_FLAG_USER_CALLS_PER_DAY", 40))
         if not reason_parts and calls_threshold > 0:
             calls = await get_today_talk_calls_user(uid)
             if calls >= calls_threshold:

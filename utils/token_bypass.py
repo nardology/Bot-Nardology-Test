@@ -1,5 +1,5 @@
 # utils/token_bypass.py
-"""Owner-managed list of user IDs that bypass AI output token limits (for testing/auditing)."""
+"""Token limit bypass: only BOT_OWNER_IDS get unlimited output tokens (hardening: Redis list disabled)."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ REDIS_KEY = "token_limit_bypass_user_ids"
 
 
 async def get_token_bypass_user_ids() -> set[int]:
-    """Return set of user IDs that have token limit bypass (Redis only; BOT_OWNER_IDS checked at call site)."""
+    """Return set of user IDs in the Redis bypass list (kept for /z_owner token_limits list; bypass only applies to owners)."""
     raw = await smembers_str(REDIS_KEY)
     out: set[int] = set()
     for s in raw:
@@ -22,11 +22,8 @@ async def get_token_bypass_user_ids() -> set[int]:
 
 
 async def has_token_bypass(user_id: int) -> bool:
-    """True if user is in BOT_OWNER_IDS or in the Redis bypass set."""
-    if config.BOT_OWNER_IDS and user_id in config.BOT_OWNER_IDS:
-        return True
-    ids = await get_token_bypass_user_ids()
-    return user_id in ids
+    """True only if user is in BOT_OWNER_IDS. Redis list no longer grants bypass (hardening)."""
+    return bool(config.BOT_OWNER_IDS and user_id in config.BOT_OWNER_IDS)
 
 
 async def add_token_bypass(user_id: int) -> None:
