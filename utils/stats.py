@@ -31,6 +31,10 @@ class UserStats:
     bonds: list[BondSummary] = field(default_factory=list)
     highest_bond: BondSummary | None = None
     total_bond_xp: int = 0
+    # Streak badges (30/60/90 day daily streak milestones, shown on /inspect)
+    streak_badge_30: bool = False
+    streak_badge_60: bool = False
+    streak_badge_90: bool = False
 
 
 def _format_character_name(style_id: str) -> str:
@@ -47,12 +51,17 @@ async def get_user_stats(user_id: int, guild_id: int = 0) -> UserStats:
     uid = int(user_id)
     stats = UserStats(user_id=uid)
 
-    # Points and daily streak (global)
+    # Points, daily streak, and streak badges (global)
     try:
         stats.points = await get_balance(guild_id=GLOBAL_GUILD_ID, user_id=uid)
         _claimed, _next_s, stats.daily_streak = await get_claim_status(
             guild_id=GLOBAL_GUILD_ID, user_id=uid
         )
+        from utils.points_store import _get_or_create_wallet
+        w = await _get_or_create_wallet(guild_id=GLOBAL_GUILD_ID, user_id=uid)
+        stats.streak_badge_30 = bool(getattr(w, "streak_badge_30", False))
+        stats.streak_badge_60 = bool(getattr(w, "streak_badge_60", False))
+        stats.streak_badge_90 = bool(getattr(w, "streak_badge_90", False))
     except Exception:
         pass
 

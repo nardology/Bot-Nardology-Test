@@ -24,6 +24,9 @@ from utils.points_store import (
     build_roadmap_preview,
     restore_daily_streak,
     adjust_points,
+    get_streak_reward_progress,
+    StreakRewardProgress,
+    claim_streak_character_reward,
 )
 from utils.pack_creator_rewards import get_pack_creator_daily_bonus
 
@@ -43,7 +46,7 @@ from utils.character_store import (
     set_pity,
     apply_pity_after_roll,
 )
-from utils.character_registry import roll_style, list_rollable, BASE_STYLE_IDS, get_style
+from utils.character_registry import roll_style, list_rollable, list_builtin_by_rarity, BASE_STYLE_IDS, get_style
 from utils.premium import get_premium_tier
 from utils.shop_store import list_shop_items, get_shop_item
 from utils.pack_badges import badges_for_pack_id, badges_for_style_id
@@ -86,6 +89,7 @@ from utils.streak_reminders import (
 )
 from utils.roll_ready_dm import set_roll_ready_dm_enabled
 from utils.start_required import require_start
+import config
 
 logger = logging.getLogger("bot.points")
 
@@ -1002,6 +1006,147 @@ class PointsQuestsView(discord.ui.View):
         return _cb
 
 
+def _build_streak_rewards_embed(prog: StreakRewardProgress) -> discord.Embed:
+    """Build embed for /points streak or View streak rewards button."""
+    e = discord.Embed(
+        title="🔥 Streak rewards",
+        description=f"Current streak: **{prog.streak}** day(s)",
+        color=0xE67E22,
+    )
+    lines = [
+        f"**Day 7:** +500 points {'✅' if prog.milestone_7_claimed else f'(in {max(0, 7 - prog.streak)} days)'}",
+        f"**Day 10:** Pick an **Uncommon** built-in character {'✅' if prog.character_10_claimed else '🎁 Available!' if prog.character_10_available else f'(in {max(0, 10 - prog.streak)} days)'}",
+        f"**Day 15:** Pick a **Rare** built-in character {'✅' if prog.character_15_claimed else '🎁 Available!' if prog.character_15_available else f'(in {max(0, 15 - prog.streak)} days)'}",
+        f"**Day 25:** Pick a **Legendary** built-in character {'✅' if prog.character_25_claimed else '🎁 Available!' if prog.character_25_available else f'(in {max(0, 25 - prog.streak)} days)'}",
+        f"**Every 30 days:** +2,000 points (next at day **{prog.next_30_at}**)",
+        f"**Day 75:** Personal reward from the dev {'✅ Notified' if prog.streak_75_reached else '(you’ll be DMed!)'}",
+        "**Badges:** 30/60/90-day streaks unlock profile badges (see /inspect)",
+    ]
+    e.add_field(name="Milestones", value="\n".join(lines), inline=False)
+    e.add_field(
+        name="🍀 Random daily bonus",
+        value=f"Chance today: **{prog.random_bonus_chance_pct}%** (500 pts, resets when you win). Use the bot daily to increase it!",
+        inline=False,
+    )
+    e.set_footer(text="Claim daily with /points daily to progress.")
+    return e
+
+
+class StreakCharacterPickView(discord.ui.View):
+    """Select menu to pick a built-in character for streak reward (one tier)."""
+
+    def __init__(self, *, bot: commands.Bot, user_id: int, tier: int, timeout: float = 120):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.user_id = int(user_id)
+        self.tier = int(tier)
+        rarity = {10: "uncommon", 15: "rare", 25: "legendary"}[tier]
+        chars = list_builtin_by_rarity(rarity)[:25]
+        options = [
+            discord.SelectOption(label=(s.display_name or s.style_id)[:100], value=s.style_id, emoji=RARITY_EMOJI.get(rarity, "⚪"))
+            for s in chars
+        ]
+        if not options:
+            options = [discord.SelectOption(label="(No characters available)", value="_none")]
+        sel = discord.ui.Select(
+            placeholder=f"Pick a {rarity} character",
+            options=options,
+            custom_id="streak_char_pick",
+        )
+        sel.callback = self._on_select
+        self.add_item(sel)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if int(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("This isn't your menu.", ephemeral=True)
+            return False
+        return True
+
+    async def _on_select(self, interaction: discord.Interaction):
+        if not interaction.data or not isinstance(interaction.data.get("values"), list):
+            await interaction.response.defer(ephemeral=True)
+            return
+        val = (interaction.data["values"] or [""])[0]
+        if val == "_none":
+            await interaction.response.send_message("No character selected.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        ok, msg = await claim_streak_character_reward(user_id=self.user_id, tier=self.tier, style_id=val)
+        if ok:
+            await interaction.followup.send(f"✅ {msg}", ephemeral=True)
+        else:
+            await interaction.followup.send(f"⚠️ {msg}", ephemeral=True)
+
+
+class _StreakClaimCharButton(discord.ui.Button):
+    """Button that opens tier select for streak character reward."""
+
+    def __init__(self, view: StreakRewardDailyView):
+        super().__init__(label="Claim character reward", style=discord.ButtonStyle.success, emoji="🎁", row=0)
+        self._view_ref = view
+
+    async def callback(self, interaction: discord.Interaction):
+        view = self._view_ref
+        if int(interaction.user.id) != view.user_id:
+            await interaction.response.send_message("This isn't your panel.", ephemeral=True)
+            return
+        if not view.available_tiers:
+            await interaction.response.send_message("No character reward available.", ephemeral=True)
+            return
+        await interaction.response.defer(ephemeral=True)
+        tier_options = [
+            discord.SelectOption(label="Uncommon (Day 10)", value="10", emoji="🟢"),
+            discord.SelectOption(label="Rare (Day 15)", value="15", emoji="🔵"),
+            discord.SelectOption(label="Legendary (Day 25)", value="25", emoji="🟣"),
+        ]
+        options = [o for o in tier_options if o.value in [str(t) for t in view.available_tiers]]
+        if not options:
+            await interaction.followup.send("No character reward available.", ephemeral=True)
+            return
+        v = discord.ui.View(timeout=120)
+        sel = discord.ui.Select(placeholder="Choose reward type", options=options, custom_id="streak_tier")
+        async def _tier_cb(ix: discord.Interaction):
+            if int(ix.user.id) != view.user_id:
+                await ix.response.send_message("This isn't your menu.", ephemeral=True)
+                return
+            if not ix.data or not ix.data.get("values"):
+                await ix.response.defer(ephemeral=True)
+                return
+            tier = int((ix.data["values"] or ["10"])[0])
+            await ix.response.defer(ephemeral=True)
+            pick_view = StreakCharacterPickView(bot=view.bot, user_id=view.user_id, tier=tier)
+            await ix.followup.send("Pick a character:", view=pick_view, ephemeral=True)
+        sel.callback = _tier_cb
+        v.add_item(sel)
+        await interaction.followup.send("Choose reward type:", view=v, ephemeral=True)
+
+
+class StreakRewardDailyView(discord.ui.View):
+    """Shown on daily embed when claimed: View streak rewards + optional Claim character."""
+
+    def __init__(self, *, bot: commands.Bot, guild_id: int, user_id: int, available_tiers: tuple[int, ...] = (), timeout: float = 300):
+        super().__init__(timeout=timeout)
+        self.bot = bot
+        self.guild_id = int(guild_id)
+        self.user_id = int(user_id)
+        self.available_tiers = available_tiers
+        if available_tiers:
+            self.add_item(_StreakClaimCharButton(self))
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if int(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("This isn't your panel.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="View streak rewards", style=discord.ButtonStyle.secondary, emoji="🔥", row=0)
+    async def btn_view_rewards(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        prog = await get_streak_reward_progress(user_id=self.user_id)
+        if prog:
+            await interaction.followup.send(embed=_build_streak_rewards_embed(prog), ephemeral=True)
+        else:
+            await interaction.followup.send("Could not load streak progress.", ephemeral=True)
 
 
 class StreakRestoreView(discord.ui.View):
@@ -1091,6 +1236,16 @@ class ClaimDailyView(discord.ui.View):
             desc = f"You claimed **{res.awarded}** points! Streak: **{res.streak}** day(s)."
             if getattr(res, "first_bonus_awarded", 0) > 0:
                 desc += f" (Including **{res.first_bonus_awarded}** first-time bonus!)"
+            if getattr(res, "milestone_7_awarded", 0) > 0:
+                desc += f" 🎉 **+{res.milestone_7_awarded}** (7-day streak bonus!)"
+            if getattr(res, "milestone_30_awarded", 0) > 0:
+                desc += f" 🎉 **+{res.milestone_30_awarded}** (30-day streak bonus!)"
+            if getattr(res, "random_bonus_awarded", 0) > 0:
+                desc += f" 🍀 **+{res.random_bonus_awarded}** (lucky random bonus!)"
+            if getattr(res, "comeback_awarded", 0) > 0:
+                desc += f" 💪 **+{res.comeback_awarded}** (comeback bonus!)"
+            if getattr(res, "weekly_activity_awarded", 0) > 0:
+                desc += f" 📅 **+{res.weekly_activity_awarded}** (weekly activity bonus!)"
             if pack_bonus > 0:
                 desc += f" + **{pack_bonus}** pack creator bonus!"
 
@@ -1098,8 +1253,16 @@ class ClaimDailyView(discord.ui.View):
             e.add_field(name="Balance", value=f"{bal} points", inline=True)
             e.add_field(name="Streak", value=str(res.streak), inline=True)
 
+            view_after = self
+            if getattr(res, "character_reward_available", ()):
+                view_after = StreakRewardDailyView(
+                    bot=self.bot,
+                    guild_id=self.guild_id,
+                    user_id=self.user_id,
+                    available_tiers=tuple(res.character_reward_available),
+                )
             button.disabled = True
-            await interaction.edit_original_response(embed=e, view=self)
+            await interaction.edit_original_response(embed=e, view=view_after)
 
             try:
                 kai_msg = get_kai_daily_claim_message(
@@ -1109,6 +1272,15 @@ class ClaimDailyView(discord.ui.View):
                 await interaction.followup.send(embed=kai_embed, ephemeral=True)
             except Exception:
                 logger.exception("KAI daily followup failed")
+            if getattr(res, "random_bonus_near_miss", False):
+                next_pct = getattr(res, "random_bonus_next_chance_pct", 0)
+                try:
+                    await interaction.followup.send(
+                        f"🍀 No lucky bonus this time. Your chance next claim: **{next_pct}%** (500 pts). Keep claiming daily!",
+                        ephemeral=True,
+                    )
+                except Exception:
+                    pass
 
             try:
                 asyncio.create_task(
@@ -1129,6 +1301,24 @@ class ClaimDailyView(discord.ui.View):
                     ephemeral=True,
                     view=restore_view,
                 )
+            if getattr(res, "streak_75_triggered", False):
+                try:
+                    _dm_user = self.bot.get_user(self.user_id) or await self.bot.fetch_user(self.user_id)
+                    await _dm_user.send(
+                        f"🎉 **Amazing!** You hit a **75-day streak!** "
+                        "The bot owner has been notified and will reward you personally. Thanks for sticking with us!"
+                    )
+                except Exception:
+                    logger.exception("Streak 75 user DM failed")
+                for oid in (config.BOT_OWNER_IDS or set()):
+                    try:
+                        owner = self.bot.get_user(oid) or await self.bot.fetch_user(oid)
+                        await owner.send(
+                            f"**Streak milestone:** <@{self.user_id}> just reached a **75-day daily streak!** "
+                            "Consider rewarding them personally."
+                        )
+                    except Exception:
+                        logger.exception("Streak 75 owner DM failed for %s", oid)
         except Exception:
             logger.exception("ClaimDailyView.claim failed")
             try:
@@ -1157,7 +1347,7 @@ class SlashPoints(commands.Cog):
             bal = await get_balance(guild_id=gid, user_id=uid)
 
             if claimed:
-                desc = "✅ You already claimed your daily today."
+                desc = "✅ You already claimed your daily today. Resets at **midnight UTC** (global clock)."
             else:
                 desc = "Press **Claim Daily** to collect your reward."
 
@@ -1165,14 +1355,25 @@ class SlashPoints(commands.Cog):
             e.add_field(name="Balance", value=f"{bal} points", inline=True)
             e.add_field(name="Streak", value=str(streak), inline=True)
             if claimed and next_in_s is not None:
-                e.add_field(name="Next claim", value=f"in {int(next_in_s)}s", inline=False)
+                e.add_field(name="Next claim", value=f"in **{int(next_in_s)}s** (midnight UTC)", inline=False)
 
-            view = None if claimed else ClaimDailyView(bot=self.bot, guild_id=gid, user_id=uid)
-
-            if view is None:
-                await interaction.response.send_message(embed=e, ephemeral=True)
+            if claimed:
+                prog = await get_streak_reward_progress(user_id=uid)
+                avail: tuple[int, ...] = ()
+                if prog:
+                    if prog.character_10_available:
+                        avail += (10,)
+                    if prog.character_15_available:
+                        avail += (15,)
+                    if prog.character_25_available:
+                        avail += (25,)
+                view = StreakRewardDailyView(
+                    bot=self.bot, guild_id=gid, user_id=uid, available_tiers=avail,
+                )
             else:
-                await interaction.response.send_message(embed=e, ephemeral=True, view=view)
+                view = ClaimDailyView(bot=self.bot, guild_id=gid, user_id=uid)
+
+            await interaction.response.send_message(embed=e, ephemeral=True, view=view)
         except Exception:
             logger.exception("/points daily failed")
             try:
@@ -1180,6 +1381,25 @@ class SlashPoints(commands.Cog):
                     await interaction.followup.send("⚠️ Something went wrong. Please try again.", ephemeral=True)
                 else:
                     await interaction.response.send_message("⚠️ Something went wrong. Please try again.", ephemeral=True)
+            except Exception:
+                pass
+
+    @points.command(name="streak", description="View streak reward progress and upcoming milestones")
+    @require_start()
+    async def points_streak(self, interaction: discord.Interaction):
+        """Show streak milestones, character rewards, and random bonus chance."""
+        try:
+            uid = int(interaction.user.id)
+            prog = await get_streak_reward_progress(user_id=uid)
+            if not prog:
+                await interaction.response.send_message("Could not load streak progress.", ephemeral=True)
+                return
+            embed = _build_streak_rewards_embed(prog)
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except Exception:
+            logger.exception("/points streak failed")
+            try:
+                await interaction.response.send_message("⚠️ Something went wrong. Try again later.", ephemeral=True)
             except Exception:
                 pass
 
@@ -1202,7 +1422,11 @@ class SlashPoints(commands.Cog):
             )
             e.add_field(name="Streak", value=f"**{streak}** day(s)", inline=True)
             if claimed:
-                e.add_field(name="Next claim", value=f"In **{_fmt_duration(next_in)}** (UTC reset)", inline=True)
+                e.add_field(
+                    name="Next claim",
+                    value=f"In **{_fmt_duration(next_in)}** (resets at midnight UTC, global clock)",
+                    inline=True,
+                )
             else:
                 e.add_field(name="Next claim", value="✅ Available now (use `/points daily`)", inline=True)
 

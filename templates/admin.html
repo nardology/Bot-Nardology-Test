@@ -80,6 +80,7 @@
         <li><button type="button" data-panel="limits">Limits</button></li>
         <li><button type="button" data-panel="analytics">Analytics</button></li>
         <li><button type="button" data-panel="reports">Reports</button></li>
+        <li><button type="button" data-panel="abuse">Abuse</button></li>
       </ul>
     </div>
   </nav>
@@ -111,6 +112,21 @@
       <div class="card">
         <h3>Open reports</h3>
         <div id="reports-content"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+    <div id="panel-abuse" class="panel">
+      <div class="card">
+        <h3>Flagged users (auto-flagged for high cost or call volume)</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;">These users are throttled to free-tier limits. You get a DM when someone is first flagged.</p>
+        <div id="abuse-flagged-content"><p class="empty">Loading…</p></div>
+      </div>
+      <div class="card">
+        <h3>Restricted users (manually restricted by owner)</h3>
+        <div id="abuse-restricted-content"><p class="empty">Loading…</p></div>
+      </div>
+      <div class="card">
+        <h3>Flag log (recent auto-flags)</h3>
+        <div id="abuse-log-content"><p class="empty">Loading…</p></div>
       </div>
     </div>
   </main>
@@ -251,6 +267,31 @@
       document.getElementById('reports-content').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
     }
   }
+  async function loadAbuse() {
+    try {
+      const data = await fetchJSON('/api/admin/abuse/flagged' + q());
+      if (!data) return;
+      const flagged = Array.isArray(data.flagged) ? data.flagged : [];
+      const restricted = Array.isArray(data.restricted) ? data.restricted : [];
+      const logList = Array.isArray(data.log) ? data.log : [];
+      document.getElementById('abuse-flagged-content').innerHTML = flagged.length === 0
+        ? '<p class="empty">No flagged users</p>'
+        : '<p><strong>' + flagged.length + '</strong> user(s):</p><p><code>' + escapeHtml(flagged.join(', ')) + '</code></p>';
+      document.getElementById('abuse-restricted-content').innerHTML = restricted.length === 0
+        ? '<p class="empty">No restricted users</p>'
+        : '<p><strong>' + restricted.length + '</strong> user(s):</p><p><code>' + escapeHtml(restricted.join(', ')) + '</code></p>';
+      const logEl = document.getElementById('abuse-log-content');
+      if (logList.length === 0) {
+        logEl.innerHTML = '<p class="empty">No flag log entries</p>';
+      } else {
+        logEl.innerHTML = '<table><thead><tr><th>User ID</th><th>Time (UTC)</th><th>Reason</th></tr></thead><tbody>' +
+          logList.map(e => '<tr><td><code>' + escapeHtml(String(e.user_id || '')) + '</code></td><td>' + escapeHtml(String(e.timestamp || '').slice(0, 19)) + '</td><td>' + escapeHtml(String(e.reason || '')) + '</td></tr>').join('') +
+          '</tbody></table>';
+      }
+    } catch (e) {
+      document.getElementById('abuse-flagged-content').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+  }
   function escapeHtml(s) {
     const div = document.createElement('div');
     div.textContent = s;
@@ -260,6 +301,7 @@
   loadLimits();
   loadAnalytics();
   loadReports();
+  loadAbuse();
 })();
   </script>
 </body>

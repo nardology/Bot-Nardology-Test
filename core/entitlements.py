@@ -86,8 +86,15 @@ async def get_entitlements(*, user_id: int, guild_id: int | None) -> Entitlement
     Single entry point to determine what the user is allowed to do.
 
     Premium is now a *user-level* entitlement.
+    Abuse-flagged/restricted users get free-tier limits (throttle).
     """
     uid = int(user_id or 0)
+    try:
+        from utils.ai_abuse import should_throttle_user
+        if await should_throttle_user(uid):
+            return _TIER_TABLE["free"]
+    except Exception:
+        pass
     tier = (await get_premium_tier(uid) or "free").lower().strip()
     if tier not in _TIER_TABLE:
         tier = "free"

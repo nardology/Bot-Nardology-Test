@@ -320,6 +320,7 @@ class SlashOwner(commands.Cog):
     owner = app_commands.Group(name="z_owner", description="Owner-only tools")
     premium = app_commands.Group(name="premium", description="Premium entitlements", parent=owner)
     ai = app_commands.Group(name="ai", description="AI kill switch", parent=owner)
+    ai_abuse = app_commands.Group(name="ai_abuse", description="AI abuse: flag, restrict, list users", parent=owner)
     data = app_commands.Group(name="data", description="Delete stored data", parent=owner)
     points = app_commands.Group(name="points", description="Points tools", parent=owner)
 
@@ -2137,6 +2138,63 @@ class SlashOwner(commands.Cog):
             await _ephemeral(interaction, "No recent runtime disable reason found.")
             return
         await _ephemeral(interaction, f"Last runtime disable: `{reason}`")
+
+    # ----------------------------
+    # /owner ai_abuse ... (flag, restrict, list)
+    # ----------------------------
+
+    @ai_abuse.command(name="list", description="List flagged and restricted users (AI abuse moderation)")
+    @_owner_only()
+    async def ai_abuse_list(self, interaction: discord.Interaction):
+        from utils.ai_abuse import get_flagged_user_ids, get_restricted_user_ids
+        from utils.cost_tracker import get_today_cost_cents_user
+
+        await interaction.response.defer(ephemeral=True)
+        flagged = await get_flagged_user_ids()
+        restricted = await get_restricted_user_ids()
+        lines = ["**AI abuse moderation**"]
+        if flagged:
+            lines.append(f"\n**Flagged** (high daily cost; auto-throttled if AI_ABUSE_AUTO_THROTTLE=true):")
+            for uid in flagged[:25]:
+                cents = await get_today_cost_cents_user(uid)
+                lines.append(f"• <@{uid}> `{uid}` — ${cents/100:.2f} today")
+        else:
+            lines.append("\n**Flagged:** (none)")
+        if restricted:
+            lines.append(f"\n**Restricted** (owner-applied free-tier limits):")
+            for uid in restricted[:25]:
+                lines.append(f"• <@{uid}> `{uid}`")
+        else:
+            lines.append("\n**Restricted:** (none)")
+        await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
+
+    @ai_abuse.command(name="restrict", description="Restrict a user to free-tier /talk limits (stops abuse)")
+    @_owner_only()
+    @app_commands.describe(user_id="Discord user ID to restrict")
+    async def ai_abuse_restrict(self, interaction: discord.Interaction, user_id: str):
+        from utils.ai_abuse import set_abuse_restricted
+
+        try:
+            uid = int(user_id.strip())
+        except ValueError:
+            await _ephemeral(interaction, "❌ Provide a numeric Discord user ID.")
+            return
+        await set_abuse_restricted(uid, restricted=True)
+        await _ephemeral(interaction, f"✅ User <@{uid}> (`{uid}`) is now **restricted** to free-tier /talk limits.")
+
+    @ai_abuse.command(name="clear", description="Clear abuse flag and restriction for a user")
+    @_owner_only()
+    @app_commands.describe(user_id="Discord user ID to clear")
+    async def ai_abuse_clear(self, interaction: discord.Interaction, user_id: str):
+        from utils.ai_abuse import clear_abuse_all
+
+        try:
+            uid = int(user_id.strip())
+        except ValueError:
+            await _ephemeral(interaction, "❌ Provide a numeric Discord user ID.")
+            return
+        await clear_abuse_all(uid)
+        await _ephemeral(interaction, f"✅ Cleared abuse flag and restriction for <@{uid}> (`{uid}`).")
 
     # ----------------------------
     # /owner global ...

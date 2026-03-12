@@ -551,6 +551,12 @@ PRO_ASK_CAPS = AskCaps(
 
 
 async def get_talk_caps(user_id: int) -> AskCaps:
+    try:
+        from utils.ai_abuse import should_throttle_user
+        if await should_throttle_user(user_id):
+            return FREE_ASK_CAPS
+    except Exception:
+        pass
     return PRO_ASK_CAPS if (await get_premium_tier(user_id)) == "pro" else FREE_ASK_CAPS
 
 

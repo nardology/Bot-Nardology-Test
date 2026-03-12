@@ -53,6 +53,10 @@ def _cost_key(guild_id: int, day: str) -> str:
     return f"cost:guild:{int(guild_id)}:{day}"
 
 
+def _cost_key_user(user_id: int, day: str) -> str:
+    return f"cost:user:{int(user_id)}:{day}"
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -77,11 +81,12 @@ def estimate_cost_cents(*, tier: str, input_tokens: int, output_tokens: int) -> 
 async def record_cost(
     *,
     guild_id: int,
+    user_id: int,
     tier: str,
     input_tokens: int,
     output_tokens: int,
 ) -> None:
-    """Record the estimated cost of an AI call for this guild (today).
+    """Record the estimated cost of an AI call for this guild and user (today).
 
     Cost is stored in milli-cents (1/1000 of a cent) for precision.
     """
@@ -98,6 +103,9 @@ async def record_cost(
     day = _today_utc()
     key = _cost_key(guild_id, day)
     await incr(key, milli_cents, ex=_TTL)
+    if user_id:
+        user_key = _cost_key_user(int(user_id), day)
+        await incr(user_key, milli_cents, ex=_TTL)
 
 
 async def get_today_cost_cents(guild_id: int) -> float:
@@ -121,6 +129,39 @@ async def get_today_cost_cents(guild_id: int) -> float:
         return milli_cents / 1000.0
     except Exception:
         return 0.0
+
+
+async def get_today_cost_cents_user(user_id: int) -> float:
+    """Estimated AI cost for this user today, in cents. Returns 0 if Redis unavailable."""
+    r = await get_redis_or_none()
+    if r is None:
+        return 0.0
+    day = _today_utc()
+    key = _cost_key_user(int(user_id), day)
+    try:
+        val = await r.get(key)
+        if val is None:
+            return 0.0
+        if isinstance(val, (bytes, bytearray)):
+            val = val.decode("utf-8", errors="ignore")
+        milli_cents = int(val)
+        return milli_cents / 1000.0
+    except Exception:
+        return 0.0
+
+
+async def is_within_budget_user(user_id: int, cap_cents: float | None = None) -> tuple[bool, float, float]:
+    """Check if the user is within their daily cost cap.
+
+    Returns (allowed, current_cents, cap_cents).
+    cap_cents defaults to config.AI_COST_CAP_USER_DAILY_CENTS.
+    """
+    import config as _config
+    cap = float(cap_cents if cap_cents is not None else getattr(_config, "AI_COST_CAP_USER_DAILY_CENTS", 10))
+    if cap <= 0:
+        return True, 0.0, 0.0
+    current = await get_today_cost_cents_user(int(user_id))
+    return current < cap, current, cap
 
 
 async def is_within_budget(guild_id: int, tier: str) -> tuple[bool, float, float]:

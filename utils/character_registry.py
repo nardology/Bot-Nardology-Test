@@ -535,6 +535,15 @@ def list_rollable_by_rarity(r: Rarity) -> list[StyleDef]:
     ]
 
 
+# Built-in = core / nardologybot pack only (excludes shop and custom pack characters).
+_BUILTIN_PACK_IDS: frozenset[str] = frozenset({"core", "nardologybot"})
+
+
+def list_builtin_by_rarity(rarity: Rarity) -> list[StyleDef]:
+    """List built-in (non-shop) rollable characters of the given rarity for streak rewards."""
+    return list_rollable(rarity=rarity, pack_ids=_BUILTIN_PACK_IDS)
+
+
 def list_rollable(
     *,
     rarity: Rarity | None = None,

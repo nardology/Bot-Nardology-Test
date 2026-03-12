@@ -336,6 +336,15 @@ class SlashTalk(commands.Cog):
         if len(prompt) > 4000:
             await send_warning(interaction, "Message too long (max 4000 chars).")
             return
+        # Entitlement-based prompt cap (stricter for cost control; trim before any AI use)
+        try:
+            ent_pre = await get_entitlements(user_id=user_id, guild_id=guild_id)
+            max_prompt = int(getattr(ent_pre, "max_prompt_chars", 1400) or 1400)
+            if len(prompt) > max_prompt:
+                trimmed = prompt[:max_prompt].rsplit(maxsplit=1)[0]
+                prompt = trimmed if trimmed else prompt[:max_prompt]
+        except Exception:
+            pass
 
         # Decide visibility ONCE at the start.
         answer_ephemeral = not bool(public)

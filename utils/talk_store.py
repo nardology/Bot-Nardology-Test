@@ -12,8 +12,16 @@ from utils.redis_kv import incr
 # Keys (token usage):
 #   talk:tokens:guild:{guild_id}:{YYYYMMDD}
 #   talk:tokens:user:{guild_id}:{user_id}:{YYYYMMDD}
+#
+# All daily limits use UTC midnight (global clock). Use get_utc_day_start() for consistency.
 
 _TTL = 8 * 24 * 3600
+
+
+def get_utc_day_start(dt: datetime | None = None) -> datetime:
+    """Return midnight UTC for the given datetime (or now). Single source of truth for daily limits."""
+    now = (dt or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
 def _day_key(dt: datetime) -> str:

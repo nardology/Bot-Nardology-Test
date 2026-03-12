@@ -22,7 +22,7 @@ from utils.ai_limits import (
 )
 
 from utils.say_limits import get_say_user_limiter, get_say_guild_limiter
-from utils.talk_store import count_talk_user_since, count_talk_guild_since
+from utils.talk_store import count_talk_user_since, count_talk_guild_since, get_utc_day_start
 
 from utils.scene_caps import get_scene_caps
 from utils.scene_usage_store import (
@@ -169,10 +169,10 @@ class SlashLimits(commands.Cog):
                 "report:day:guild",
             )
 
-            # ---- TALK daily caps (UTC day) ----
+            # ---- TALK daily caps (UTC midnight, same as enforcement) ----
             talk_caps = await get_talk_caps(user_id)
             now_utc = datetime.now(timezone.utc)
-            day_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+            day_start = get_utc_day_start(now_utc)
 
             talk_used_today_user = await count_talk_user_since(
                 guild_id=guild_id,

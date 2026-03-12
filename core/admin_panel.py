@@ -190,6 +190,26 @@ async def handle_api_reports(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_api_abuse_flagged(request: web.Request) -> web.Response:
+    """GET /api/admin/abuse/flagged?token=... — flagged/restricted user IDs and flag log."""
+    _, err = _require_admin_token(request, json_response=True)
+    if err is not None:
+        return err
+    try:
+        from utils.ai_abuse import get_flagged_user_ids, get_restricted_user_ids, get_flag_log
+        flagged = await get_flagged_user_ids()
+        restricted = await get_restricted_user_ids()
+        log_entries = await get_flag_log(limit=100)
+        return web.json_response({
+            "flagged": [str(uid) for uid in flagged],
+            "restricted": [str(uid) for uid in restricted],
+            "log": log_entries,
+        })
+    except Exception as e:
+        log.exception("abuse flagged failed: %s", e)
+        return web.json_response({"error": str(e)}, status=500)
+
+
 def register_routes(app: web.Application, bot) -> None:
     """Register admin panel routes. Requires bot for guild list."""
     global _bot
@@ -202,4 +222,10 @@ def register_routes(app: web.Application, bot) -> None:
     app.router.add_get("/api/admin/analytics/overview", handle_api_analytics_overview)
     app.router.add_get("/api/admin/analytics/retention", handle_api_analytics_retention)
     app.router.add_get("/api/admin/reports", handle_api_reports)
+    app.router.add_get("/api/admin/abuse/flagged", handle_api_abuse_flagged)
+    try:
+        from utils.ai_abuse import set_bot_for_flagged_notifications
+        set_bot_for_flagged_notifications(bot)
+    except Exception:
+        pass
     log.info("Admin panel routes registered at /admin and /api/admin/*")

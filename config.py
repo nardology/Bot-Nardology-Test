@@ -49,6 +49,12 @@ AI_DISABLED = _as_bool("AI_DISABLED", "false")
 # (~$15/month vs $4.99 revenue = generous margin). Set to 0 to disable.
 AI_COST_CAP_FREE_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_FREE_DAILY_CENTS", "5").strip() or "5")
 AI_COST_CAP_PRO_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_PRO_DAILY_CENTS", "50").strip() or "50")
+# Per-user daily cost cap (stops one user from draining a server). Default 10 cents/day.
+AI_COST_CAP_USER_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_USER_DAILY_CENTS", "10").strip() or "10")
+# Abuse: flag user when they exceed this cost in a day (for moderation). Default 8 cents.
+AI_ABUSE_FLAG_USER_CENTS: float = float(os.getenv("AI_ABUSE_FLAG_USER_CENTS", "8").strip() or "8")
+# When true, flagged users are auto-throttled to free-tier /talk limits.
+AI_ABUSE_AUTO_THROTTLE: bool = _as_bool("AI_ABUSE_AUTO_THROTTLE", "true")
 
 # ---- Guild sync ----
 def _parse_id_list(raw: str | None) -> list[int]:

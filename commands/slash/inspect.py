@@ -24,6 +24,15 @@ def _add_stats_fields(e: discord.Embed, stats: UserStats, *, max_inventory_slots
     """Add stats fields to an embed."""
     e.add_field(name="Points", value=f"**{stats.points}**", inline=True)
     e.add_field(name="Daily streak", value=f"**{stats.daily_streak}** day(s)", inline=True)
+    badges: list[str] = []
+    if getattr(stats, "streak_badge_30", False):
+        badges.append("🏅 30-day")
+    if getattr(stats, "streak_badge_60", False):
+        badges.append("🏅 60-day")
+    if getattr(stats, "streak_badge_90", False):
+        badges.append("🏅 90-day")
+    if badges:
+        e.add_field(name="Streak badges", value=" · ".join(badges), inline=True)
     if max_inventory_slots is not None:
         e.add_field(
             name="Inventory",

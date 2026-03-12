@@ -72,6 +72,7 @@ def build_help_embed() -> discord.Embed:
         "📋 `/voice list` — List available sounds\n\n"
         "**Points & Economy**\n"
         "🪙 `/points daily` — Claim daily reward\n"
+        "🔥 `/points streak` — Streak rewards & milestones\n"
         "🛒 `/points shop` — Browse the shop\n"
         "🎨 `/points cosmetic-shop` — Buy cosmetics\n"
         "🎯 `/points quests` — Quest rewards\n"
@@ -207,8 +208,9 @@ def get_topic_text(topic: str) -> str | None:
     if t == "points":
         return (
             "🪙 **Points & Economy**\n"
-            "• `/points daily` — Claim your daily reward (streaks give bonuses!)\n"
-            "• `/points balance` — Check your point balance\n"
+"• `/points daily` — Claim your daily reward (streaks give bonuses!)\n"
+                "• `/points streak` — View streak milestones & character rewards\n"
+                "• `/points balance` — Check your point balance\n"
             "• `/points shop` — Browse and buy items with points\n"
             "• `/points cosmetic-shop` — Browse cosmetic items\n"
             "• `/points quests` — View and claim quest rewards (daily/weekly/monthly)\n"

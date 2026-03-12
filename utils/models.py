@@ -219,6 +219,23 @@ try:
         booster_kind: Mapped[str] = mapped_column(String(32), default="")
         booster_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
+        # Engagement streak milestones (day 7 pts, every 30 days pts, day 10/15/25 character, day 75 DM)
+        streak_7_bonus_given: Mapped[bool] = mapped_column(Boolean, default=False)
+        streak_last_30_bonus_at: Mapped[int] = mapped_column(Integer, default=0)
+        streak_10_character_claimed: Mapped[bool] = mapped_column(Boolean, default=False)
+        streak_15_character_claimed: Mapped[bool] = mapped_column(Boolean, default=False)
+        streak_25_character_claimed: Mapped[bool] = mapped_column(Boolean, default=False)
+        streak_75_notification_sent: Mapped[bool] = mapped_column(Boolean, default=False)
+        # Random daily bonus: chance increases each day, resets when rewarded
+        random_bonus_consecutive_days: Mapped[int] = mapped_column(Integer, default=0)
+        random_bonus_last_reward_day_utc: Mapped[str] = mapped_column(String(8), default="")
+        # Streak badges (30/60/90 days) shown on /inspect
+        streak_badge_30: Mapped[bool] = mapped_column(Boolean, default=False)
+        streak_badge_60: Mapped[bool] = mapped_column(Boolean, default=False)
+        streak_badge_90: Mapped[bool] = mapped_column(Boolean, default=False)
+        # Weekly activity bonus: last week (Monday YYYYMMDD) we gave the bonus
+        weekly_activity_bonus_week_utc: Mapped[str] = mapped_column(String(8), default="")
+
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
         updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
 

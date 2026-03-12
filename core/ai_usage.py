@@ -25,6 +25,7 @@ from utils.talk_store import (
     count_talk_guild_since,
     count_talk_user_since,
     count_talk_tokens_user_since,
+    get_utc_day_start,
     insert_talk,
     insert_talk_tokens,
 )
@@ -43,18 +44,15 @@ class BudgetDecision:
     message: str = ""
 
 
-def _utc_day_start(now_utc: datetime) -> datetime:
-    return now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-
-
 async def check_budget(*, mode: str, guild_id: int, user_id: int) -> BudgetDecision:
     """Check daily + weekly budgets for the given mode.
 
     Returns BudgetDecision(allowed=False, message=...) if over budget.
+    Uses UTC midnight for daily boundaries (global clock).
     """
     mode = (mode or "").strip().lower()
     now_utc = datetime.now(timezone.utc)
-    day_start = _utc_day_start(now_utc)
+    day_start = get_utc_day_start(now_utc)
     week_start = now_utc - timedelta(days=7)
 
     if mode == "talk":

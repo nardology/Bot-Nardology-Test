@@ -14,7 +14,7 @@ from core.ui import safe_ephemeral_send
 
 from utils.audit import audit_log
 from utils.storage import get_guild_setting, set_guild_setting
-from utils.talk_store import count_talk_guild_since
+from utils.talk_store import count_talk_guild_since, get_utc_day_start
 from utils.feedback_store import count_feedback_guild_since
 from utils.say_store import count_say_guild_since
 from utils.premium import get_premium_tier, get_talk_caps
@@ -112,8 +112,8 @@ class SlashUsage(commands.Cog):
         say_uses = await count_say_guild_since(guild_id=guild_id, since_utc=since)
         feedback_uses = await count_feedback_guild_since(guild_id=guild_id, since_utc=since)
 
-        # ----- Daily (UTC today) /talk guild usage -----
-        day_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+        # ----- Daily (UTC today) /talk guild usage — same boundary as enforcement (global clock) -----
+        day_start = get_utc_day_start(now_utc)
         talk_today = await count_talk_guild_since(guild_id=guild_id, since_utc=day_start)
         talk_today_remaining = max(0, int(talk_caps.guild_daily_max) - int(talk_today))
 
@@ -194,7 +194,7 @@ class SlashUsage(commands.Cog):
         msg = (
             f"📈 **Server Usage (last {days} day(s))**\n\n"
             f"**Server tier:** `{tier}`\n\n"
-            f"**/talk daily limits (UTC today)**\n"
+            f"**/talk daily limits (resets at midnight UTC, global clock)**\n"
             f"• Guild: **{talk_today}/{talk_caps.guild_daily_max}** (remaining **{talk_today_remaining}**)\n"
             f"• Per-user cap: **{talk_caps.daily_max}/day**\n\n"
             f"**Top commands**\n" + "\n".join(top3_lines) + "\n\n"

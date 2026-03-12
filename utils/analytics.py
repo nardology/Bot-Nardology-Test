@@ -498,6 +498,26 @@ async def track_funnel_event(
     await _mark_dirty(day, guild_id)
 
 
+async def count_user_activity_days(*, user_id: int, day_utc_list: list[str]) -> int:
+    """Count distinct days the user had activity (UserActivityDay) in the given list. Used for weekly activity bonus."""
+    if not day_utc_list or select is None:
+        return 0
+    try:
+        from utils.models import UserActivityDay
+        from sqlalchemy import func
+        Session = get_sessionmaker()
+        async with Session() as session:
+            r = await session.execute(
+                select(func.count(func.distinct(UserActivityDay.day_utc)))
+                .where(UserActivityDay.user_id == int(user_id))
+                .where(UserActivityDay.day_utc.in_([str(d) for d in day_utc_list]))
+            )
+            row = r.scalar_one_or_none()
+            return int(row or 0)
+    except Exception:
+        return 0
+
+
 async def read_daily_counters(*, day_utc: str, guild_id: int) -> Dict[str, int]:
     """Read current Redis counters for a guild/day (best effort)."""
     r = await get_redis_or_none()

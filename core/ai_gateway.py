@@ -88,6 +88,21 @@ async def request_text(
             user_message += f"\nReason: `{reason[:300]}`"
         return AIGatewayResponse(ok=False, user_message=user_message, error_type="AI_DISABLED")
 
+    # 0.25) Abuse throttle: flagged/restricted users get free-tier; block here so we don't spend budget
+    try:
+        from utils.ai_abuse import should_throttle_user
+        if await should_throttle_user(int(user_id)):
+            return AIGatewayResponse(
+                ok=False,
+                user_message=(
+                    "⛔ Your usage has been limited due to high volume. "
+                    "Try again tomorrow (UTC) or contact support."
+                ),
+                error_type="AbuseThrottled",
+            )
+    except Exception:
+        pass
+
     # 0.5) Budgets (before we spend money)
     try:
         decision = await check_budget(mode=mode, guild_id=int(guild_id), user_id=int(user_id))
@@ -97,9 +112,9 @@ async def request_text(
         # Budget checks must never crash a command.
         pass
 
-    # 0.6) Revenue-linked cost cap (hard profitability guarantee)
+    # 0.6) Revenue-linked cost cap (guild + per-user)
     try:
-        from utils.cost_tracker import is_within_budget
+        from utils.cost_tracker import is_within_budget, is_within_budget_user
         allowed, current_cents, cap_cents = await is_within_budget(int(guild_id), str(tier or ""))
         if not allowed:
             return AIGatewayResponse(
@@ -109,6 +124,16 @@ async def request_text(
                     "Try again tomorrow (resets at midnight UTC)."
                 ),
                 error_type="CostCapExceeded",
+            )
+        u_allowed, u_cents, u_cap = await is_within_budget_user(int(user_id))
+        if not u_allowed:
+            return AIGatewayResponse(
+                ok=False,
+                user_message=(
+                    f"⛔ You've reached your daily AI usage limit (${u_cents/100:.2f} today, max ${u_cap/100:.2f}). "
+                    "Try again tomorrow (UTC)."
+                ),
+                error_type="UserCostCapExceeded",
             )
     except Exception:
         # Cost cap must never crash a command.
@@ -207,27 +232,55 @@ async def request_text(
                 out_tokens = int(getattr(res, "output_tokens", 0) or 0)
 
             # Record usage AFTER success (call counts + actual token counts)
+            # If API didn't return usage (tokens=0), use max_tokens as conservative estimate so budgets still deplete
+            tokens_to_record = int(tokens) if int(tokens) > 0 else int(max_tokens)
             try:
                 await record_success(
                     mode=mode,
                     guild_id=int(guild_id),
                     user_id=int(user_id),
-                    tokens=int(tokens),
+                    tokens=tokens_to_record,
                 )
             except Exception:
                 pass
 
-            # Record estimated cost for revenue-linked cap
+            if (mode or "").strip().lower() == "talk":
+                try:
+                    from utils.ai_abuse import increment_talk_calls_user_today
+                    await increment_talk_calls_user_today(int(user_id))
+                except Exception:
+                    pass
+
+            # Record estimated cost for revenue-linked cap (guild + user)
+            # If API didn't return usage, use conservative estimates so caps still apply
+            rec_in = int(in_tokens) if int(in_tokens) > 0 else 300
+            rec_out = int(out_tokens) if int(out_tokens) > 0 else int(max_tokens)
             try:
                 from utils.cost_tracker import record_cost
                 await record_cost(
                     guild_id=int(guild_id),
+                    user_id=int(user_id),
                     tier=str(tier or ""),
-                    input_tokens=in_tokens,
-                    output_tokens=out_tokens,
+                    input_tokens=rec_in,
+                    output_tokens=rec_out,
                 )
             except Exception:
                 pass
+
+            # Abuse flagging: if user exceeds threshold, flag for moderation / auto-throttle
+            try:
+                from utils.ai_abuse import maybe_flag_user_after_usage
+                await maybe_flag_user_after_usage(int(user_id))
+            except Exception:
+                pass
+
+            # Hard truncate output if API returned more than requested (token limit enforcement)
+            if text and out_tokens > max_tokens:
+                approx_chars_per_token = 4
+                max_chars = max(64, int(max_tokens * approx_chars_per_token))
+                if len(text) > max_chars:
+                    trimmed = text[:max_chars].rsplit(maxsplit=1)[0] if max_chars > 20 else text[:max_chars]
+                    text = (trimmed + "…") if len(trimmed) < len(text) else trimmed
 
             # Global/product analytics (real token usage when available)
             try:

@@ -58,6 +58,17 @@ def _day_utc(dt: datetime | None = None) -> str:
     return utc_day_str(ts)
 
 
+# Engagement streak milestone constants
+STREAK_7_BONUS_POINTS = 500
+STREAK_30_BONUS_POINTS = 2000
+RANDOM_BONUS_BASE_CHANCE_PCT = 3
+RANDOM_BONUS_INCREMENT_PCT = 5
+RANDOM_BONUS_POINTS = 500
+COMEBACK_BONUS_POINTS = 100  # when streak breaks after 14+ days
+COMEBACK_BONUS_MIN_STREAK = 14
+WEEKLY_ACTIVITY_BONUS_POINTS = 50
+
+
 @dataclass(frozen=True)
 class DailyResult:
     awarded: int
@@ -72,6 +83,18 @@ class DailyResult:
     restore_cost: int = 500
     restore_to_streak: int = 0
     restore_deadline_day_utc: str = ""
+
+    # Engagement milestones (set when claimed today)
+    milestone_7_awarded: int = 0
+    milestone_30_awarded: int = 0
+    random_bonus_awarded: int = 0
+    random_bonus_chance_pct: int = 0
+    random_bonus_near_miss: bool = False  # True when we rolled and they didn't win
+    random_bonus_next_chance_pct: int = 0  # chance next claim (for near-miss message)
+    streak_75_triggered: bool = False
+    character_reward_available: tuple[int, ...] = ()  # e.g. (10,) or (10, 15, 25) for unclaimed tiers
+    comeback_awarded: int = 0  # points for returning after a long broken streak
+    weekly_activity_awarded: int = 0
 
 
 def _daily_amount_for_streak(streak: int) -> int:
@@ -122,8 +145,8 @@ async def get_balance(*, guild_id: int, user_id: int) -> int:
 
 async def get_claim_status(*, guild_id: int, user_id: int) -> tuple[bool, int, int]:
     """Return (claimed_today, seconds_until_next_claim, streak).
-    
-    Uses global wallet for streak tracking.
+
+    Uses global wallet for streak tracking. Daily reset is at midnight UTC (global clock), not 24h from last claim.
     """
     # Use global wallet for streak
     w = await _get_or_create_wallet(guild_id=GLOBAL_GUILD_ID, user_id=user_id)
@@ -143,6 +166,7 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
 
     Rules:
     - Points and streaks are GLOBAL (guild_id=0)
+    - Daily and streak reset at midnight UTC (global clock), not 24h from last claim
     - guild_id parameter is ignored (for backward compatibility)
     - Streak increases by 1 if claimed on consecutive days, else resets to 1
     - One-time first-claim bonus
@@ -181,10 +205,19 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
             if saved > 0 and restore_deadline and today <= restore_deadline:
                 restore_available = True
                 restore_to_streak = saved + 1
+            # Character reward availability (for already-claimed view)
+            _str = int(w.streak or 0)
+            _avail: list[int] = []
+            if _str >= 10 and not bool(getattr(w, "streak_10_character_claimed", False)):
+                _avail.append(10)
+            if _str >= 15 and not bool(getattr(w, "streak_15_character_claimed", False)):
+                _avail.append(15)
+            if _str >= 25 and not bool(getattr(w, "streak_25_character_claimed", False)):
+                _avail.append(25)
             return DailyResult(
                 awarded=0,
                 balance=int(w.balance or 0),
-                streak=int(w.streak or 0),
+                streak=_str,
                 claimed_today=True,
                 next_claim_in_seconds=max(0, int((next_midnight - now).total_seconds())),
                 first_bonus_awarded=0,
@@ -192,9 +225,11 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
                 restore_cost=500,
                 restore_to_streak=int(restore_to_streak),
                 restore_deadline_day_utc=str(restore_deadline or ""),
+                character_reward_available=tuple(_avail),
             )
 
         # Streak logic
+        import random as _rnd
         prev = (w.last_claim_day_utc or "").strip()
         if prev:
             try:
@@ -202,14 +237,9 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
                 prev_expected = _day_utc(prev_dt + timedelta(days=1))
                 if prev_expected == today:
                     w.streak = int(w.streak or 0) + 1
-                    # Streak is continuing normally — clear any leftover
-                    # restore offer from a prior break so the restore button
-                    # doesn't appear when the streak is alive.
                     w.streak_saved = 0
                     w.streak_restore_deadline_day_utc = ""
                 else:
-                    # Streak broken: save previous streak for a limited time so the
-                    # user can pay to restore it.
                     try:
                         prev_streak = int(w.streak or 0)
                         if prev_streak > 0:
@@ -219,12 +249,32 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
                     except Exception:
                         pass
                     w.streak = 1
+                    # Reset engagement flags so they can earn milestones again
+                    w.streak_7_bonus_given = False
+                    w.streak_10_character_claimed = False
+                    w.streak_15_character_claimed = False
+                    w.streak_25_character_claimed = False
             except Exception:
                 w.streak = 1
         else:
             w.streak = 1
 
-        awarded = _daily_amount_for_streak(int(w.streak or 1))
+        streak_val = int(w.streak or 1)
+        awarded = _daily_amount_for_streak(streak_val)
+        milestone_7_awarded = 0
+        milestone_30_awarded = 0
+        random_bonus_awarded = 0
+        random_bonus_chance_pct = 0
+        random_bonus_near_miss = False
+        random_bonus_next_chance_pct = 0
+        streak_75_triggered = False
+        comeback_awarded = 0
+        weekly_activity_awarded = 0
+
+        # Comeback bonus: just broke a long streak (14+), welcome back
+        if streak_val == 1 and int(w.streak_saved or 0) >= COMEBACK_BONUS_MIN_STREAK:
+            comeback_awarded = COMEBACK_BONUS_POINTS
+            awarded += comeback_awarded
 
         # One-time first claim bonus
         first_bonus = 0
@@ -233,11 +283,74 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
             w.first_claimed = True
             awarded += first_bonus
 
+        # Day 7: extra 500 points (once per streak run)
+        if streak_val == 7 and not bool(getattr(w, "streak_7_bonus_given", False)):
+            milestone_7_awarded = STREAK_7_BONUS_POINTS
+            awarded += milestone_7_awarded
+            w.streak_7_bonus_given = True
+
+        # Every 30 days: extra 2000 points
+        last_30 = int(getattr(w, "streak_last_30_bonus_at", 0) or 0)
+        if streak_val >= 30 and streak_val % 30 == 0 and streak_val > last_30:
+            milestone_30_awarded = STREAK_30_BONUS_POINTS
+            awarded += milestone_30_awarded
+            w.streak_last_30_bonus_at = streak_val
+
+        # Random daily bonus: 3% base + 5% per consecutive day, resets when won
+        rnd_last = (getattr(w, "random_bonus_last_reward_day_utc", "") or "").strip()
+        if rnd_last != today:
+            rnd_days = int(getattr(w, "random_bonus_consecutive_days", 0) or 0)
+            random_bonus_chance_pct = min(100, RANDOM_BONUS_BASE_CHANCE_PCT + rnd_days * RANDOM_BONUS_INCREMENT_PCT)
+            if random_bonus_chance_pct >= 100 or _rnd.randint(1, 100) <= random_bonus_chance_pct:
+                random_bonus_awarded = RANDOM_BONUS_POINTS
+                awarded += random_bonus_awarded
+                w.random_bonus_last_reward_day_utc = today
+                w.random_bonus_consecutive_days = 0
+            else:
+                w.random_bonus_consecutive_days = rnd_days + 1
+                random_bonus_near_miss = True
+                random_bonus_next_chance_pct = min(100, RANDOM_BONUS_BASE_CHANCE_PCT + (rnd_days + 1) * RANDOM_BONUS_INCREMENT_PCT)
+
+        # Streak badges (30/60/90) for /inspect profile
+        if streak_val >= 30:
+            w.streak_badge_30 = True
+        if streak_val >= 60:
+            w.streak_badge_60 = True
+        if streak_val >= 90:
+            w.streak_badge_90 = True
+
+        # Weekly activity bonus: claimed daily + had at least one talk/roll day this week (before today)
+        try:
+            from utils.analytics import count_user_activity_days
+            _d = datetime(now.year, now.month, now.day, tzinfo=timezone.utc)
+            _monday = _d - timedelta(days=_d.weekday())
+            monday_utc = _monday.strftime("%Y%m%d")
+            week_days: list[str] = []
+            _cur = _monday
+            while _cur.date() <= now.date():
+                week_days.append(_cur.strftime("%Y%m%d"))
+                _cur = _cur + timedelta(days=1)
+            # Exclude today so we require at least one talk/roll on a previous day this week
+            week_days = [d for d in week_days if d != today]
+            last_week_bonus = (getattr(w, "weekly_activity_bonus_week_utc", "") or "").strip()
+            if week_days and last_week_bonus != monday_utc:
+                n = await count_user_activity_days(user_id=int(user_id), day_utc_list=week_days)
+                if n >= 1:
+                    weekly_activity_awarded = WEEKLY_ACTIVITY_BONUS_POINTS
+                    awarded += weekly_activity_awarded
+                    w.weekly_activity_bonus_week_utc = monday_utc
+        except Exception:
+            pass
+
+        # Day 75: trigger owner + user DM (caller sends DMs)
+        if streak_val == 75 and not bool(getattr(w, "streak_75_notification_sent", False)):
+            w.streak_75_notification_sent = True
+            streak_75_triggered = True
+
         w.balance = int(w.balance or 0) + int(awarded)
         w.last_claim_day_utc = today
         w.updated_at = now
-        
-        # Update leaderboard for points and streak (global + server when in a guild)
+
         await _update_points_leaderboard(guild_id, user_id, int(w.balance))
         try:
             from utils.leaderboard import update_all_periods, CATEGORY_STREAK, GLOBAL_GUILD_ID as GLB_GID
@@ -257,48 +370,70 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
         except Exception:
             pass
 
-        # Ledger (record in global ledger)
+        meta_extra: dict = {
+            "day_utc": today,
+            "streak": streak_val,
+            "first_bonus": first_bonus,
+            "milestone_7": milestone_7_awarded,
+            "milestone_30": milestone_30_awarded,
+            "random_bonus": random_bonus_awarded,
+            "comeback": comeback_awarded,
+            "weekly_activity": weekly_activity_awarded,
+        }
         session.add(
             PointsLedger(
-                guild_id=GLOBAL_GUILD_ID,  # Points are global
+                guild_id=GLOBAL_GUILD_ID,
                 user_id=int(user_id),
                 delta=int(awarded),
                 reason="daily_claim",
-                meta_json=json.dumps(
-                    {
-                        "day_utc": today,
-                        "streak": int(w.streak or 0),
-                        "first_bonus": int(first_bonus),
-                    },
-                    separators=(",", ":"),
-                ),
+                meta_json=json.dumps(meta_extra, separators=(",", ":")),
             )
         )
 
         await session.commit()
 
         next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
-
-        # Streak restore offer (if the streak was broken recently)
-        restore_available = False
-        restore_to_streak = 0
         restore_deadline = (getattr(w, "streak_restore_deadline_day_utc", "") or "").strip()
         saved = int(getattr(w, "streak_saved", 0) or 0)
-        if saved > 0 and restore_deadline and today <= restore_deadline:
-            # If they claimed today after a break, they can pay to continue the old streak.
-            restore_available = True
-            restore_to_streak = saved + 1
+        restore_available = saved > 0 and bool(restore_deadline) and today <= restore_deadline
+        restore_to_streak = saved + 1 if restore_available else 0
+
+        char_avail: list[int] = []
+        if streak_val >= 10 and not bool(getattr(w, "streak_10_character_claimed", False)):
+            char_avail.append(10)
+        if streak_val >= 15 and not bool(getattr(w, "streak_15_character_claimed", False)):
+            char_avail.append(15)
+        if streak_val >= 25 and not bool(getattr(w, "streak_25_character_claimed", False)):
+            char_avail.append(25)
+
+        # Record today as activity so claiming counts for retention / next week's bonus
+        try:
+            from utils.analytics import _touch_active
+            await _touch_active(day_utc=today, guild_id=guild_id, user_id=int(user_id))
+        except Exception:
+            pass
+
         return DailyResult(
             awarded=int(awarded),
-            balance=int(w.balance or 0),  # Global balance
-            streak=int(w.streak or 0),  # Global streak
+            balance=int(w.balance or 0),
+            streak=streak_val,
             claimed_today=True,
             next_claim_in_seconds=max(0, int((next_midnight - now).total_seconds())),
             first_bonus_awarded=int(first_bonus),
-            restore_available=bool(restore_available),
+            restore_available=restore_available,
             restore_cost=500,
             restore_to_streak=int(restore_to_streak),
             restore_deadline_day_utc=str(restore_deadline or ""),
+            milestone_7_awarded=milestone_7_awarded,
+            milestone_30_awarded=milestone_30_awarded,
+            random_bonus_awarded=random_bonus_awarded,
+            random_bonus_chance_pct=random_bonus_chance_pct,
+            random_bonus_near_miss=random_bonus_near_miss,
+            random_bonus_next_chance_pct=random_bonus_next_chance_pct,
+            streak_75_triggered=streak_75_triggered,
+            character_reward_available=tuple(char_avail),
+            comeback_awarded=comeback_awarded,
+            weekly_activity_awarded=weekly_activity_awarded,
         )
 
 
@@ -574,6 +709,99 @@ async def restore_daily_streak(*, guild_id: int, user_id: int, cost: int = 500) 
 
         await session.commit()
         return True, "✅ Streak restored!", int(w.balance or 0), int(w.streak or 0)
+
+
+@dataclass(frozen=True)
+class StreakRewardProgress:
+    """Read-only snapshot for streak rewards UI."""
+    streak: int
+    milestone_7_claimed: bool
+    next_30_at: int  # e.g. 30, 60, 90
+    character_10_available: bool
+    character_15_available: bool
+    character_25_available: bool
+    character_10_claimed: bool
+    character_15_claimed: bool
+    character_25_claimed: bool
+    streak_75_reached: bool
+    random_bonus_consecutive_days: int
+    random_bonus_chance_pct: int
+
+
+async def get_streak_reward_progress(*, user_id: int) -> StreakRewardProgress | None:
+    """Return current streak reward progress for the user (for /points streak or daily progress)."""
+    if select is None:
+        return None
+    w = await _get_or_create_wallet(guild_id=GLOBAL_GUILD_ID, user_id=user_id)
+    streak = int(w.streak or 0)
+    last_30 = int(getattr(w, "streak_last_30_bonus_at", 0) or 0)
+    next_30 = 30 if streak < 30 else (last_30 + 30)
+    rnd_days = int(getattr(w, "random_bonus_consecutive_days", 0) or 0)
+    rnd_chance = min(100, RANDOM_BONUS_BASE_CHANCE_PCT + rnd_days * RANDOM_BONUS_INCREMENT_PCT)
+    return StreakRewardProgress(
+        streak=streak,
+        milestone_7_claimed=bool(getattr(w, "streak_7_bonus_given", False)),
+        next_30_at=next_30,
+        character_10_available=streak >= 10 and not bool(getattr(w, "streak_10_character_claimed", False)),
+        character_15_available=streak >= 15 and not bool(getattr(w, "streak_15_character_claimed", False)),
+        character_25_available=streak >= 25 and not bool(getattr(w, "streak_25_character_claimed", False)),
+        character_10_claimed=bool(getattr(w, "streak_10_character_claimed", False)),
+        character_15_claimed=bool(getattr(w, "streak_15_character_claimed", False)),
+        character_25_claimed=bool(getattr(w, "streak_25_character_claimed", False)),
+        streak_75_reached=bool(getattr(w, "streak_75_notification_sent", False)),
+        random_bonus_consecutive_days=rnd_days,
+        random_bonus_chance_pct=rnd_chance,
+    )
+
+
+async def claim_streak_character_reward(*, user_id: int, tier: int, style_id: str) -> tuple[bool, str]:
+    """Grant a built-in character for streak milestone (10=uncommon, 15=rare, 25=legendary). Returns (ok, message)."""
+    if select is None:
+        return False, "Database unavailable."
+    if tier not in (10, 15, 25):
+        return False, "Invalid reward tier."
+    uid = int(user_id)
+    sid = (style_id or "").strip().lower()
+    if not sid:
+        return False, "No character selected."
+
+    from utils.character_registry import list_builtin_by_rarity, get_style
+    from utils.character_store import add_style_to_inventory
+
+    rarity_map = {10: "uncommon", 15: "rare", 25: "legendary"}
+    rarity = rarity_map[tier]
+    allowed = list_builtin_by_rarity(rarity)
+    allowed_ids = {s.style_id.lower() for s in allowed}
+    if sid not in allowed_ids:
+        return False, "That character isn't available for this reward."
+
+    Session = get_sessionmaker()
+    async with Session() as session:
+        res = await session.execute(
+            select(PointsWallet)
+            .where(PointsWallet.guild_id == GLOBAL_GUILD_ID)
+            .where(PointsWallet.user_id == uid)
+            .with_for_update()
+            .limit(1)
+        )
+        w = res.scalar_one_or_none()
+        if w is None:
+            return False, "Wallet not found."
+        attr = f"streak_{tier}_character_claimed"
+        if bool(getattr(w, attr, False)):
+            return False, "You already claimed this reward."
+        streak = int(w.streak or 0)
+        if streak < tier:
+            return False, f"You need a {tier}-day streak to claim this reward."
+
+        setattr(w, attr, True)
+        w.updated_at = _now_utc()
+        await session.commit()
+
+    ok, msg = await add_style_to_inventory(user_id=uid, style_id=sid, is_pro=None, guild_id=None)
+    if not ok:
+        return False, msg or "Could not add character."
+    return True, f"Added **{get_style(sid).display_name if get_style(sid) else style_id}** to your collection!"
 
 
 async def is_streak_alive(user_id: int) -> bool:
