@@ -54,6 +54,8 @@ AI_COST_CAP_USER_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_USER_DAILY_CE
 AI_ABUSE_FLAG_USER_CENTS: float = float(os.getenv("AI_ABUSE_FLAG_USER_CENTS", "1").strip() or "1")
 # Abuse: flag user when they exceed this many /talk calls in a day. Default 40 (tighter).
 AI_ABUSE_FLAG_USER_CALLS_PER_DAY: int = int(os.getenv("AI_ABUSE_FLAG_USER_CALLS_PER_DAY", "40").strip() or "40")
+# Abuse: flag user when their daily /talk token count reaches this. 0 = disabled. Set 1 to flag after 1 token (testing); applies to all tiers.
+AI_ABUSE_FLAG_USER_TOKENS: int = int(os.getenv("AI_ABUSE_FLAG_USER_TOKENS", "0").strip() or "0")
 # When true, flagged users are auto-throttled to free-tier /talk limits.
 AI_ABUSE_AUTO_THROTTLE: bool = _as_bool("AI_ABUSE_AUTO_THROTTLE", "true")
 

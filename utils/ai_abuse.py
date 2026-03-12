@@ -25,10 +25,12 @@ log = logging.getLogger("ai_abuse")
 _PREFIX_FLAGGED = "ai:abuse:flagged:"
 _PREFIX_RESTRICTED = "ai:abuse:restricted:"
 _PREFIX_CALLS = "ai:abuse:calls:user:"
+_PREFIX_TOKENS = "ai:abuse:tokens:user:"
 _PREFIX_PROMPTS = "ai:abuse:prompts:user:"
 _FLAG_LOG_KEY = "ai:abuse:flag_log"
 _TTL_DAYS = 90  # keep set membership for 90 days so owners can review
 _TTL_CALLS_DAY = 86400 * 2
+_TTL_TOKENS_DAY = 86400 * 2
 _FLAG_LOG_MAX = 200
 _PROMPTS_MAX = 50  # last N /talk prompts per user (for admin review when flagged)
 _PROMPTS_TTL_DAYS = 7
@@ -44,6 +46,10 @@ def _key_restricted(user_id: int) -> str:
 
 def _key_calls(user_id: int, day_utc: str) -> str:
     return f"{_PREFIX_CALLS}{int(user_id)}:{str(day_utc)}"
+
+
+def _key_tokens(user_id: int, day_utc: str) -> str:
+    return f"{_PREFIX_TOKENS}{int(user_id)}:{str(day_utc)}"
 
 
 def _key_prompts(user_id: int) -> str:
@@ -126,15 +132,50 @@ async def get_today_talk_calls_user(user_id: int) -> int:
         return 0
 
 
+async def record_user_talk_tokens_today(user_id: int, tokens: int) -> None:
+    """Increment global daily /talk token count for this user. Used for token-based abuse flagging."""
+    if tokens <= 0:
+        return
+    try:
+        from utils.analytics import utc_day_str
+        day = utc_day_str(int(datetime.now(timezone.utc).timestamp()))
+        r = await get_redis_or_none()
+        if r is None:
+            return
+        key = _key_tokens(int(user_id), day)
+        await r.incrby(key, int(tokens))
+        await r.expire(key, _TTL_TOKENS_DAY)
+    except Exception:
+        pass
+
+
+async def get_today_talk_tokens_user(user_id: int) -> int:
+    """Return today's (UTC) total /talk token count for this user (all guilds)."""
+    try:
+        from utils.analytics import utc_day_str
+        day = utc_day_str(int(datetime.now(timezone.utc).timestamp()))
+        r = await get_redis_or_none()
+        if r is None:
+            return 0
+        key = _key_tokens(int(user_id), day)
+        val = await r.get(key)
+        return int(val or 0)
+    except Exception:
+        return 0
+
+
 async def maybe_flag_user_after_usage(user_id: int) -> None:
-    """Flag user if daily cost or daily call count exceeds thresholds. DM owners and log when first flagged.
-    When AI_ABUSE_FLAG_USER_CENTS is 0: flag on any cost > 0 (testing), including owners."""
+    """Flag user if daily cost, daily token count, or daily call count exceeds thresholds. DM owners and log when first flagged.
+    When AI_ABUSE_FLAG_USER_CENTS is 0: flag on any cost > 0 (testing), including owners.
+    When AI_ABUSE_FLAG_USER_TOKENS > 0: flag when daily tokens >= that (e.g. 1 for testing), including owners."""
     try:
         uid = int(user_id)
         cost_threshold = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 1))
-        # When threshold is 0, flag on any cost (testing) and do not skip owners
+        token_threshold = int(getattr(config, "AI_ABUSE_FLAG_USER_TOKENS", 0))
+        # When cost or token threshold is in testing mode, do not skip owners
         flag_on_any_cost = cost_threshold <= 0
-        if not flag_on_any_cost and config.BOT_OWNER_IDS and uid in config.BOT_OWNER_IDS:
+        testing_mode = flag_on_any_cost or token_threshold > 0
+        if not testing_mode and config.BOT_OWNER_IDS and uid in config.BOT_OWNER_IDS:
             return
         r = await get_redis_or_none()
         if r is None:
@@ -146,7 +187,12 @@ async def maybe_flag_user_after_usage(user_id: int) -> None:
 
         reason_parts = []
 
-        if flag_on_any_cost or cost_threshold > 0:
+        if token_threshold > 0:
+            tokens_today = await get_today_talk_tokens_user(uid)
+            if tokens_today >= token_threshold:
+                reason_parts.append(f"daily tokens {tokens_today} >= {token_threshold}")
+
+        if not reason_parts and (flag_on_any_cost or cost_threshold > 0):
             cents = await get_today_cost_cents_user(uid)
             if flag_on_any_cost and cents > 0:
                 reason_parts.append(f"daily cost ${cents/100:.2f} (flag on any cost)")

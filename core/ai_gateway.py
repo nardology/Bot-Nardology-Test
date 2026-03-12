@@ -280,8 +280,9 @@ async def request_text(
 
             if (mode or "").strip().lower() == "talk":
                 try:
-                    from utils.ai_abuse import increment_talk_calls_user_today
+                    from utils.ai_abuse import increment_talk_calls_user_today, record_user_talk_tokens_today
                     await increment_talk_calls_user_today(int(user_id))
+                    await record_user_talk_tokens_today(int(user_id), tokens_to_record)
                 except Exception:
                     pass
 
