@@ -183,14 +183,20 @@ async def request_text(
         tier_l = (tier or "").strip().lower()
 
         # Safety backstop: hard ceiling even if caller requests more.
-        # Actual requested values come from entitlements (200/350 talk, 500/1200 scene).
-        # These backstops are slightly above entitlements to allow headroom.
-        if mode_l == "scene":
-            hard_max = 1200 if tier_l == "pro" else 550
-        else:  # talk/default
-            hard_max = 400 if tier_l == "pro" else 250
-
-        max_tokens = max(64, min(req, int(hard_max)))
+        # Owners and users in token bypass list (e.g. testers) get no cap.
+        try:
+            from utils.token_bypass import has_token_bypass
+            _bypass = await has_token_bypass(int(user_id))
+        except Exception:
+            _bypass = False
+        if _bypass:
+            max_tokens = max(64, req)
+        else:
+            if mode_l == "scene":
+                hard_max = 1200 if tier_l == "pro" else 550
+            else:  # talk/default
+                hard_max = 400 if tier_l == "pro" else 250
+            max_tokens = max(64, min(req, int(hard_max)))
 
         # Model tiering: route free-tier to cheaper model to control costs.
         ai_model = config.OPENAI_MODEL if tier_l == "pro" else getattr(config, "OPENAI_MODEL_FREE", config.OPENAI_MODEL)

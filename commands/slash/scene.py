@@ -1198,6 +1198,8 @@ class SlashScene(commands.Cog):
                 model=getattr(config, "OPENAI_MODEL", None),
             )
 
+            from utils.token_bypass import has_token_bypass
+            scene_max = 2000 if await has_token_bypass(user_id) else 350
             resp = await request_text(
                 guild_id=guild_id,
                 user_id=user_id,
@@ -1205,7 +1207,7 @@ class SlashScene(commands.Cog):
                 mode="scene",
                 system=system,
                 user_prompt=user_prompt,
-                max_output_tokens=350,
+                max_output_tokens=scene_max,
                 timeout_s=float(getattr(config, "OPENAI_TIMEOUT_S", 20.0) or 20.0),
             )
             if not resp.ok:

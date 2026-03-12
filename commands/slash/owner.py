@@ -321,6 +321,7 @@ class SlashOwner(commands.Cog):
     premium = app_commands.Group(name="premium", description="Premium entitlements", parent=owner)
     ai = app_commands.Group(name="ai", description="AI kill switch", parent=owner)
     ai_abuse = app_commands.Group(name="ai_abuse", description="AI abuse: flag, restrict, list users", parent=owner)
+    token_limits = app_commands.Group(name="token_limits", description="Token limit bypass for testing (add/remove/list user IDs)", parent=owner)
     data = app_commands.Group(name="data", description="Delete stored data", parent=owner)
     points = app_commands.Group(name="points", description="Points tools", parent=owner)
 
@@ -2195,6 +2196,44 @@ class SlashOwner(commands.Cog):
             return
         await clear_abuse_all(uid)
         await _ephemeral(interaction, f"✅ Cleared abuse flag and restriction for <@{uid}> (`{uid}`).")
+
+    # ----------------------------
+    # /owner token_limits ... (bypass output token caps for specific users, e.g. testers)
+    # ----------------------------
+
+    @token_limits.command(name="add", description="Allow a user to bypass token limits (for testing/auditing)")
+    @_owner_only()
+    @app_commands.describe(user="User to grant bypass (they get high output token limit)")
+    async def token_limits_add(self, interaction: discord.Interaction, user: discord.User):
+        from utils.token_bypass import add_token_bypass, get_token_bypass_user_ids
+        uid = user.id
+        if uid in (config.BOT_OWNER_IDS or set()):
+            await _ephemeral(interaction, f"ℹ️ <@{uid}> is already an owner (unlimited by default).")
+            return
+        await add_token_bypass(uid)
+        await _ephemeral(interaction, f"✅ <@{uid}> (`{uid}`) can now bypass token limits. Use `/z_owner token_limits remove` to revoke.")
+
+    @token_limits.command(name="remove", description="Revoke token limit bypass for a user")
+    @_owner_only()
+    @app_commands.describe(user="User to revoke bypass from")
+    async def token_limits_remove(self, interaction: discord.Interaction, user: discord.User):
+        from utils.token_bypass import remove_token_bypass
+        await remove_token_bypass(user.id)
+        await _ephemeral(interaction, f"✅ Token limit bypass removed for <@{user.id}> (`{user.id}`).")
+
+    @token_limits.command(name="list", description="List user IDs that have token limit bypass (excluding owners)")
+    @_owner_only()
+    async def token_limits_list(self, interaction: discord.Interaction):
+        from utils.token_bypass import get_token_bypass_user_ids
+        await interaction.response.defer(ephemeral=True)
+        ids = await get_token_bypass_user_ids()
+        if not ids:
+            await interaction.followup.send("No users in the bypass list (owners always have unlimited).", ephemeral=True)
+            return
+        lines = [f"• <@{uid}> `{uid}`" for uid in sorted(ids)[:50]]
+        if len(ids) > 50:
+            lines.append(f"... and {len(ids) - 50} more")
+        await interaction.followup.send("**Token limit bypass list:**\n" + "\n".join(lines), ephemeral=True)
 
     # ----------------------------
     # /owner global ...
