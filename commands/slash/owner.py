@@ -2140,6 +2140,24 @@ class SlashOwner(commands.Cog):
             return
         await _ephemeral(interaction, f"Last runtime disable: `{reason}`")
 
+    @ai.command(name="reset_server_budget", description="Reset this server's daily AI cost counter for today (does not change the cap)")
+    @_owner_only()
+    async def ai_reset_server_budget(self, interaction: discord.Interaction):
+        if not interaction.guild_id:
+            await _ephemeral(interaction, "Run this command in the server you want to reset.")
+            return
+        from utils.cost_tracker import reset_guild_cost_today, get_today_cost_cents
+        before = await get_today_cost_cents(interaction.guild_id)
+        ok = await reset_guild_cost_today(interaction.guild_id)
+        if ok:
+            await _ephemeral(
+                interaction,
+                f"✅ This server's daily AI cost counter has been reset (was ~{before:.2f}¢ today). "
+                "The cap is unchanged; use env `AI_COST_CAP_FREE_DAILY_CENTS` / `AI_COST_CAP_PRO_DAILY_CENTS` to change it.",
+            )
+        else:
+            await _ephemeral(interaction, "⚠️ Could not reset (Redis unavailable).")
+
     # ----------------------------
     # /owner ai_abuse ... (flag, restrict, list)
     # ----------------------------

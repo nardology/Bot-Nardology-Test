@@ -108,6 +108,20 @@ async def record_cost(
         await incr(user_key, milli_cents, ex=_TTL)
 
 
+async def reset_guild_cost_today(guild_id: int) -> bool:
+    """Reset (zero) the server's recorded AI cost for today.
+
+    Use this to give a server a fresh daily budget without waiting for midnight UTC.
+    Does not change the cap (use env AI_COST_CAP_*_DAILY_CENTS to change caps).
+    Returns True if Redis was available and the key was deleted.
+    """
+    from utils.redis_kv import kv_del
+    day = _today_utc()
+    key = _cost_key(int(guild_id), day)
+    n = await kv_del(key)
+    return n > 0
+
+
 async def get_today_cost_cents(guild_id: int) -> float:
     """Return the estimated AI cost for this guild today, in cents.
 
