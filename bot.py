@@ -557,10 +557,48 @@ async def on_guild_remove(guild):
 # Run
 # ---------------------------------------------------------------------------
 
+# Retry Discord login on 429 (Cloudflare/Discord rate limit). Avoids crash when the host IP is rate limited.
+# If you run test + prod on same region (same outbound IP), stagger restarts or they may both get 429.
+_LOGIN_RETRY_WAIT = 60  # seconds before first retry; later retries use attempt * this
+_LOGIN_RETRY_MAX = 10   # max login attempts (then raise)
+
+
+def _is_rate_limit(exc: BaseException) -> bool:
+    """True if the exception indicates Discord/Cloudflare 429 rate limit."""
+    if isinstance(exc, discord.HTTPException):
+        status = getattr(getattr(exc, "response", None), "status", None) or getattr(exc, "status", None)
+        if status == 429:
+            return True
+    return "429" in str(exc) or "rate limit" in str(exc).lower() or "1015" in str(exc)
+
+
+async def _start_with_retry() -> None:
+    last_exc = None
+    for attempt in range(1, _LOGIN_RETRY_MAX + 1):
+        try:
+            await bot.start(config.DISCORD_TOKEN)
+            return
+        except (KeyboardInterrupt, asyncio.CancelledError):
+            raise
+        except Exception as e:
+            last_exc = e
+            if _is_rate_limit(e) and attempt < _LOGIN_RETRY_MAX:
+                wait = _LOGIN_RETRY_WAIT * attempt
+                logger.warning(
+                    "Discord login rate limited (429). Waiting %ds before retry %d/%d...",
+                    wait, attempt + 1, _LOGIN_RETRY_MAX,
+                )
+                await asyncio.sleep(wait)
+            else:
+                raise
+    if last_exc is not None:
+        raise last_exc
+
+
 async def main():
     try:
         print("[boot] connecting to Discord…", flush=True)
-        await bot.start(config.DISCORD_TOKEN)
+        await _start_with_retry()
     except (KeyboardInterrupt, asyncio.CancelledError):
         logger.info("Received shutdown signal")
     finally:
