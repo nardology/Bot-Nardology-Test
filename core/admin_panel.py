@@ -196,14 +196,16 @@ async def handle_api_abuse_flagged(request: web.Request) -> web.Response:
     if err is not None:
         return err
     try:
-        from utils.ai_abuse import get_flagged_user_ids, get_restricted_user_ids, get_flag_log
+        from utils.ai_abuse import get_flagged_user_ids, get_restricted_user_ids, get_flag_log, get_prompts_for_flagged_users
         flagged = await get_flagged_user_ids()
         restricted = await get_restricted_user_ids()
         log_entries = await get_flag_log(limit=100)
+        flagged_prompts = await get_prompts_for_flagged_users(flagged)
         return web.json_response({
             "flagged": [str(uid) for uid in flagged],
             "restricted": [str(uid) for uid in restricted],
             "log": log_entries,
+            "flagged_prompts": flagged_prompts,
         })
     except Exception as e:
         log.exception("abuse flagged failed: %s", e)

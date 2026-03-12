@@ -25,10 +25,13 @@ log = logging.getLogger("ai_abuse")
 _PREFIX_FLAGGED = "ai:abuse:flagged:"
 _PREFIX_RESTRICTED = "ai:abuse:restricted:"
 _PREFIX_CALLS = "ai:abuse:calls:user:"
+_PREFIX_PROMPTS = "ai:abuse:prompts:user:"
 _FLAG_LOG_KEY = "ai:abuse:flag_log"
 _TTL_DAYS = 90  # keep set membership for 90 days so owners can review
 _TTL_CALLS_DAY = 86400 * 2
 _FLAG_LOG_MAX = 200
+_PROMPTS_MAX = 50  # last N /talk prompts per user (for admin review when flagged)
+_PROMPTS_TTL_DAYS = 7
 
 
 def _key_flagged(user_id: int) -> str:
@@ -41,6 +44,10 @@ def _key_restricted(user_id: int) -> str:
 
 def _key_calls(user_id: int, day_utc: str) -> str:
     return f"{_PREFIX_CALLS}{int(user_id)}:{str(day_utc)}"
+
+
+def _key_prompts(user_id: int) -> str:
+    return f"{_PREFIX_PROMPTS}{int(user_id)}"
 
 
 _bot_ref = None
@@ -277,3 +284,49 @@ async def get_flag_log(limit: int = 100) -> list[dict]:
         return out
     except Exception:
         return []
+
+
+async def record_talk_prompt(user_id: int, prompt: str) -> None:
+    """Append a /talk prompt for this user (for admin review when flagged). Keeps last _PROMPTS_MAX, 7-day TTL."""
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return
+    try:
+        r = await get_redis_or_none()
+        if r is None:
+            return
+        key = _key_prompts(int(user_id))
+        entry = {"t": int(datetime.now(timezone.utc).timestamp()), "p": prompt[:2000]}
+        await r.lpush(key, json.dumps(entry))
+        await r.ltrim(key, 0, _PROMPTS_MAX - 1)
+        await r.expire(key, _PROMPTS_TTL_DAYS * 24 * 3600)
+    except Exception:
+        pass
+
+
+async def get_recent_prompts(user_id: int, limit: int = 50) -> list[dict]:
+    """Return recent /talk prompts for this user (newest first). Each item: {t: unix_ts, p: prompt}."""
+    r = await get_redis_or_none()
+    if r is None:
+        return []
+    try:
+        key = _key_prompts(int(user_id))
+        raw = await r.lrange(key, 0, limit - 1)
+        out = []
+        for b in raw or []:
+            s = b.decode("utf-8", errors="ignore") if isinstance(b, bytes) else str(b)
+            try:
+                out.append(json.loads(s))
+            except Exception:
+                pass
+        return out
+    except Exception:
+        return []
+
+
+async def get_prompts_for_flagged_users(flagged_ids: list[int]) -> dict[str, list[dict]]:
+    """Return recent prompts for each flagged user. Keys are str(user_id), values are [{t, p}, ...]."""
+    out: dict[str, list[dict]] = {}
+    for uid in flagged_ids or []:
+        out[str(uid)] = await get_recent_prompts(uid, limit=_PROMPTS_MAX)
+    return out

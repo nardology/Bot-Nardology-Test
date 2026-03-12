@@ -733,6 +733,13 @@ class SlashTalk(commands.Cog):
                         + prompt
                     )
 
+            # ---- Log prompt for abuse review (admin panel shows for flagged users) ----
+            try:
+                from utils.ai_abuse import record_talk_prompt
+                asyncio.create_task(record_talk_prompt(user_id, prompt))
+            except Exception:
+                pass
+
             # ---- AI call (via core gateway) ----
             ent = await get_entitlements(user_id=user_id, guild_id=guild_id)
             from utils.token_bypass import has_token_bypass
