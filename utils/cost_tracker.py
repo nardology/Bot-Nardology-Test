@@ -154,11 +154,11 @@ async def is_within_budget_user(user_id: int, cap_cents: float | None = None) ->
     """Check if the user is within their daily cost cap.
 
     Returns (allowed, current_cents, cap_cents).
-    cap_cents defaults to config.AI_COST_CAP_USER_DAILY_CENTS.
+    cap_cents defaults to config.AI_COST_CAP_USER_DAILY_CENTS (default 1 cent).
     Fails closed: if Redis is unavailable, returns (False, 0, cap) so the user is blocked.
     """
     import config as _config
-    cap = float(cap_cents if cap_cents is not None else getattr(_config, "AI_COST_CAP_USER_DAILY_CENTS", 10))
+    cap = float(cap_cents if cap_cents is not None else getattr(_config, "AI_COST_CAP_USER_DAILY_CENTS", 1))
     if cap <= 0:
         return True, 0.0, 0.0
     r = await get_redis_or_none()

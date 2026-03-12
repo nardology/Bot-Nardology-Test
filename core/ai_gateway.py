@@ -223,6 +223,25 @@ async def request_text(
         except Exception:
             pass
 
+        # 3.6) Block if this request would exceed user cost cap (prevents one extra request over limit)
+        try:
+            from utils.cost_tracker import get_today_cost_cents_user, estimate_cost_cents
+            cap_user = float(getattr(config, "AI_COST_CAP_USER_DAILY_CENTS", 1))
+            if cap_user > 0:
+                current_now = await get_today_cost_cents_user(int(user_id))
+                est_cents = estimate_cost_cents(tier=str(tier or ""), input_tokens=800, output_tokens=int(max_tokens))
+                if current_now + est_cents >= cap_user:
+                    return AIGatewayResponse(
+                        ok=False,
+                        user_message=(
+                            f"⛔ You've reached your daily AI usage limit (${current_now/100:.2f} today, max ${cap_user/100:.2f}). "
+                            "Try again tomorrow (UTC)."
+                        ),
+                        error_type="UserCostCapExceeded",
+                    )
+        except Exception:
+            pass
+
         # 4) AI call
         try:
             res = await generate_text(
@@ -293,7 +312,7 @@ async def request_text(
             usage_warning_msg = ""
             try:
                 from utils.cost_tracker import get_today_cost_cents_user
-                flag_cents = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 6))
+                flag_cents = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 1))
                 if flag_cents > 0:
                     cents_now = await get_today_cost_cents_user(int(user_id))
                     if cents_now >= flag_cents:

@@ -48,10 +48,10 @@ AI_DISABLED = _as_bool("AI_DISABLED", "false")
 # unprofitable. Free default: 5 cents/day (~$1.50/month). Pro default: 10 cents/day. Set to 0 to disable.
 AI_COST_CAP_FREE_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_FREE_DAILY_CENTS", "5").strip() or "5")
 AI_COST_CAP_PRO_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_PRO_DAILY_CENTS", "10").strip() or "10")
-# Per-user daily cost cap (stops one user from draining a server). Default 10 cents/day.
-AI_COST_CAP_USER_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_USER_DAILY_CENTS", "10").strip() or "10")
-# Abuse: flag user when they exceed this cost in a day (for moderation). Default 6 cents (tighter).
-AI_ABUSE_FLAG_USER_CENTS: float = float(os.getenv("AI_ABUSE_FLAG_USER_CENTS", "6").strip() or "6")
+# Per-user daily cost cap (stops one user from draining a server). Default 1 cent for strict limit. Set 0 to disable.
+AI_COST_CAP_USER_DAILY_CENTS: float = float(os.getenv("AI_COST_CAP_USER_DAILY_CENTS", "1").strip() or "1")
+# Abuse: flag user when they exceed this cost in a day. Default 1 cent. Set 0 to flag on ANY /talk (testing).
+AI_ABUSE_FLAG_USER_CENTS: float = float(os.getenv("AI_ABUSE_FLAG_USER_CENTS", "1").strip() or "1")
 # Abuse: flag user when they exceed this many /talk calls in a day. Default 40 (tighter).
 AI_ABUSE_FLAG_USER_CALLS_PER_DAY: int = int(os.getenv("AI_ABUSE_FLAG_USER_CALLS_PER_DAY", "40").strip() or "40")
 # When true, flagged users are auto-throttled to free-tier /talk limits.

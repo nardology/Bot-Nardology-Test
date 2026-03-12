@@ -127,9 +127,15 @@ async def get_today_talk_calls_user(user_id: int) -> int:
 
 
 async def maybe_flag_user_after_usage(user_id: int) -> None:
-    """Flag user if daily cost or daily call count exceeds thresholds. DM owners and log when first flagged."""
+    """Flag user if daily cost or daily call count exceeds thresholds. DM owners and log when first flagged.
+    When AI_ABUSE_FLAG_USER_CENTS is 0: flag on any cost > 0 (testing), including owners."""
     try:
         uid = int(user_id)
+        cost_threshold = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 1))
+        # When threshold is 0, flag on any cost (testing) and do not skip owners
+        flag_on_any_cost = cost_threshold <= 0
+        if not flag_on_any_cost and config.BOT_OWNER_IDS and uid in config.BOT_OWNER_IDS:
+            return
         r = await get_redis_or_none()
         if r is None:
             return
@@ -140,10 +146,11 @@ async def maybe_flag_user_after_usage(user_id: int) -> None:
 
         reason_parts = []
 
-        cost_threshold = float(getattr(config, "AI_ABUSE_FLAG_USER_CENTS", 6))
-        if cost_threshold > 0:
+        if flag_on_any_cost or cost_threshold > 0:
             cents = await get_today_cost_cents_user(uid)
-            if cents >= cost_threshold:
+            if flag_on_any_cost and cents > 0:
+                reason_parts.append(f"daily cost ${cents/100:.2f} (flag on any cost)")
+            elif cost_threshold > 0 and cents >= cost_threshold:
                 reason_parts.append(f"daily cost ${cents/100:.2f} >= ${cost_threshold/100:.2f}")
 
         calls_threshold = int(getattr(config, "AI_ABUSE_FLAG_USER_CALLS_PER_DAY", 40))
@@ -159,8 +166,9 @@ async def maybe_flag_user_after_usage(user_id: int) -> None:
         await r.set(_key_flagged(uid), "1", ex=_TTL_DAYS * 24 * 3600)
         await _append_flag_log(uid, reason)
         asyncio.create_task(_notify_owners_flagged(uid, reason))
-    except Exception:
-        pass
+        log.info("Flagged user %s: %s", uid, reason)
+    except Exception as e:
+        log.warning("maybe_flag_user_after_usage failed: %s", e)
 
 
 async def is_abuse_flagged(user_id: int) -> bool:
