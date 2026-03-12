@@ -578,7 +578,7 @@ FREE_PRODUCT_CAPS = ProductCaps(
 
 PRO_PRODUCT_CAPS = ProductCaps(
     roll_per_day=3,
-    memory_max_lines=12,
+    memory_max_lines=6,  # 3 exchanges; limits "instruction smuggling" for essay-style abuse
 )
 
 

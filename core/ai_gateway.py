@@ -274,13 +274,12 @@ async def request_text(
             except Exception:
                 pass
 
-            # Hard truncate output if API returned more than requested (token limit enforcement)
-            if text and out_tokens > max_tokens:
-                approx_chars_per_token = 4
-                max_chars = max(64, int(max_tokens * approx_chars_per_token))
-                if len(text) > max_chars:
-                    trimmed = text[:max_chars].rsplit(maxsplit=1)[0] if max_chars > 20 else text[:max_chars]
-                    text = (trimmed + "…") if len(trimmed) < len(text) else trimmed
+            # Hard truncate output so we never pass downstream more than requested (anti-abuse: API may ignore max_tokens)
+            approx_chars_per_token = 4
+            max_chars = max(64, int(max_tokens * approx_chars_per_token))
+            if text and len(text) > max_chars:
+                trimmed = text[:max_chars].rsplit(maxsplit=1)[0] if max_chars > 20 else text[:max_chars]
+                text = (trimmed + "…") if len(trimmed) < len(text) else trimmed
 
             # Global/product analytics (real token usage when available)
             try:

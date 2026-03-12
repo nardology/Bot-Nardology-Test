@@ -72,11 +72,36 @@ from utils.packs_store import list_custom_packs, normalize_style_id
 logger = logging.getLogger("bot.talk")
 
 # -----------------------
-# Budget-safe memory knobs
+# Budget-safe memory knobs (anti-abuse: cap context so memory can't smuggle "write essay" instructions)
 # -----------------------
 MEMORY_TTL_SECONDS = 7 * 24 * 3600   # 7 days
 MEMORY_MAX_LINES = 4                # 2 user/assistant turns (2 exchanges)
 MEMORY_HEADER = "MEMORY (recent conversation context; may be incomplete):"
+# Max total chars for memory block (header + lines + "USER MESSAGE:\n") to prevent instruction smuggling
+MEMORY_BLOCK_MAX_CHARS = 1200
+# When memory is used, cap output tokens to limit essay-style abuse via "when I say X, do Y"
+TALK_MEMORY_MAX_OUTPUT_TOKENS = 200
+
+
+def _trim_memory_block_to_limit(lines: list[str], max_chars: int = MEMORY_BLOCK_MAX_CHARS) -> list[str]:
+    """Trim memory lines so header + lines + '\\n\\nUSER MESSAGE:\\n' does not exceed max_chars (anti-abuse)."""
+    prefix = MEMORY_HEADER + "\n"
+    suffix = "\n\nUSER MESSAGE:\n"
+    budget = max(0, max_chars - len(prefix) - len(suffix))
+    if budget <= 0:
+        return []
+    out: list[str] = []
+    for line in reversed(lines):
+        line = (line or "").strip()
+        if not line:
+            continue
+        if len(line) > 200:
+            line = line[:197].rstrip() + "…"
+        need = len(line) + (len("\n".join(out)) + 1 if out else 0)
+        if need > budget:
+            break
+        out.insert(0, line)
+    return out
 
 # -----------------------
 # Autocomplete: /talk character dropdown
@@ -689,6 +714,7 @@ class SlashTalk(commands.Cog):
                 if mem_lines:
                     _has_memory = True
                     mem_lines = mem_lines[-memory_max_lines:]
+                    mem_lines = _trim_memory_block_to_limit(mem_lines)
                     prompt_for_model = (
                         f"{MEMORY_HEADER}\n"
                         + "\n".join(mem_lines)
@@ -698,6 +724,12 @@ class SlashTalk(commands.Cog):
 
             # ---- AI call (via core gateway) ----
             ent = await get_entitlements(user_id=user_id, guild_id=guild_id)
+            # When memory is used, cap output tokens to prevent "give instructions then trigger essay" abuse
+            effective_max_tokens = (
+                min(ent.max_output_tokens_talk, TALK_MEMORY_MAX_OUTPUT_TOKENS)
+                if _has_memory
+                else ent.max_output_tokens_talk
+            )
 
             _actual_model = config.OPENAI_MODEL if tier == "pro" else getattr(config, "OPENAI_MODEL_FREE", config.OPENAI_MODEL)
             mt = MetricsTimer(
@@ -715,7 +747,7 @@ class SlashTalk(commands.Cog):
                 mode="talk",
                 system=system,
                 user_prompt=prompt_for_model,
-                max_output_tokens=ent.max_output_tokens_talk,
+                max_output_tokens=effective_max_tokens,
                 timeout_s=float(getattr(config, "OPENAI_TIMEOUT_S", 20.0) or 20.0),
                 character_id=effective_style,
                 has_memory=_has_memory,
