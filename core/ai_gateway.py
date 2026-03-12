@@ -128,6 +128,8 @@ async def request_text(
                 error_type="CostCapExceeded",
             )
         u_allowed, u_cents, u_cap = await is_within_budget_user(int(user_id))
+        _log = __import__("logging").getLogger("bot.ai_gateway")
+        _log.info("User cost check: user_id=%s current_cents=%.4f cap_cents=%.2f allowed=%s", user_id, u_cents, u_cap, u_allowed)
         if not u_allowed:
             return AIGatewayResponse(
                 ok=False,
@@ -277,8 +279,8 @@ async def request_text(
                     input_tokens=rec_in,
                     output_tokens=rec_out,
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                __import__("logging").getLogger("bot.ai_gateway").warning("record_cost failed: %s", e)
 
             # Abuse flagging: if user exceeds threshold, flag for moderation / auto-throttle
             try:
