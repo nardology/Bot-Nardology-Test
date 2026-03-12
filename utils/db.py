@@ -87,12 +87,26 @@ def get_sessionmaker():
 
 
 
+# ---------------------------------------------------------------------------
+# Schema drift safety: _ensure_* functions
+# ---------------------------------------------------------------------------
+# When adding a new column to an ORM model used in production (e.g. PointsWallet,
+# QuestProgress, UserPremiumEntitlement), do BOTH:
+#   1. Add an Alembic migration that introduces the column.
+#   2. If this table has an _ensure_* helper below, add the same column here with
+#      ADD COLUMN IF NOT EXISTS and the same type/default, so deployments that
+#      skip migrations still work. Keep this in sync with the latest migrations.
+# Tables with ensure helpers: points_wallet, character_user_state, stripe/premium.
+# ---------------------------------------------------------------------------
+
+
 async def _ensure_points_wallet_columns(conn) -> None:
     """Ensure new columns exist on points_wallet even if migrations weren't applied.
 
-
     create_all(checkfirst=True) does NOT add missing columns, so we do a lightweight
     ALTER TABLE ADD COLUMN IF NOT EXISTS for backwards-compatible schema evolution.
+    Must stay in sync with alembic/versions 0013_engagement_streak_rewards and
+    0014_engagement_badges_weekly (and any future points_wallet migrations).
     """
     try:
         from sqlalchemy import text  # type: ignore
@@ -102,10 +116,48 @@ async def _ensure_points_wallet_columns(conn) -> None:
             return
 
         # Add columns used by streak-restore feature
-        await conn.execute(text("ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_saved INTEGER"))
+        await conn.execute(text("ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_saved INTEGER DEFAULT 0"))
         await conn.execute(
-            text("ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_restore_deadline_day_utc VARCHAR(16)")
+            text("ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_restore_deadline_day_utc VARCHAR(16) DEFAULT ''")
         )
+        # Engagement streak rewards (0013)
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_7_bonus_given BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_last_30_bonus_at INTEGER DEFAULT 0"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_10_character_claimed BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_15_character_claimed BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_25_character_claimed BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_75_notification_sent BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS random_bonus_consecutive_days INTEGER DEFAULT 0"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS random_bonus_last_reward_day_utc VARCHAR(8) DEFAULT ''"
+        ))
+        # Engagement badges and weekly activity (0014)
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_badge_30 BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_badge_60 BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS streak_badge_90 BOOLEAN DEFAULT false"
+        ))
+        await conn.execute(text(
+            "ALTER TABLE points_wallet ADD COLUMN IF NOT EXISTS weekly_activity_bonus_week_utc VARCHAR(8) DEFAULT ''"
+        ))
     except Exception:
         # Don't crash-loop on permissions or non-Postgres setups.
         log.exception("points_wallet column ensure failed")
