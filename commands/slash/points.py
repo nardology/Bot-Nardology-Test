@@ -1340,6 +1340,7 @@ class SlashPoints(commands.Cog):
     async def points_daily(self, interaction: discord.Interaction):
         """Show daily status and let the user claim via a button."""
         try:
+            await interaction.response.defer(ephemeral=True)
             gid = int(interaction.guild_id or 0)
             uid = int(interaction.user.id)
 
@@ -1373,7 +1374,7 @@ class SlashPoints(commands.Cog):
             else:
                 view = ClaimDailyView(bot=self.bot, guild_id=gid, user_id=uid)
 
-            await interaction.response.send_message(embed=e, ephemeral=True, view=view)
+            await interaction.followup.send(embed=e, ephemeral=True, view=view)
         except Exception:
             logger.exception("/points daily failed")
             try:

@@ -45,18 +45,38 @@ def require_start():
     """app_commands.check: user must have run /start before using this command."""
 
     async def predicate(interaction: discord.Interaction) -> bool:
-        if not interaction.guild:
-            return True  # let command handle DM
-        uid = int(interaction.user.id)
-        if await has_used_start(uid):
-            return True
+        msg = (
+            "You need to run **/start** first to use this command. Use **/start** in a server to get started!"
+        )
         try:
-            await interaction.response.send_message(
-                "You need to run **/start** first to use this command. Use **/start** in a server to get started!",
-                ephemeral=True,
-            )
+            if not interaction.guild:
+                return True  # let command handle DM
+            uid = int(interaction.user.id)
+            if await has_used_start(uid):
+                return True
+            try:
+                await interaction.response.send_message(msg, ephemeral=True)
+            except Exception:
+                # Response may be expired or already used; try defer + followup so user always sees the message
+                logger.warning("require_start: response.send_message failed, trying defer + followup")
+                try:
+                    if not interaction.response.is_done():
+                        await interaction.response.defer(ephemeral=True)
+                    await interaction.followup.send(msg, ephemeral=True)
+                except Exception as e2:
+                    logger.exception("require_start followup also failed: %s", e2)
+            return False
         except Exception:
-            logger.exception("require_start send_message failed")
-        return False
+            logger.exception("require_start predicate failed")
+            try:
+                if not interaction.response.is_done():
+                    await interaction.response.defer(ephemeral=True)
+                await interaction.followup.send(
+                    "Something went wrong. Please try **/start** first or try again in a moment.",
+                    ephemeral=True,
+                )
+            except Exception:
+                pass
+            return False
 
     return app_commands.check(predicate)

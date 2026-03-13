@@ -508,11 +508,71 @@ async def sync_commands() -> None:
 
         await bot.tree.sync()
         logger.info("✅ Synced slash commands globally (prod)")
+        # Brief delay so Discord can propagate; reduces "unknown integration" on first command after deploy.
+        await asyncio.sleep(5)
 
 # ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
 
+
+def _is_unknown_interaction_error(err: BaseException) -> bool:
+    """True if the error is Discord's 'unknown interaction' / 'unknown integration' (e.g. 10062 or timeout)."""
+    if isinstance(err, discord.HTTPException):
+        code = getattr(err, "code", None) or getattr(err, "status", None)
+        if code == 10062:
+            return True
+    msg = str(err).lower()
+    return "10062" in str(err) or "unknown interaction" in msg or "unknown integration" in msg
+
+
+@bot.tree.error
+async def on_tree_error(interaction: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:
+    """Log errors and, when possible, send a friendly message for unknown-interaction / check failures."""
+    from discord import app_commands
+    if isinstance(error, app_commands.CheckFailure):
+        logger.debug("Command check failed: %s", error)
+        # If the check already sent a message (e.g. require_start), do not send again.
+        if interaction.response.is_done():
+            return
+        try:
+            await interaction.response.send_message(
+                "You need to run **/start** first to use this command. Try **/start** in a server, then try again.",
+                ephemeral=True,
+            )
+        except Exception:
+            try:
+                await interaction.response.defer(ephemeral=True)
+                await interaction.followup.send(
+                    "Something went wrong. Please run **/start** first or try again in a moment.",
+                    ephemeral=True,
+                )
+            except Exception:
+                pass
+        return
+    if _is_unknown_interaction_error(error):
+        logger.warning("Unknown interaction/integration (often after deploy or sync): %s", error)
+        try:
+            if not interaction.response.is_done():
+                await interaction.response.defer(ephemeral=True)
+            await interaction.followup.send(
+                "The bot just updated. Please try your command again in a moment.",
+                ephemeral=True,
+            )
+        except Exception:
+            pass
+        return
+    logger.exception("Tree command error: %s", error)
+    try:
+        if not interaction.response.is_done():
+            await interaction.response.send_message(
+                "Something went wrong. Please try again.",
+                ephemeral=True,
+            )
+        else:
+            await interaction.followup.send("Something went wrong. Please try again.", ephemeral=True)
+    except Exception:
+        pass
 
 
 @bot.event
