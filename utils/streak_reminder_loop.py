@@ -69,7 +69,7 @@ WARNING_1H_UTC_HOUR = 23   # 1 hour before midnight UTC
 WARNING_1H_UTC_MINUTE = 0
 
 CHECK_INTERVAL_SECONDS = 60 * 15  # run every 15 minutes
-WINDOW_MINUTES = 30  # consider "on time" if within this window after target
+WINDOW_MINUTES = 60  # full hour: reminder 14:00-14:59, 8h warning 16:00-16:59, 1h warning 23:00-23:59 UTC
 
 
 def _now_utc() -> datetime:
@@ -224,20 +224,27 @@ async def _send_char_warning_dm(bot: discord.Client, user_id: int, chars: list[t
 async def _run_daily_reminders(bot: discord.Client) -> None:
     """14:00 UTC - Send daily claim reminders to eligible users who haven't claimed today."""
     user_ids = await get_eligible_reminder_user_ids()
+    eligible = len(user_ids)
     sent = 0
     ended = 0
+    skipped_claimed = 0
+    skipped_reminders_off = 0
+    skipped_already_sent = 0
     for uid in user_ids:
         try:
             claimed_today, _, streak = await get_claim_status(guild_id=0, user_id=uid)
             if claimed_today:
+                skipped_claimed += 1
                 continue
             if not await get_streak_reminders_enabled(uid):
+                skipped_reminders_off += 1
                 continue
 
             alive = await is_streak_alive(uid)
 
             if alive:
                 if await reminder_sent_today(uid):
+                    skipped_already_sent += 1
                     continue
                 await _send_daily_reminder_dm(bot, uid, max(1, streak))
                 await mark_reminder_sent_today(uid)
@@ -252,32 +259,44 @@ async def _run_daily_reminders(bot: discord.Client) -> None:
             await asyncio.sleep(0.5)
         except Exception:
             logger.exception("Daily reminder tick failed for user %s", uid)
-    if sent or ended:
-        logger.info("Daily reminders sent: %s, ended DMs: %s", sent, ended)
+    logger.info(
+        "Daily reminders: eligible=%s sent=%s ended=%s (skipped: claimed=%s reminders_off=%s already_sent=%s)",
+        eligible, sent, ended, skipped_claimed, skipped_reminders_off, skipped_already_sent,
+    )
 
 
 async def _run_daily_warnings(bot: discord.Client, hours_left: int) -> None:
     """16:00 / 23:00 UTC - Send warning to users whose daily streak will end soon."""
     user_ids = await get_eligible_reminder_user_ids()
+    eligible = len(user_ids)
     sent = 0
     is_8h = hours_left > 1
+    skipped_claimed = 0
+    skipped_reminders_off = 0
+    skipped_not_alive = 0
+    skipped_already_sent = 0
     for uid in user_ids:
         try:
             claimed_today, _, streak = await get_claim_status(guild_id=0, user_id=uid)
             if claimed_today:
+                skipped_claimed += 1
                 continue
             if not await get_streak_reminders_enabled(uid):
+                skipped_reminders_off += 1
                 continue
             if not await is_streak_alive(uid):
+                skipped_not_alive += 1
                 continue
 
             if is_8h:
                 if await warning_8h_sent_today(uid):
+                    skipped_already_sent += 1
                     continue
                 await _send_daily_warning_dm(bot, uid, max(1, streak), hours_left)
                 await mark_warning_8h_sent_today(uid)
             else:
                 if await warning_1h_sent_today(uid):
+                    skipped_already_sent += 1
                     continue
                 await _send_daily_warning_dm(bot, uid, max(1, streak), hours_left)
                 await mark_warning_1h_sent_today(uid)
@@ -286,8 +305,10 @@ async def _run_daily_warnings(bot: discord.Client, hours_left: int) -> None:
             await asyncio.sleep(0.5)
         except Exception:
             logger.exception("Daily warning tick failed for user %s", uid)
-    if sent:
-        logger.info("Daily %sh warnings sent: %s users", hours_left, sent)
+    logger.info(
+        "Daily %sh warnings: eligible=%s sent=%s (skipped: claimed=%s off=%s not_alive=%s already_sent=%s)",
+        hours_left, eligible, sent, skipped_claimed, skipped_reminders_off, skipped_not_alive, skipped_already_sent,
+    )
 
 
 # ──────────────────────────────────────────────
@@ -469,8 +490,9 @@ async def _run_character_ended(bot: discord.Client) -> None:
 async def _tick(bot: discord.Client) -> None:
     now = _now_utc()
 
-    # 14:00 UTC -- daily reminders + character reminders
+    # 14:00 UTC -- daily reminders + character reminders ("daily is ready" message)
     if _in_window(now, REMINDER_UTC_HOUR, REMINDER_UTC_MINUTE):
+        logger.info("Streak reminder loop: in 14:00 UTC window — running daily reminders")
         try:
             await _run_daily_reminders(bot)
         except Exception:
@@ -482,6 +504,7 @@ async def _tick(bot: discord.Client) -> None:
 
     # 16:00 UTC -- 8-hour warnings (daily + character)
     if _in_window(now, WARNING_8H_UTC_HOUR, WARNING_8H_UTC_MINUTE):
+        logger.info("Streak reminder loop: in 16:00 UTC window — running 8h warnings")
         try:
             await _run_daily_warnings(bot, hours_left=8)
         except Exception:
@@ -493,6 +516,7 @@ async def _tick(bot: discord.Client) -> None:
 
     # 23:00 UTC -- 1-hour warnings (daily + character)
     if _in_window(now, WARNING_1H_UTC_HOUR, WARNING_1H_UTC_MINUTE):
+        logger.info("Streak reminder loop: in 23:00 UTC window — running 1h warnings")
         try:
             await _run_daily_warnings(bot, hours_left=1)
         except Exception:

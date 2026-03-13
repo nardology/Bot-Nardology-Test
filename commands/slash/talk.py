@@ -352,6 +352,13 @@ class SlashTalk(commands.Cog):
         character: str | None = None,
         mode: app_commands.Choice[str] | None = None,
     ):
+        # Defer first so Discord shows "Bot is thinking..." immediately (reduces perceived delay / double-clicks).
+        answer_ephemeral = not bool(public)
+        try:
+            await interaction.response.defer(thinking=True, ephemeral=answer_ephemeral)
+        except Exception:
+            pass
+
         if interaction.guild is None:
             await send_error(interaction, "Use this command in a server, not DMs.")
             return
@@ -382,16 +389,7 @@ class SlashTalk(commands.Cog):
             trimmed = prompt[:HARD_PROMPT_MAX_CHARS].rsplit(maxsplit=1)[0]
             prompt = trimmed if trimmed else prompt[:HARD_PROMPT_MAX_CHARS]
 
-        # Decide visibility ONCE at the start.
-        answer_ephemeral = not bool(public)
         start = time.perf_counter()
-
-        # Defer immediately so the 3-second interaction window doesn't expire
-        # during the async checks below.
-        try:
-            await interaction.response.defer(thinking=True, ephemeral=answer_ephemeral)
-        except Exception:
-            pass
 
         # ---- Access checks (centralized) ----
         decision = await decide_ai_access(interaction, command_key="talk", user_text=prompt)

@@ -831,26 +831,27 @@ async def get_last_claim_day(user_id: int) -> str:
 
 
 async def get_eligible_reminder_user_ids(*, limit: int = 50000) -> list[int]:
-    """User IDs whose daily streak is alive or just broke today (last_claim = today or yesterday).
+    """User IDs to consider for daily streak DMs: last_claim is today, yesterday, or within last 7 days.
 
-    This prevents reminders from being sent to users whose streak has been broken for days.
+    - Reminder/warnings: sent when last_claim is today or yesterday (streak still alive).
+    - Ended: sent when last_claim is before yesterday (streak just broke); we include up to 7 days
+      so we can send "streak ended" once and they see the restore option.
     """
     if select is None:
         return []
     from sqlalchemy import or_
-    today = _day_utc()
-    yesterday = _day_utc(_now_utc() - timedelta(days=1))
+    now = _now_utc()
+    today = _day_utc(now)
+    day_strings = [today]
+    for d in range(1, 8):
+        day_strings.append(_day_utc(now - timedelta(days=d)))
     Session = get_sessionmaker()
     async with Session() as session:
         res = await session.execute(
             select(PointsWallet.user_id)
             .where(PointsWallet.guild_id == GLOBAL_GUILD_ID)
-            .where(
-                or_(
-                    PointsWallet.last_claim_day_utc == today,
-                    PointsWallet.last_claim_day_utc == yesterday,
-                )
-            )
+            .where(PointsWallet.last_claim_day_utc.in_(day_strings))
+            .where(PointsWallet.last_claim_day_utc != "")
             .distinct()
             .limit(limit)
         )

@@ -127,6 +127,27 @@ setup_logging()
 logger = logging.getLogger("bot")
 
 # ---------------------------------------------------------------------------
+# Request limiter: one command in flight per user (stops double-clicks / delay frustration)
+# ---------------------------------------------------------------------------
+
+
+class RequestLimiterTree(discord.app_commands.CommandTree):
+    """Clears the in-flight flag when a slash command finishes (success or error)."""
+
+    async def _call(self, interaction: discord.Interaction):
+        uid = int(getattr(getattr(interaction, "user", None), "id", 0) or 0)
+        try:
+            await super()._call(interaction)
+        finally:
+            if uid:
+                try:
+                    from utils.request_limiter import clear_in_flight
+                    await clear_in_flight(uid)
+                except Exception:
+                    logger.debug("clear_in_flight failed for %s", uid, exc_info=True)
+
+
+# ---------------------------------------------------------------------------
 # Bot
 # ---------------------------------------------------------------------------
 
@@ -175,6 +196,22 @@ class SlashOnlyBot(commands.AutoShardedBot):
                 uid = int(getattr(getattr(interaction, "user", None), "id", 0) or 0)
                 if uid and is_bot_owner(uid):
                     return True  # owner bypass
+
+                # In-flight limiter: block if user already has a command processing (reduces double-clicks / delay)
+                try:
+                    from utils.request_limiter import is_in_flight, set_in_flight
+                    if uid and await is_in_flight(uid):
+                        try:
+                            if not interaction.response.is_done():
+                                await interaction.response.send_message(
+                                    "⏳ Please wait for your previous command to finish before sending another.",
+                                    ephemeral=True,
+                                )
+                        except Exception:
+                            pass
+                        return False
+                except Exception:
+                    pass
 
                 from utils.mod_actions import (
                     is_bot_disabled,
@@ -238,6 +275,14 @@ class SlashOnlyBot(commands.AutoShardedBot):
                     cmd_path = " ".join(p for p in parts if p)
                     if cmd_path:
                         asyncio.ensure_future(track_command(cmd_path))
+                except Exception:
+                    pass
+
+                # Mark this user as having a request in progress (cleared in RequestLimiterTree._call finally)
+                try:
+                    from utils.request_limiter import set_in_flight
+                    if uid:
+                        await set_in_flight(uid)
                 except Exception:
                     pass
 
@@ -331,6 +376,7 @@ bot = SlashOnlyBot(
     command_prefix="__NO_PREFIX__",
     intents=intents,
     shard_count=_shard_count,
+    tree_cls=RequestLimiterTree,
 )
 
 # Used for /owner status uptime.

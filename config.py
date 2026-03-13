@@ -24,11 +24,6 @@ OPENAI_TIMEOUT_S = float(os.getenv("OPENAI_TIMEOUT_S", "20").strip() or "20")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "prod").strip().lower()
 BOT_NAME = os.getenv("BOT_NAME", "Bot-Nardology")
 
-# ---- Legal / public links ----
-TERMS_OF_SERVICE_URL = "https://neon-cranachan-dfa64a.netlify.app/"
-PRIVACY_POLICY_URL = "https://sage-malabi-770900.netlify.app/"
-SUPPORT_SERVER_URL = "https://discord.gg/F4TNTDvHP9"
-
 # ---- Web / recommendation system ----
 _port = os.getenv("PORT", "8080")
 _raw_base = (os.getenv("BASE_URL") or "").strip()
@@ -37,6 +32,12 @@ if _raw_base and not _raw_base.startswith(("http://", "https://")):
 BASE_URL = _raw_base or (
     f"http://localhost:{_port}" if ENVIRONMENT == "dev" else ""
 )
+
+# ---- Legal / public links (Railway: same app serves /terms and /privacy) ----
+_legal_base = (BASE_URL or "").strip().rstrip("/") or "https://bot-nardology-production.up.railway.app"
+TERMS_OF_SERVICE_URL = (os.getenv("TERMS_OF_SERVICE_URL") or "").strip() or f"{_legal_base.rstrip('/')}/terms"
+PRIVACY_POLICY_URL = (os.getenv("PRIVACY_POLICY_URL") or "").strip() or f"{_legal_base.rstrip('/')}/privacy"
+SUPPORT_SERVER_URL = "https://discord.gg/F4TNTDvHP9"
 
 # ---- Emergency kill switch ----
 # If true, ALL AI calls are disabled immediately (even if Redis/DB are unhealthy).
