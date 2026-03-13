@@ -56,7 +56,7 @@ class _DeleteConfirmModal(discord.ui.Modal):
             )
             return
 
-        await audit_log(
+        audit_log(
             "privacy_delete",
             user_id=interaction.user.id,
             username=str(interaction.user),
@@ -138,7 +138,7 @@ class SlashPrivacy(commands.Cog):
 
         await self._mark_export_used(uid)
 
-        await audit_log(
+        audit_log(
             "privacy_export",
             user_id=uid,
             username=str(interaction.user),

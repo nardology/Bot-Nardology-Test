@@ -71,9 +71,12 @@ async def export_user_data(user_id: int) -> dict:
             session, select(BondState).where(BondState.user_id == uid)
         )
 
-        # PointsWallet
+        # PointsWallet (one row per guild_id; guild_id=0 is your main global balance; others are legacy per-server)
         data["points_wallets"] = await _query_all(
             session, select(PointsWallet).where(PointsWallet.user_id == uid)
+        )
+        data["_export_note_points_wallets"] = (
+            "Your main balance is in the row with guild_id=0. Other rows are legacy per-server records."
         )
 
         # PointsLedger (could be large — include anyway for completeness)

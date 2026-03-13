@@ -10,6 +10,9 @@ Users can disable all streak DMs via /points reminders off.
 from __future__ import annotations
 
 import logging
+
+# Appended to every streak/reminder DM so users know how to opt out
+OPT_OUT_ADVICE = "— To stop these reminders: use **/points reminders off** in any server."
 from datetime import datetime, timezone
 
 import discord
@@ -261,7 +264,7 @@ async def send_after_claim_dm(
         return
     text = (
         f"You claimed your daily reward! Come back tomorrow to keep your "
-        f"**{streak}**-day streak going."
+        f"**{streak}**-day streak going.\n\n{OPT_OUT_ADVICE}"
     )
     embed = embed_kailove(text, title="Daily claimed!")
     try:
@@ -294,7 +297,7 @@ async def send_character_streak_started_dm(
     char_name = _character_display_name(style_id)
     text = (
         f"You started a streak with **{char_name}**! "
-        f"Talk to them again tomorrow to keep it going."
+        f"Talk to them again tomorrow to keep it going.\n\n{OPT_OUT_ADVICE}"
     )
     embed = embed_kaihappy(text, title="Character streak started!")
     try:
@@ -324,7 +327,7 @@ async def send_character_streak_ended_dm(
     char_name = _character_display_name(style_id)
     text = (
         f"Your streak with **{char_name}** ({streak} days) has ended. "
-        f"Unfortunately, character streaks cannot be restored."
+        f"Unfortunately, character streaks cannot be restored.\n\n{OPT_OUT_ADVICE}"
     )
     try:
         from core.kai_mascot import embed_kaisad

@@ -171,7 +171,7 @@ async def send_character_streak_dm(
     embed.set_author(name=style.display_name)
     if style.image_url:
         embed.set_thumbnail(url=style.image_url)
-    embed.set_footer(text=f"{streak_days}-day streak · Bond level {bond_level}")
+    embed.set_footer(text=f"{streak_days}-day streak · Bond level {bond_level} · To stop reminders: /points reminders off")
 
     try:
         user = bot.get_user(user_id) or await bot.fetch_user(user_id)

@@ -26,6 +26,7 @@ import discord
 from utils.points_store import get_eligible_reminder_user_ids, get_claim_status, is_streak_alive
 from utils.character_streak import get_active_character_streaks_with_status
 from utils.streak_reminders import (
+    OPT_OUT_ADVICE,
     # Opt-in/out
     get_streak_reminders_enabled,
     # Daily sent flags
@@ -97,7 +98,7 @@ async def _send_daily_reminder_dm(bot: discord.Client, user_id: int, streak_days
         return
     text = (
         f"Don't forget to claim your daily reward today! "
-        f"Your current streak is **{streak_days}** days."
+        f"Your current streak is **{streak_days}** days.\n\n{OPT_OUT_ADVICE}"
     )
     embed = embed_kaihappy(text, title="Daily reminder")
     try:
@@ -120,12 +121,12 @@ async def _send_daily_warning_dm(bot: discord.Client, user_id: int, streak_days:
     if hours_left <= 1:
         text = (
             f"Your daily streak of **{streak_days}** days will reset in **1 hour**! "
-            f"Use `/daily` now before midnight UTC."
+            f"Use `/daily` now before midnight UTC.\n\n{OPT_OUT_ADVICE}"
         )
     else:
         text = (
             f"Your daily streak of **{streak_days}** days will reset in **{hours_left} hours** "
-            f"if you don't claim! Use `/daily` before midnight UTC."
+            f"if you don't claim! Use `/daily` before midnight UTC.\n\n{OPT_OUT_ADVICE}"
         )
     embed = embed_kaihappy(text, title="Streak warning")
     try:
@@ -148,7 +149,7 @@ async def _send_daily_ended_dm(bot: discord.Client, user_id: int, streak_days: i
     text = (
         f"Your daily streak of **{streak_days}** days has ended. "
         f"You can restore it for **500 points** within 7 days using `/daily` "
-        f"-- a **Restore** button will appear."
+        f"-- a **Restore** button will appear.\n\n{OPT_OUT_ADVICE}"
     )
     try:
         embed = embed_kaisad(text, title="Streak ended")
@@ -180,6 +181,7 @@ async def _send_char_reminder_dm(bot: discord.Client, user_id: int, chars: list[
     text = (
         "Don't forget to talk to your streaked characters today!\n\n"
         + "\n".join(lines)
+        + f"\n\n{OPT_OUT_ADVICE}"
     )
     embed = embed_kaihappy(text, title="Character streak reminder")
     try:
@@ -205,7 +207,7 @@ async def _send_char_warning_dm(bot: discord.Client, user_id: int, chars: list[t
         header = "Your character streaks will end in **1 hour**! Use `/talk` now.\n\n"
     else:
         header = f"Your character streaks will end in **{hours_left} hours** if you don't talk to them!\n\n"
-    text = header + "\n".join(lines)
+    text = header + "\n".join(lines) + f"\n\n{OPT_OUT_ADVICE}"
     embed = embed_kaihappy(text, title="Character streak warning")
     try:
         await user.send(embed=embed)
