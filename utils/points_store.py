@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 
@@ -56,6 +57,20 @@ def _now_utc() -> datetime:
 def _day_utc(dt: datetime | None = None) -> str:
     ts = int((dt or _now_utc()).timestamp())
     return utc_day_str(ts)
+
+
+def _utc_today_and_seconds_until_next_midnight() -> tuple[str, int]:
+    """Return (today_utc YYYYMMDD, seconds until next 00:00 UTC) from time.time().
+
+    Uses Unix timestamp as single source of truth so reset timing is consistent
+    with the calendar day used for streak/claim (avoids server clock vs UTC drift).
+    """
+    now_ts = time.time()
+    now_dt = datetime.fromtimestamp(now_ts, tz=timezone.utc)
+    today = now_dt.strftime("%Y%m%d")
+    start_of_tomorrow = now_dt.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+    seconds = max(0, int((start_of_tomorrow - now_dt).total_seconds()))
+    return today, seconds
 
 
 # Engagement streak milestone constants
@@ -149,18 +164,14 @@ async def get_claim_status(*, guild_id: int, user_id: int) -> tuple[bool, int, i
     """Return (claimed_today, seconds_until_next_claim, streak).
 
     Uses global wallet for streak tracking. Daily reset is at midnight UTC (global clock), not 24h from last claim.
+    Uses time.time() for consistent UTC day and countdown (avoids server clock drift).
     """
-    # Use global wallet for streak
     w = await _get_or_create_wallet(guild_id=GLOBAL_GUILD_ID, user_id=user_id)
-    today = _day_utc()
+    today, seconds_until_next_midnight = _utc_today_and_seconds_until_next_midnight()
     claimed_today = (w.last_claim_day_utc or "") == today
     if not claimed_today:
         return False, 0, int(w.streak or 0)
-
-    # Next claim is at next UTC midnight
-    now = _now_utc()
-    next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
-    return True, max(0, int((next_midnight - now).total_seconds())), int(w.streak or 0)
+    return True, seconds_until_next_midnight, int(w.streak or 0)
 
 
 async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
@@ -193,12 +204,11 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
             session.add(w)
             await session.flush()
 
-        today = _day_utc()
+        today, seconds_until_next_midnight = _utc_today_and_seconds_until_next_midnight()
         now = _now_utc()
 
         # Already claimed today -- return early, no double-claim.
         if (w.last_claim_day_utc or "") == today:
-            next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
             # Check restore availability for the response
             restore_available = False
             restore_to_streak = 0
@@ -221,7 +231,7 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
                 balance=int(w.balance or 0),
                 streak=_str,
                 claimed_today=True,
-                next_claim_in_seconds=max(0, int((next_midnight - now).total_seconds())),
+                next_claim_in_seconds=seconds_until_next_midnight,
                 first_bonus_awarded=0,
                 restore_available=bool(restore_available),
                 restore_cost=STREAK_RESTORE_COST,
@@ -394,7 +404,8 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
 
         await session.commit()
 
-        next_midnight = datetime(now.year, now.month, now.day, tzinfo=timezone.utc) + timedelta(days=1)
+        # Recompute from single time source in case some time passed during claim
+        _, seconds_until_next_midnight = _utc_today_and_seconds_until_next_midnight()
         restore_deadline = (getattr(w, "streak_restore_deadline_day_utc", "") or "").strip()
         saved = int(getattr(w, "streak_saved", 0) or 0)
         restore_available = saved > 0 and bool(restore_deadline) and today <= restore_deadline
@@ -420,7 +431,7 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
             balance=int(w.balance or 0),
             streak=streak_val,
             claimed_today=True,
-            next_claim_in_seconds=max(0, int((next_midnight - now).total_seconds())),
+            next_claim_in_seconds=seconds_until_next_midnight,
             first_bonus_awarded=int(first_bonus),
             restore_available=restore_available,
             restore_cost=STREAK_RESTORE_COST,

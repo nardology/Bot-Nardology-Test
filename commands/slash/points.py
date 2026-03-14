@@ -1362,7 +1362,11 @@ class SlashPoints(commands.Cog):
             e.add_field(name="Balance", value=f"{bal} points", inline=True)
             e.add_field(name="Streak", value=str(streak), inline=True)
             if claimed and next_in_s is not None:
-                e.add_field(name="Next claim", value=f"in **{int(next_in_s)}s** (midnight UTC)", inline=False)
+                e.add_field(
+                    name="Next claim",
+                    value=f"In **{_fmt_duration(next_in_s)}** — resets at **00:00 UTC**",
+                    inline=False,
+                )
 
             if claimed:
                 prog = await get_streak_reward_progress(user_id=uid)
