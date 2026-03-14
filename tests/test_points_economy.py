@@ -122,7 +122,7 @@ class TestClaimDaily:
 
     @pytest.mark.asyncio
     async def test_missed_day_resets_streak(self, db_engine):
-        """Missing a day resets streak to 1 and saves old streak for restore."""
+        """Missing a day resets streak to 1; 14+ day streak is saved for restore."""
         from utils.points_store import claim_daily
         from utils.models import PointsWallet
         from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,7 +139,7 @@ class TestClaimDaily:
                 sa_select(PointsWallet).where(PointsWallet.user_id == 9004).limit(1)
             )).scalar_one()
             wallet.last_claim_day_utc = three_days_ago
-            wallet.streak = 5
+            wallet.streak = 14  # Restore offer only for 14+ day streaks
             await s.commit()
 
         r2 = await claim_daily(guild_id=0, user_id=9004)
@@ -149,7 +149,7 @@ class TestClaimDaily:
             wallet = (await s.execute(
                 sa_select(PointsWallet).where(PointsWallet.user_id == 9004).limit(1)
             )).scalar_one()
-            assert wallet.streak_saved == 5
+            assert wallet.streak_saved == 14
 
 
 # ---------------------------------------------------------------------------

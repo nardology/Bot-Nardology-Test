@@ -66,6 +66,8 @@ RANDOM_BONUS_INCREMENT_PCT = 5
 RANDOM_BONUS_POINTS = 500
 COMEBACK_BONUS_POINTS = 100  # when streak breaks after 14+ days
 COMEBACK_BONUS_MIN_STREAK = 14
+STREAK_RESTORE_MIN_STREAK = 14  # only offer buy-back when broken streak was this or higher
+STREAK_RESTORE_COST = 250
 WEEKLY_ACTIVITY_BONUS_POINTS = 50
 
 
@@ -78,9 +80,9 @@ class DailyResult:
     next_claim_in_seconds: int
     first_bonus_awarded: int
 
-    # Streak-restore offer (only present when the user broke their streak recently)
+    # Streak-restore offer (only present when the user broke a 14+ day streak recently)
     restore_available: bool = False
-    restore_cost: int = 500
+    restore_cost: int = 250
     restore_to_streak: int = 0
     restore_deadline_day_utc: str = ""
 
@@ -222,7 +224,7 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
                 next_claim_in_seconds=max(0, int((next_midnight - now).total_seconds())),
                 first_bonus_awarded=0,
                 restore_available=bool(restore_available),
-                restore_cost=500,
+                restore_cost=STREAK_RESTORE_COST,
                 restore_to_streak=int(restore_to_streak),
                 restore_deadline_day_utc=str(restore_deadline or ""),
                 character_reward_available=tuple(_avail),
@@ -242,7 +244,7 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
                 else:
                     try:
                         prev_streak = int(w.streak or 0)
-                        if prev_streak > 0:
+                        if prev_streak >= STREAK_RESTORE_MIN_STREAK:
                             w.streak_saved = prev_streak
                             deadline_dt = datetime.strptime(today, "%Y%m%d").replace(tzinfo=timezone.utc) + timedelta(days=7)
                             w.streak_restore_deadline_day_utc = _day_utc(deadline_dt)
@@ -421,7 +423,7 @@ async def claim_daily(*, guild_id: int, user_id: int) -> DailyResult:
             next_claim_in_seconds=max(0, int((next_midnight - now).total_seconds())),
             first_bonus_awarded=int(first_bonus),
             restore_available=restore_available,
-            restore_cost=500,
+            restore_cost=STREAK_RESTORE_COST,
             restore_to_streak=int(restore_to_streak),
             restore_deadline_day_utc=str(restore_deadline or ""),
             milestone_7_awarded=milestone_7_awarded,
@@ -652,8 +654,9 @@ def build_roadmap_preview(*, current_streak: int, days: int = 10) -> list[int]:
     return out
 
 
-async def restore_daily_streak(*, guild_id: int, user_id: int, cost: int = 500) -> tuple[bool, str, int, int]:
+async def restore_daily_streak(*, guild_id: int, user_id: int, cost: int | None = None) -> tuple[bool, str, int, int]:
     """Pay points to restore a broken daily streak (within the saved window).
+    Only offered when the broken streak was 14+ days.
 
     Returns: (ok, message, new_balance, new_streak)
     """
@@ -662,7 +665,7 @@ async def restore_daily_streak(*, guild_id: int, user_id: int, cost: int = 500) 
 
     cost = int(cost or 0)
     if cost <= 0:
-        cost = 500
+        cost = STREAK_RESTORE_COST
 
     today = _day_utc()
     Session = get_sessionmaker()

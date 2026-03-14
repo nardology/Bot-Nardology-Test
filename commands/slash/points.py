@@ -27,6 +27,7 @@ from utils.points_store import (
     get_streak_reward_progress,
     StreakRewardProgress,
     claim_streak_character_reward,
+    STREAK_RESTORE_COST,
 )
 from utils.pack_creator_rewards import get_pack_creator_daily_bonus
 
@@ -1150,12 +1151,17 @@ class StreakRewardDailyView(discord.ui.View):
 
 
 class StreakRestoreView(discord.ui.View):
-    def __init__(self, bot: commands.Bot, *, guild_id: int, user_id: int, cost: int = 500):
+    def __init__(self, bot: commands.Bot, *, guild_id: int, user_id: int, cost: int = 0):
         super().__init__(timeout=7 * 24 * 60 * 60)  # 7 days
         self.bot = bot
         self.guild_id = int(guild_id)
         self.user_id = int(user_id)
-        self.cost = int(cost or 500)
+        self.cost = int(cost or STREAK_RESTORE_COST)
+        # Set button label to show actual cost (button is added by decorator below)
+        for child in self.children:
+            if isinstance(child, discord.ui.Button):
+                child.label = f"Keep streak ({self.cost})"
+                break
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
         if int(interaction.user.id) != self.user_id:
@@ -1166,7 +1172,7 @@ class StreakRestoreView(discord.ui.View):
             return False
         return True
 
-    @discord.ui.button(label="Keep streak (500)", style=discord.ButtonStyle.primary, emoji="🛡️")
+    @discord.ui.button(label="Keep streak", style=discord.ButtonStyle.primary, emoji="🛡️")
     async def restore_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
         try:
             await interaction.response.defer(ephemeral=True)
@@ -1294,7 +1300,7 @@ class ClaimDailyView(discord.ui.View):
                     interaction.client,
                     guild_id=self.guild_id,
                     user_id=self.user_id,
-                    cost=getattr(res, "restore_cost", 500),
+                    cost=getattr(res, "restore_cost", STREAK_RESTORE_COST),
                 )
                 await interaction.followup.send(
                     "Your streak can be restored for a cost (limited time):",

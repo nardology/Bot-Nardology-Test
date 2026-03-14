@@ -23,7 +23,13 @@ from datetime import datetime, timezone
 
 import discord
 
-from utils.points_store import get_eligible_reminder_user_ids, get_claim_status, is_streak_alive
+from utils.points_store import (
+    get_eligible_reminder_user_ids,
+    get_claim_status,
+    is_streak_alive,
+    STREAK_RESTORE_COST,
+    STREAK_RESTORE_MIN_STREAK,
+)
 from utils.character_streak import get_active_character_streaks_with_status
 from utils.streak_reminders import (
     OPT_OUT_ADVICE,
@@ -138,7 +144,7 @@ async def _send_daily_warning_dm(bot: discord.Client, user_id: int, streak_days:
 
 
 async def _send_daily_ended_dm(bot: discord.Client, user_id: int, streak_days: int) -> None:
-    """Send one-time 'your daily streak has ended' DM with restore info."""
+    """Send one-time 'your daily streak has ended' DM. Restore option only for 14+ day streaks."""
     try:
         user = bot.get_user(user_id) or await bot.fetch_user(user_id)
     except Exception:
@@ -146,11 +152,13 @@ async def _send_daily_ended_dm(bot: discord.Client, user_id: int, streak_days: i
         return
     if not user:
         return
-    text = (
-        f"Your daily streak of **{streak_days}** days has ended. "
-        f"You can restore it for **500 points** within 7 days using `/daily` "
-        f"-- a **Restore** button will appear.\n\n{OPT_OUT_ADVICE}"
-    )
+    text = f"Your daily streak of **{streak_days}** days has ended."
+    if streak_days >= STREAK_RESTORE_MIN_STREAK:
+        text += (
+            f" You can restore it for **{STREAK_RESTORE_COST} points** within 7 days using `/daily` "
+            f"-- a **Restore** button will appear."
+        )
+    text += f"\n\n{OPT_OUT_ADVICE}"
     try:
         embed = embed_kaisad(text, title="Streak ended")
     except Exception:
