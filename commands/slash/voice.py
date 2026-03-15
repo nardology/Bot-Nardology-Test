@@ -299,7 +299,17 @@ class SlashVoice(commands.Cog):
                 await send_ephemeral(interaction, "⏳ I’m already playing audio. Try again in a moment.")
                 return
         else:
-            vc = await channel.connect()
+            try:
+                vc = await channel.connect()
+            except RuntimeError as e:
+                if "davey" in str(e).lower() or "voice" in str(e).lower():
+                    await send_ephemeral(
+                        interaction,
+                        "🔇 Voice isn’t available on this deployment (audio library missing). "
+                        "The bot needs the **davey** package for Discord voice — contact the server host.",
+                    )
+                    return
+                raise
 
         # UX: tell source
         sp = sound_path.resolve().as_posix()

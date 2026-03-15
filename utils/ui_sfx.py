@@ -76,7 +76,13 @@ async def play_ui_sound(
                 # don't jump channels automatically
                 return
         else:
-            vc = await channel.connect()
+            try:
+                vc = await channel.connect()
+            except RuntimeError as e:
+                if "davey" in str(e).lower() or "voice" in str(e).lower():
+                    logger.debug("Voice not available (davey missing), skipping UI sound")
+                    return
+                raise
             created = True
 
         if vc.is_playing():
