@@ -29,6 +29,7 @@ logger = logging.getLogger("bot.streak_reminders")
 OPT_OUT_KEY_PREFIX = "streak_reminders:opt_out:"
 
 # Daily reward streak sent flags
+DAILY_READY_SENT_PREFIX = "streak_reminders:daily_ready_sent:"
 DAILY_REMINDER_SENT_PREFIX = "streak_reminders:reminder_sent:"
 DAILY_WARNING_8H_SENT_PREFIX = "streak_reminders:warning8h_sent:"
 DAILY_WARNING_1H_SENT_PREFIX = "streak_reminders:warning1h_sent:"
@@ -115,6 +116,16 @@ async def _mark_sent(prefix: str, user_id: int, day: str | None = None, *, suffi
 
 
 # ── Daily reward streak sent flags ──
+
+async def daily_ready_sent_today(user_id: int, day_utc: str | None = None) -> bool:
+    """True if we already sent the 'daily is ready to claim' DM today."""
+    return await _flag_sent(DAILY_READY_SENT_PREFIX, user_id, day_utc)
+
+
+async def mark_daily_ready_sent_today(user_id: int, day_utc: str | None = None) -> None:
+    """Mark that we sent the 'daily is ready' DM for this user today."""
+    await _mark_sent(DAILY_READY_SENT_PREFIX, user_id, day_utc)
+
 
 async def reminder_sent_today(user_id: int, day_utc: str | None = None) -> bool:
     return await _flag_sent(DAILY_REMINDER_SENT_PREFIX, user_id, day_utc)

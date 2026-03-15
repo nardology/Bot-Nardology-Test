@@ -2,6 +2,7 @@
 """Background loop: two separate DM flows for daily and character streaks.
 
 Type 1 -- Daily reward streak DMs:
+  - Ready:      00:00 UTC  (daily reward is active — "your daily is ready to claim")
   - Reminder:   14:00 UTC  (haven't claimed today)
   - Warning 8h: 16:00 UTC  (streak ends in 8 hours)
   - Warning 1h: 23:00 UTC  (streak ends in 1 hour)
@@ -36,6 +37,8 @@ from utils.streak_reminders import (
     # Opt-in/out
     get_streak_reminders_enabled,
     # Daily sent flags
+    daily_ready_sent_today,
+    mark_daily_ready_sent_today,
     reminder_sent_today,
     mark_reminder_sent_today,
     warning_8h_sent_today,
@@ -65,6 +68,8 @@ from utils.character_streak_dm import send_character_streak_dm
 logger = logging.getLogger("bot.streak_reminder_loop")
 
 # ─── Timing constants ───
+DAILY_READY_UTC_HOUR = 0   # Midnight UTC: "your daily is ready to claim"
+DAILY_READY_UTC_MINUTE = 0
 REMINDER_UTC_HOUR = 14
 REMINDER_UTC_MINUTE = 0
 
@@ -92,6 +97,28 @@ def _in_window(now: datetime, hour: int, minute: int) -> bool:
 # ──────────────────────────────────────────────
 # Daily reward streak DM helpers (Type 1)
 # ──────────────────────────────────────────────
+
+async def _send_daily_ready_dm(bot: discord.Client, user_id: int, streak_days: int) -> None:
+    """Send 'your daily reward is ready to claim' DM when the new day is active (e.g. after midnight UTC)."""
+    try:
+        user = bot.get_user(user_id) or await bot.fetch_user(user_id)
+    except Exception:
+        logger.debug("fetch_user for daily ready DM failed for %s", user_id)
+        return
+    if not user:
+        return
+    text = (
+        f"Your daily reward is ready to claim! "
+        f"Use **/points daily** in any server to collect your reward and keep your **{streak_days}**-day streak.\n\n{OPT_OUT_ADVICE}"
+    )
+    embed = embed_kaihappy(text, title="Daily reward ready!")
+    try:
+        await user.send(embed=embed)
+    except discord.Forbidden:
+        logger.debug("User %s has DMs disabled (daily ready)", user_id)
+    except Exception:
+        logger.exception("Daily ready DM failed for user %s", user_id)
+
 
 async def _send_daily_reminder_dm(bot: discord.Client, user_id: int, streak_days: int) -> None:
     """Send 'don't forget to claim' reminder DM. No character mention."""
@@ -228,6 +255,38 @@ async def _send_char_warning_dm(bot: discord.Client, user_id: int, chars: list[t
 # ──────────────────────────────────────────────
 # Loop logic: Daily Reward Streaks
 # ──────────────────────────────────────────────
+
+async def _run_daily_ready(bot: discord.Client) -> None:
+    """00:00 UTC (first hour) - Send 'daily is ready to claim' DMs to eligible users who haven't claimed today."""
+    user_ids = await get_eligible_reminder_user_ids()
+    sent = 0
+    skipped_claimed = 0
+    skipped_reminders_off = 0
+    skipped_already_sent = 0
+    for uid in user_ids:
+        try:
+            claimed_today, _, streak = await get_claim_status(guild_id=0, user_id=uid)
+            if claimed_today:
+                skipped_claimed += 1
+                continue
+            if not await get_streak_reminders_enabled(uid):
+                skipped_reminders_off += 1
+                continue
+            if await daily_ready_sent_today(uid):
+                skipped_already_sent += 1
+                continue
+            await _send_daily_ready_dm(bot, uid, max(1, streak))
+            await mark_daily_ready_sent_today(uid)
+            sent += 1
+            await asyncio.sleep(0.5)
+        except Exception:
+            logger.exception("Daily ready tick failed for user %s", uid)
+    if sent or skipped_claimed or skipped_reminders_off or skipped_already_sent:
+        logger.info(
+            "Daily ready DMs: sent=%s (skipped: claimed=%s reminders_off=%s already_sent=%s)",
+            sent, skipped_claimed, skipped_reminders_off, skipped_already_sent,
+        )
+
 
 async def _run_daily_reminders(bot: discord.Client) -> None:
     """14:00 UTC - Send daily claim reminders to eligible users who haven't claimed today."""
@@ -498,7 +557,15 @@ async def _run_character_ended(bot: discord.Client) -> None:
 async def _tick(bot: discord.Client) -> None:
     now = _now_utc()
 
-    # 14:00 UTC -- daily reminders + character reminders ("daily is ready" message)
+    # 00:00 UTC -- "your daily reward is ready to claim" DMs
+    if _in_window(now, DAILY_READY_UTC_HOUR, DAILY_READY_UTC_MINUTE):
+        logger.info("Streak reminder loop: in 00:00 UTC window — running daily ready DMs")
+        try:
+            await _run_daily_ready(bot)
+        except Exception:
+            logger.exception("Daily ready run failed")
+
+    # 14:00 UTC -- daily reminders + character reminders ("don't forget to claim" message)
     if _in_window(now, REMINDER_UTC_HOUR, REMINDER_UTC_MINUTE):
         logger.info("Streak reminder loop: in 14:00 UTC window — running daily reminders")
         try:

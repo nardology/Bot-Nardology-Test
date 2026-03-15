@@ -213,6 +213,32 @@ class SlashOnlyBot(commands.AutoShardedBot):
                 except Exception:
                     pass
 
+                # Command rate limiter: limit commands per user per minute to prevent spam
+                try:
+                    r = await get_redis_or_none()
+                    if r is not None:
+                        from utils.redis_rate_limiter import RedisSlidingWindowLimiter
+                        _rate_limiter = RedisSlidingWindowLimiter(
+                            max_events=30,
+                            window_seconds=60,
+                            key_prefix="cmd_rate",
+                        )
+                        result = await _rate_limiter.check(str(uid))
+                        if not result.allowed:
+                            try:
+                                if not interaction.response.is_done():
+                                    wait = result.retry_after_seconds or 30
+                                    await interaction.response.send_message(
+                                        f"⏱️ Too many commands. Please slow down and try again in **{wait}** second(s).",
+                                        ephemeral=True,
+                                    )
+                            except Exception:
+                                pass
+                            return False
+                except Exception:
+                    # If limiter fails, allow the command (degrade gracefully)
+                    pass
+
                 from utils.mod_actions import (
                     is_bot_disabled,
                     get_bot_disabled_meta,
