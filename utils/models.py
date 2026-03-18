@@ -324,6 +324,66 @@ try:
         )
 
     # ------------------------------------------------------------------
+    # Daily Topic (Talk engagement)
+    # ------------------------------------------------------------------
+
+    class DailyTopicConfig(Base):
+        """Per-guild daily topic configuration for /talk engagement."""
+
+        __tablename__ = "daily_topic_config"
+
+        guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+        topic_text: Mapped[str] = mapped_column(String(120), default="")
+        topic_description: Mapped[str] = mapped_column(Text, default="")
+        topic_examples_json: Mapped[str] = mapped_column(Text, default="")  # JSON list[str]
+        topic_version: Mapped[int] = mapped_column(Integer, default=1)
+
+        # Tracking days (UTC, YYYYMMDD)
+        last_set_day_utc: Mapped[str] = mapped_column(String(8), default="")  # manual set
+        last_auto_rotate_day_utc: Mapped[str] = mapped_column(String(8), default="")  # automatic change
+
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_daily_topic_config_guild", "guild_id"),
+        )
+
+
+    class DailyTopicHistory(Base):
+        """Append-only history of topics used in a guild (enables auto-rotation)."""
+
+        __tablename__ = "daily_topic_history"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        guild_id: Mapped[int] = mapped_column(BigInteger, index=True)
+        topic_text: Mapped[str] = mapped_column(String(120), default="")
+        topic_description: Mapped[str] = mapped_column(Text, default="")
+        topic_examples_json: Mapped[str] = mapped_column(Text, default="")
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_daily_topic_history_guild", "guild_id"),
+        )
+
+
+    class DailyTopicCompletion(Base):
+        """One row per user per guild per topic version when they earn the bonus."""
+
+        __tablename__ = "daily_topic_completions"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        guild_id: Mapped[int] = mapped_column(BigInteger, index=True)
+        user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+        topic_version: Mapped[int] = mapped_column(Integer, default=0)
+        completed_day_utc: Mapped[str] = mapped_column(String(8), default="")  # YYYYMMDD
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_daily_topic_completion_unique", "guild_id", "user_id", "topic_version", unique=True),
+            Index("ix_daily_topic_completion_user", "guild_id", "user_id"),
+        )
+
+    # ------------------------------------------------------------------
     # Stripe (Phase 6)
     # ------------------------------------------------------------------
 

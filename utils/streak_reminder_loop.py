@@ -64,6 +64,7 @@ from utils.streak_reminders import (
 )
 from core.kai_mascot import embed_kaihappy, embed_kaisad
 from utils.character_streak_dm import send_character_streak_dm
+from utils.character_store import load_state
 
 logger = logging.getLogger("bot.streak_reminder_loop")
 
@@ -261,6 +262,7 @@ async def _run_daily_ready(bot: discord.Client) -> None:
     user_ids = await get_eligible_reminder_user_ids()
     sent = 0
     skipped_claimed = 0
+    skipped_not_alive = 0
     skipped_reminders_off = 0
     skipped_already_sent = 0
     for uid in user_ids:
@@ -271,6 +273,11 @@ async def _run_daily_ready(bot: discord.Client) -> None:
                 continue
             if not await get_streak_reminders_enabled(uid):
                 skipped_reminders_off += 1
+                continue
+            # If the streak has already broken, don't send "streak" pings.
+            # They can still manually claim /points daily to start a new streak.
+            if not await is_streak_alive(uid):
+                skipped_not_alive += 1
                 continue
             if await daily_ready_sent_today(uid):
                 skipped_already_sent += 1
@@ -283,8 +290,8 @@ async def _run_daily_ready(bot: discord.Client) -> None:
             logger.exception("Daily ready tick failed for user %s", uid)
     if sent or skipped_claimed or skipped_reminders_off or skipped_already_sent:
         logger.info(
-            "Daily ready DMs: sent=%s (skipped: claimed=%s reminders_off=%s already_sent=%s)",
-            sent, skipped_claimed, skipped_reminders_off, skipped_already_sent,
+            "Daily ready DMs: sent=%s (skipped: claimed=%s not_alive=%s reminders_off=%s already_sent=%s)",
+            sent, skipped_claimed, skipped_not_alive, skipped_reminders_off, skipped_already_sent,
         )
 
 
@@ -443,6 +450,7 @@ async def _run_character_reminders(bot: discord.Client) -> None:
     """14:00 UTC - Send character streak reminders."""
     user_ids = await _get_char_streak_users(bot)
     sent = 0
+    skipped_no_selected = 0
     for uid in user_ids:
         try:
             if not await get_streak_reminders_enabled(uid):
@@ -450,18 +458,25 @@ async def _run_character_reminders(bot: discord.Client) -> None:
             if await char_reminder_sent_today(uid):
                 continue
 
-            streaks = await get_active_character_streaks_with_status(user_id=uid)
-            if not streaks:
+            # Only remind for the user's SELECTED character.
+            try:
+                st = await load_state(uid)
+                selected = (getattr(st, "active_style_id", "") or "").strip().lower()
+            except Exception:
+                selected = ""
+            if not selected:
+                skipped_no_selected += 1
                 continue
 
-            # Find characters that are alive but NOT talked to today
-            needs_reminder: list[tuple[str, str, int]] = []
-            for style_id, (streak, last_talk, alive) in streaks.items():
-                if alive and last_talk != datetime.now(timezone.utc).strftime("%Y%m%d"):
-                    char_name = _character_display_name(style_id)
-                    needs_reminder.append((style_id, char_name, streak))
+            streaks = await get_active_character_streaks_with_status(user_id=uid)
+            if not streaks or selected not in streaks:
+                continue
 
-            if needs_reminder:
+            streak, last_talk, alive = streaks[selected]
+            today = datetime.now(timezone.utc).strftime("%Y%m%d")
+            if alive and last_talk != today:
+                char_name = _character_display_name(selected)
+                needs_reminder = [(selected, char_name, streak)]
                 await _send_char_reminder_dm(bot, uid, needs_reminder)
                 await mark_char_reminder_sent_today(uid)
                 await _try_character_streak_dm(bot, uid, needs_reminder, "reminder")
@@ -491,18 +506,22 @@ async def _run_character_warnings(bot: discord.Client, hours_left: int) -> None:
                 if await char_warning_1h_sent_today(uid):
                     continue
 
-            streaks = await get_active_character_streaks_with_status(user_id=uid)
-            if not streaks:
+            # Only warn for the user's SELECTED character.
+            try:
+                st = await load_state(uid)
+                selected = (getattr(st, "active_style_id", "") or "").strip().lower()
+            except Exception:
+                selected = ""
+            if not selected:
                 continue
 
-            # Characters alive but not talked to today
-            needs_warning: list[tuple[str, str, int]] = []
-            for style_id, (streak, last_talk, alive) in streaks.items():
-                if alive and last_talk != today_str:
-                    char_name = _character_display_name(style_id)
-                    needs_warning.append((style_id, char_name, streak))
+            streaks = await get_active_character_streaks_with_status(user_id=uid)
+            if not streaks or selected not in streaks:
+                continue
 
-            if needs_warning:
+            streak, last_talk, alive = streaks[selected]
+            if alive and last_talk != today_str:
+                needs_warning = [(selected, _character_display_name(selected), streak)]
                 await _send_char_warning_dm(bot, uid, needs_warning, hours_left)
                 if is_8h:
                     await mark_char_warning_8h_sent_today(uid)
@@ -522,28 +541,34 @@ async def _run_character_ended(bot: discord.Client) -> None:
     """Check all users for character streaks that just broke and send ended DMs."""
     user_ids = await _get_char_streak_users(bot)
     sent = 0
-    today_str = datetime.now(timezone.utc).strftime("%Y%m%d")
     for uid in user_ids:
         try:
             if not await get_streak_reminders_enabled(uid):
                 continue
 
-            streaks = await get_active_character_streaks_with_status(user_id=uid)
-            if not streaks:
+            # Only end-notify for the user's SELECTED character.
+            try:
+                st = await load_state(uid)
+                selected = (getattr(st, "active_style_id", "") or "").strip().lower()
+            except Exception:
+                selected = ""
+            if not selected:
                 continue
 
-            for style_id, (streak, last_talk, alive) in streaks.items():
-                if not alive and streak > 0:
-                    # Streak just broke -- send ended DM once per break event.
-                    # Key by last_talk (not today's date) so the flag survives
-                    # across calendar days and won't re-fire for the same break.
-                    break_key = last_talk or "unknown"
-                    if await char_ended_sent_for_break(uid, style_id, break_key):
-                        continue
-                    await send_character_streak_ended_dm(bot, uid, style_id, streak)
-                    await mark_char_ended_sent_for_break(uid, style_id, break_key)
-                    sent += 1
-                    await asyncio.sleep(0.3)
+            streaks = await get_active_character_streaks_with_status(user_id=uid)
+            if not streaks or selected not in streaks:
+                continue
+
+            streak, last_talk, alive = streaks[selected]
+            if not alive and streak > 0:
+                # Streak just broke -- send ended DM once per break event.
+                break_key = last_talk or "unknown"
+                if await char_ended_sent_for_break(uid, selected, break_key):
+                    continue
+                await send_character_streak_ended_dm(bot, uid, selected, streak)
+                await mark_char_ended_sent_for_break(uid, selected, break_key)
+                sent += 1
+                await asyncio.sleep(0.3)
         except Exception:
             logger.exception("Character ended tick failed for user %s", uid)
     if sent:

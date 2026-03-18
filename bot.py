@@ -417,6 +417,7 @@ EXTENSIONS = [
     "commands.slash.basic",
     "commands.slash.start",
     "commands.slash.settings",
+    "commands.slash.topic",
     "commands.slash.help",
     "commands.slash.talk",
     "commands.slash.voice",

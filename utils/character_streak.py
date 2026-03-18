@@ -38,6 +38,20 @@ def _last_talk_key(user_id: int, style_id: str) -> str:
     return f"{LAST_TALK_KEY_PREFIX}:{int(user_id)}:{str(style_id).lower()}"
 
 
+async def get_last_talk_day(*, user_id: int, style_id: str) -> str:
+    """Return the last talk day for this character streak (YYYYMMDD) or empty string."""
+    r = await get_redis_or_none()
+    if r is None:
+        return ""
+    try:
+        last_talk_raw = await r.get(_last_talk_key(user_id, style_id))
+        if not last_talk_raw:
+            return ""
+        return last_talk_raw.decode("utf-8", errors="ignore") if isinstance(last_talk_raw, (bytes, bytearray)) else str(last_talk_raw or "")
+    except Exception:
+        return ""
+
+
 async def record_character_talk(
     *, user_id: int, style_id: str, guild_id: int | None = None
 ) -> tuple[int, bool]:

@@ -36,8 +36,9 @@ from utils.emotion_images import (
 )
 from utils.media_assets import resolve_embed_image_url, fetch_embed_image_as_file, get_discord_file_for_asset
 from utils.emotion_predictor import predict_emotion, detect_topics
+from utils.daily_topic import get_or_rotate_daily_topic, topic_bonus_already_claimed, mark_topic_bonus_claimed
 
-from utils.talk_prompts import normalize_mode, build_talk_system_prompt, build_active_topic_block, build_awareness_block
+from utils.talk_prompts import build_talk_system_prompt, build_active_topic_block, build_awareness_block
 from utils.mood_tracker import advance_mood_turn, build_mood_prompt_block, analyze_mood_background
 from utils.world_events import build_world_events_prompt_block
 from utils.world_lore import build_world_context_block, build_reverse_relationships_block
@@ -54,6 +55,7 @@ from utils.character_registry import BASE_STYLE_IDS
 from utils.character_store import owns_style
 from utils.reporting import send_report
 from utils.character_streak import record_character_talk
+from utils.character_streak import get_last_talk_day
 from utils.leaderboard import update_all_periods, CATEGORY_TALK, CATEGORY_BOND, GLOBAL_GUILD_ID
 from utils.analytics import track_ai_call
 from core.kai_mascot import (
@@ -335,14 +337,7 @@ class SlashTalk(commands.Cog):
         prompt="What do you want to say?",
         public="If true, the reply is posted publicly in this channel (default: false)",
         character="Optional: pick one of YOUR characters (leave blank to use the server default)",
-        mode="How the bot should reply (Normal, Roleplay, Scene, Texting)",
     )
-    @app_commands.choices(mode=[
-        app_commands.Choice(name="Normal", value="chat"),
-        app_commands.Choice(name="Roleplay", value="rp"),
-        app_commands.Choice(name="Scene", value="scene"),
-        app_commands.Choice(name="Texting", value="texting"),
-    ])
     @app_commands.autocomplete(character=ac_talk_character)
     async def talk(
         self,
@@ -350,7 +345,6 @@ class SlashTalk(commands.Cog):
         prompt: str,
         public: bool = False,
         character: str | None = None,
-        mode: app_commands.Choice[str] | None = None,
     ):
         # Defer first so Discord shows "Bot is thinking..." immediately (reduces perceived delay / double-clicks).
         answer_ephemeral = not bool(public)
@@ -365,7 +359,8 @@ class SlashTalk(commands.Cog):
 
         guild_id = interaction.guild.id
         user_id = interaction.user.id
-        chosen_mode = normalize_mode(mode.value if mode else None)
+        # /talk is always roleplay mode for immersion.
+        chosen_mode = "rp"
 
         prompt = (prompt or "").strip()
         if not prompt:
@@ -562,6 +557,7 @@ class SlashTalk(commands.Cog):
             except Exception:
                 user_active = None
             effective_style = user_active or server_style or "fun"
+        selected_style_id = (user_active or "").strip().lower() if user_active else ""
 
         # ---- Bond context (fetch early, build block after style_obj is resolved) ----
         b = None
@@ -981,6 +977,67 @@ class SlashTalk(commands.Cog):
                 # Quests should never block /talk.
                 pass
 
+            # ---- Daily topic bonus (per-server) ----
+            # Best-effort; never block the main /talk response.
+            try:
+                topic = await get_or_rotate_daily_topic(guild_id=int(guild_id))
+                if topic and str(topic.topic_text or "").strip():
+                    already = await topic_bonus_already_claimed(
+                        guild_id=int(guild_id),
+                        user_id=int(user_id),
+                        topic_version=int(topic.topic_version or 0),
+                    )
+                    if not already:
+                        # Anti-cheat gates: require real context, not just the raw topic word.
+                        user_text = (prompt or "").strip()
+                        if len(user_text) >= 30 and len(user_text.split()) >= 6:
+                            t = str(topic.topic_text or "").strip().lower()
+                            low = user_text.lower()
+                            trivial = (low == t) or (low.replace(".", "").replace("!", "").replace("?", "").strip() == t)
+
+                            # Keyword heuristic: require at least 2 "meaning" keywords from description/examples,
+                            # or the topic word plus enough extra content.
+                            def _kw_tokens(s: str) -> set[str]:
+                                out: set[str] = set()
+                                for raw in (s or "").lower().replace("\n", " ").split():
+                                    w = "".join(ch for ch in raw if ch.isalnum())
+                                    if len(w) < 4:
+                                        continue
+                                    if w in {"that", "this", "with", "from", "have", "your", "youre", "what", "when", "they", "them", "just", "like", "really"}:
+                                        continue
+                                    out.add(w)
+                                return out
+
+                            meaning_src = " ".join([topic.topic_description or ""] + list(topic.examples or []))
+                            meaning_kws = _kw_tokens(meaning_src)
+                            msg_kws = _kw_tokens(user_text)
+                            overlap = len(meaning_kws.intersection(msg_kws)) if meaning_kws else 0
+
+                            topic_in_text = t and (t in low)
+                            ok_topic = (overlap >= 2) or (topic_in_text and len(user_text.split()) >= 10)
+
+                            if (not trivial) and ok_topic:
+                                from utils.points_store import adjust_points
+                                ok_mark = await mark_topic_bonus_claimed(
+                                    guild_id=int(guild_id),
+                                    user_id=int(user_id),
+                                    topic_version=int(topic.topic_version or 0),
+                                )
+                                if ok_mark:
+                                    _ = await adjust_points(
+                                        guild_id=int(guild_id),
+                                        user_id=int(user_id),
+                                        delta=65,
+                                        reason="daily_topic_bonus",
+                                        meta={"topic": topic.topic_text, "topic_version": int(topic.topic_version or 0)},
+                                    )
+                                    try:
+                                        await interaction.followup.send("💬 Topic hit! **+65 points**", ephemeral=True)
+                                    except Exception:
+                                        pass
+            except Exception:
+                pass
+
             # ---- Save memory AFTER successful send (Pro only) ----
             if tier == "pro":
                 try:
@@ -1074,11 +1131,56 @@ class SlashTalk(commands.Cog):
                 
                 # Record character streak (global)
                 try:
+                    # Reward logic needs to know whether this was the first talk today and whether
+                    # the streak was continued from yesterday (not just "talked today again").
+                    prev_last_talk = await get_last_talk_day(user_id=user_id, style_id=effective_style)
                     streak, continued = await record_character_talk(
                         user_id=user_id,
                         style_id=effective_style,
                         guild_id=guild_id,
                     )
+                    # Award +35 points for continuing the SELECTED character streak (once per UTC day).
+                    try:
+                        from utils.backpressure import get_redis_or_none
+                        from utils.analytics import utc_day_str
+                        from utils.points_store import adjust_points
+                        from datetime import timedelta
+
+                        # Only for the user's selected character (not server default or explicit other character).
+                        if selected_style_id and effective_style == selected_style_id:
+                            today_str = utc_day_str()
+                            # Only if this talk advanced/maintained the streak from yesterday.
+                            continued_from_yesterday = False
+                            if prev_last_talk and prev_last_talk != today_str:
+                                try:
+                                    yesterday = utc_day_str(int((datetime.now(timezone.utc) - timedelta(days=1)).timestamp()))
+                                    continued_from_yesterday = prev_last_talk == yesterday
+                                except Exception:
+                                    continued_from_yesterday = False
+
+                            if continued and continued_from_yesterday:
+                                r = await get_redis_or_none()
+                                if r is not None:
+                                    k = f"talk_streak_reward35:{int(user_id)}:{effective_style}:{today_str}"
+                                    if not await r.get(k):
+                                        await r.set(k, "1", ex=60 * 60 * 48)
+                                        _ = await adjust_points(
+                                            guild_id=guild_id,
+                                            user_id=user_id,
+                                            delta=35,
+                                            reason="talk_streak_continue",
+                                            meta={"style_id": effective_style, "streak": int(streak or 0)},
+                                        )
+                                        try:
+                                            await interaction.followup.send(
+                                                "🔥 Streak kept! **+35 points**",
+                                                ephemeral=True,
+                                            )
+                                        except Exception:
+                                            pass
+                    except Exception:
+                        pass
+
                     # If this is a brand-new streak, fire off a DM (best-effort, non-blocking)
                     if streak == 1 and not continued:
                         async def _send_started_dm(uid: int, sid: str) -> None:

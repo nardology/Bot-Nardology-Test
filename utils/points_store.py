@@ -781,6 +781,7 @@ async def claim_streak_character_reward(*, user_id: int, tier: int, style_id: st
 
     from utils.character_registry import list_builtin_by_rarity, get_style
     from utils.character_store import add_style_to_inventory
+    from utils.premium import get_premium_tier
 
     rarity_map = {10: "uncommon", 15: "rare", 25: "legendary"}
     rarity = rarity_map[tier]
@@ -788,6 +789,15 @@ async def claim_streak_character_reward(*, user_id: int, tier: int, style_id: st
     allowed_ids = {s.style_id.lower() for s in allowed}
     if sid not in allowed_ids:
         return False, "That character isn't available for this reward."
+
+    # IMPORTANT: This reward grants a character into the user's inventory, so we must
+    # pass the correct tier into inventory enforcement. If we don't know, we'd default
+    # to FREE (3 slots) and incorrectly reject Pro users.
+    try:
+        tier_name = await get_premium_tier(uid)
+        is_pro = tier_name == "pro"
+    except Exception:
+        is_pro = False
 
     Session = get_sessionmaker()
     async with Session() as session:
@@ -808,14 +818,19 @@ async def claim_streak_character_reward(*, user_id: int, tier: int, style_id: st
         if streak < tier:
             return False, f"You need a {tier}-day streak to claim this reward."
 
+        # Add to inventory while the wallet row is locked so two concurrent clicks can't
+        # both "win" the reward (and so we only mark claimed if the grant succeeded).
+        ok, msg = await add_style_to_inventory(user_id=uid, style_id=sid, is_pro=is_pro, guild_id=None)
+        if not ok:
+            return False, msg or "Could not add character."
+
         setattr(w, attr, True)
         w.updated_at = _now_utc()
         await session.commit()
 
-    ok, msg = await add_style_to_inventory(user_id=uid, style_id=sid, is_pro=None, guild_id=None)
-    if not ok:
-        return False, msg or "Could not add character."
-    return True, f"Added **{get_style(sid).display_name if get_style(sid) else style_id}** to your collection!"
+    s_obj = get_style(sid)
+    name = (getattr(s_obj, "display_name", None) if s_obj else None) or style_id
+    return True, f"Added **{name}** to your collection!"
 
 
 async def is_streak_alive(user_id: int) -> bool:

@@ -19,6 +19,7 @@ from utils.db import get_sessionmaker
 from utils.analytics import utc_day_str
 from utils.models import PointsWallet, PointsLedger, QuestProgress, QuestClaim
 from utils.points_store import GLOBAL_GUILD_ID, update_points_leaderboard
+from utils.daily_topic import get_or_rotate_daily_topic, topic_bonus_already_claimed
 
 try:
     from sqlalchemy import select  # type: ignore
@@ -548,6 +549,24 @@ async def build_quest_status_embed(*, guild_id: int, user_id: int) -> discord.Em
     for period in ("daily", "weekly", "monthly"):
         pkey = _period_key(period, now)
         lines: list[str] = []
+
+        # Special daily topic quest (per-server, admin configured).
+        # This is shown in the quests menu but is awarded immediately from /talk (no claim button).
+        if period == "daily":
+            try:
+                topic = await get_or_rotate_daily_topic(guild_id=int(guild_id))
+                if topic and str(topic.topic_text or "").strip():
+                    done_topic = await topic_bonus_already_claimed(
+                        guild_id=int(guild_id),
+                        user_id=uid,
+                        topic_version=int(topic.topic_version or 0),
+                    )
+                    mark_topic = "✅" if done_topic else "▫️"
+                    name = f"Daily Topic: {topic.topic_text}"
+                    lines.append(f"{mark_topic} **0. {name}** — {1 if done_topic else 0}/1  *(+65)*")
+            except Exception:
+                pass
+
         for q in [qq for qq in QUESTS if qq.period == period]:
             row = by_key.get((period, q.quest_id))
             prog = 0
