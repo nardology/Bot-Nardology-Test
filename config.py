@@ -39,6 +39,21 @@ TERMS_OF_SERVICE_URL = (os.getenv("TERMS_OF_SERVICE_URL") or "").strip() or f"{_
 PRIVACY_POLICY_URL = (os.getenv("PRIVACY_POLICY_URL") or "").strip() or f"{_legal_base.rstrip('/')}/privacy"
 SUPPORT_SERVER_URL = "https://discord.gg/F4TNTDvHP9"
 
+# ---- Connection traits web (Discord OAuth) ----
+# Defaults to the same application as the bot; set CONNECTION_OAUTH_* to override.
+CONNECTION_OAUTH_CLIENT_ID = (os.getenv("CONNECTION_OAUTH_CLIENT_ID") or os.getenv("DISCORD_CLIENT_ID") or "").strip() or None
+CONNECTION_OAUTH_CLIENT_SECRET = (
+    (os.getenv("CONNECTION_OAUTH_CLIENT_SECRET") or os.getenv("DISCORD_CLIENT_SECRET") or "").strip() or None
+)
+_b = (BASE_URL or "").rstrip("/")
+CONNECTION_OAUTH_REDIRECT_URI = (
+    (os.getenv("CONNECTION_OAUTH_REDIRECT_URI") or "").strip()
+    or (f"{_b}/connection/oauth/callback" if _b else "")
+)
+
+# Max characters injected from connection traits into /talk (approximate token control).
+CONNECTION_CONTEXT_MAX_CHARS = int(os.getenv("CONNECTION_CONTEXT_MAX_CHARS", "3500") or "3500")
+
 # ---- Emergency kill switch ----
 # If true, ALL AI calls are disabled immediately (even if Redis/DB are unhealthy).
 # Useful for incident response / cost containment.

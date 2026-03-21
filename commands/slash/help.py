@@ -156,10 +156,11 @@ def get_topic_text(topic: str) -> str | None:
         return (
             "🎲 **Characters**\n"
             "• `/character roll` — Roll for a random character\n"
-            "• `/character collection` — View your collection + selected character\n"
+            "• `/character collection` — View your collection + selected character (web link for **connection traits** when configured)\n"
             "• `/character select` — Select your active character\n"
             "• `/character unselect` — Clear selected character\n"
-            "• `/character remove` — Remove a custom character you own"
+            "• `/character remove` — Remove a custom character you own\n\n"
+            "💞 **Connection traits** (shards, per character): `/connection dashboard`, `/connection traits`, `/connection weekly_status`, `/connection daily_status`"
         )
     if t == "limits":
         return "📉 `/limits view` — Shows current rate limits and remaining daily usage."
@@ -213,9 +214,10 @@ def get_topic_text(topic: str) -> str | None:
                 "• `/points balance` — Check your point balance\n"
             "• `/points shop` — Browse and buy items with points\n"
             "• `/points cosmetic-shop` — Browse cosmetic items\n"
+            "• `/points cosmetic-buy-shard` — Buy a cosmetic with **shards** (slot 1–7)\n"
             "• `/points quests` — View and claim quest rewards (daily/weekly/monthly)\n"
             "• `/points buy` — Quick-buy a shop item\n"
-            "• `/points convert` — Convert between shards and points (50:1)\n"
+            "• `/points convert` — Convert between shards and points (10 points = 1 shard; 10% fee on output)\n"
             "• `/points luck` — Check your current luck modifier\n"
             "• `/points reminders` — Toggle daily streak reminders on/off"
         )

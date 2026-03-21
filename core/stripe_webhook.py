@@ -777,6 +777,13 @@ async def start_webhook_server(bot) -> None:
     except Exception:
         log.exception("Failed to register admin panel routes (non-fatal)")
 
+    # Connection traits dashboard (Discord OAuth + JSON API)
+    try:
+        from core.connection_traits_page import register_routes as _register_conn_routes
+        _register_conn_routes(app, bot)
+    except Exception:
+        log.exception("Failed to register connection traits routes (non-fatal)")
+
     port = int(os.getenv("PORT", "8080"))
     runner = web.AppRunner(app)
     await runner.setup()

@@ -492,6 +492,24 @@ try:
         )
 
     # ------------------------------------------------------------------
+    # Connection traits (per user + character, shard shop)
+    # ------------------------------------------------------------------
+
+    class CharacterConnectionProfile(Base):
+        """Purchased connection traits and user-edited fields for one character."""
+
+        __tablename__ = "character_connection_profiles"
+
+        user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+        style_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+
+        purchased_traits_json: Mapped[str] = mapped_column(Text, default="{}")
+        payload_json: Mapped[str] = mapped_column(Text, default="{}")
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (Index("ix_conn_profile_user", "user_id"),)
+
+    # ------------------------------------------------------------------
     # Phase 6b: Persistent Memory Anchors
     # ------------------------------------------------------------------
 

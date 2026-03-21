@@ -30,6 +30,7 @@ from utils.points_store import (
     STREAK_RESTORE_COST,
 )
 from utils.pack_creator_rewards import get_pack_creator_daily_bonus
+from utils.shard_economy import POINTS_PER_SHARD, points_to_shards_after_fee, shards_to_points_after_fee
 
 from utils.character_store import (
     grant_bonus_rolls,
@@ -58,6 +59,7 @@ from commands.slash.character import run_roll_reveal_animation, character_embed
 from utils.cosmetics import (
     COSMETIC_CATALOG,
     COSMETIC_PRICE,
+    COSMETIC_SHARD_PRICE,
     NUM_TO_COSMETIC_ID,
     cosmetic_image_url,
     cosmetic_display_name,
@@ -1729,6 +1731,54 @@ class SlashPoints(commands.Cog):
             except Exception:
                 pass
 
+    @points.command(name="cosmetic-buy-shard", description="Buy a profile cosmetic with shards (see /points cosmetic-shop)")
+    @app_commands.describe(slot="Cosmetic number 1–7 (same numbering as the cosmetic shop)")
+    async def points_cosmetic_buy_shard(self, interaction: discord.Interaction, slot: int):
+        try:
+            gid = _safe_guild_id(interaction)
+            if gid is None:
+                await interaction.response.send_message("Use this in a server.", ephemeral=True)
+                return
+            n = int(slot)
+            if n < 1 or n > 7:
+                await interaction.response.send_message("Slot must be **1–7**.", ephemeral=True)
+                return
+            await interaction.response.defer(ephemeral=True)
+            uid = int(interaction.user.id)
+            cosmetic_id = NUM_TO_COSMETIC_ID.get(n)
+            if not cosmetic_id:
+                await interaction.followup.send("Invalid cosmetic.", ephemeral=True)
+                return
+            owned = await get_owned(uid)
+            if cosmetic_id in owned:
+                await interaction.followup.send(
+                    f"You already own **{cosmetic_display_name(cosmetic_id)}**.",
+                    ephemeral=True,
+                )
+                return
+            cost = int(COSMETIC_SHARD_PRICE)
+            st = await load_state(uid)
+            if int(st.points or 0) < cost:
+                await interaction.followup.send(
+                    f"Not enough shards. Need **{cost}** (you have **{int(st.points or 0)}**).",
+                    ephemeral=True,
+                )
+                return
+            await add_shards(uid, -cost)
+            await add_owned(uid, cosmetic_id)
+            new_bal = await load_state(uid)
+            await interaction.followup.send(
+                f"✅ Purchased **{cosmetic_display_name(cosmetic_id)}** for **{cost}** shards. "
+                f"Shards remaining: **{int(new_bal.points or 0)}**. Use `/cosmetic select` to equip.",
+                ephemeral=True,
+            )
+        except Exception:
+            logger.exception("/points cosmetic-buy-shard failed")
+            try:
+                await interaction.followup.send("⚠️ Purchase failed.", ephemeral=True)
+            except Exception:
+                pass
+
     @points.command(name="quests", description="View your daily/weekly quests and progress")
     async def points_quests(self, interaction: discord.Interaction):
         try:
@@ -1946,40 +1996,65 @@ class SlashPoints(commands.Cog):
     # /points roadmap removed (redundant with /points daily)
 
 
-    @points.command(name="convert", description="Convert between shards and points (50 points per shard).")
-    @app_commands.describe(direction="Conversion direction", shards="How many shards to convert")
+    @points.command(
+        name="convert",
+        description=f"Convert between shards and points ({POINTS_PER_SHARD} points = 1 shard, 10% fee on output).",
+    )
+    @app_commands.describe(
+        direction="Conversion direction",
+        amount="Shards→Points: shards to spend. Points→Shards: wallet points to spend.",
+    )
     @app_commands.choices(direction=[
         app_commands.Choice(name="Shards → Points", value="shards_to_points"),
         app_commands.Choice(name="Points → Shards", value="points_to_shards"),
     ])
-    async def points_convert(self, interaction: discord.Interaction, direction: app_commands.Choice[str], shards: int):
+    async def points_convert(self, interaction: discord.Interaction, direction: app_commands.Choice[str], amount: int):
         await interaction.response.defer(ephemeral=True, thinking=True)
         gid = int(interaction.guild_id or 0)
         uid = int(interaction.user.id)
-        shards = int(shards)
-        if shards <= 0:
+        amt = int(amount)
+        if amt <= 0:
             await interaction.followup.send("Amount must be a positive integer.", ephemeral=True)
             return
-        rate = 50
         if direction.value == "points_to_shards":
-            cost = shards * rate
-            ok, msg = await spend_points(guild_id=gid, user_id=uid, amount=cost, reason="convert_points_to_shards")
+            # Spend amt wallet points; receive shards after 10% output fee.
+            ok, _new_bal = await spend_points(
+                guild_id=gid, user_id=uid, cost=amt, reason="convert_points_to_shards"
+            )
             if not ok:
-                await interaction.followup.send(msg or "Not enough points.", ephemeral=True)
+                await interaction.followup.send("Not enough points.", ephemeral=True)
                 return
-            await add_shards(uid, shards)
-            await interaction.followup.send(f"Converted **{cost}** points into **{shards}** shards.", ephemeral=True)
+            gained = points_to_shards_after_fee(amt)
+            if gained <= 0:
+                await adjust_points(
+                    guild_id=gid, user_id=uid, delta=amt, reason="convert_points_to_shards_refund"
+                )
+                await interaction.followup.send(
+                    f"That amount is too small after the 10% fee (need enough points for at least 1 shard).",
+                    ephemeral=True,
+                )
+                return
+            await add_shards(uid, gained)
+            await interaction.followup.send(
+                f"Spent **{amt}** points → **{gained}** shards (10% fee applied to shard output).",
+                ephemeral=True,
+            )
             return
         # shards -> points
         st = await load_state(uid)
-        if int(st.points) < shards:
+        if int(st.points) < amt:
             await interaction.followup.send("Not enough shards.", ephemeral=True)
             return
-        # spend shards by adding negative shards
-        await add_shards(uid, -shards)
-        gained = shards * rate
-        await add_points(guild_id=gid, user_id=uid, amount=gained, reason="convert_shards_to_points")
-        await interaction.followup.send(f"Converted **{shards}** shards into **{gained}** points.", ephemeral=True)
+        gained_pts = shards_to_points_after_fee(amt)
+        await add_shards(uid, -amt)
+        await adjust_points(
+            guild_id=gid, user_id=uid, delta=gained_pts, reason="convert_shards_to_points"
+        )
+        await interaction.followup.send(
+            f"Spent **{amt}** shards → **{gained_pts}** points (10% fee applied to point output; "
+            f"parity is {POINTS_PER_SHARD} points per shard before fee).",
+            ephemeral=True,
+        )
 
 async def setup(bot: commands.Bot):
     await bot.add_cog(SlashPoints(bot))

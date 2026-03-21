@@ -5,6 +5,8 @@ Files: tails.png, strong.png, cow.png, tam.png, joe.png, sans.png, walter.png
 """
 from __future__ import annotations
 
+import os
+
 from utils.character_emotion_manifest import _DEFAULT_CDN_BASE
 
 # Cosmetics live in the GitHub repo (served via jsDelivr), not in the
@@ -24,6 +26,8 @@ COSMETIC_CATALOG: list[tuple[int, str, str]] = [
 ]
 
 COSMETIC_PRICE = 500
+# Alternative currency: buy the same cosmetics with shards (character roll currency).
+COSMETIC_SHARD_PRICE = int(os.getenv("COSMETIC_SHARD_PRICE", "50") or "50")
 
 # Map number -> cosmetic_id for shop buttons
 NUM_TO_COSMETIC_ID: dict[int, str] = {num: cid for num, cid, _ in COSMETIC_CATALOG}

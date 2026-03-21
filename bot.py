@@ -354,6 +354,12 @@ class SlashOnlyBot(commands.AutoShardedBot):
         except Exception:
             logger.exception("Failed to start roll-ready DM loop")
 
+        try:
+            from utils.connection_traits_loop import start_connection_traits_loop
+            start_connection_traits_loop(self)
+        except Exception:
+            logger.exception("Failed to start connection traits loop")
+
         # Background: weekly analytics DM to bot owners (Monday 10:00 UTC)
         try:
             from utils.weekly_analytics_loop import start_weekly_analytics_loop
@@ -427,6 +433,7 @@ EXTENSIONS = [
     "commands.slash.bond",
     "commands.slash.penalty",
     "commands.slash.character",
+    "commands.slash.connection",
     "commands.slash.points",
     "commands.slash.packs",
     # "commands.slash.scene",  # Hidden: uncomment to show /scene commands

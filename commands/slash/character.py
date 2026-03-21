@@ -25,6 +25,9 @@ from core.kai_mascot import (
     get_kai_legendary_roll_message,
     get_kai_pity_roll_message,
 )
+import config
+
+from utils.shard_economy import duplicate_shards_for_rarity
 from utils.start_required import require_start
 from utils.roll_ready_dm import schedule_roll_ready_dm
 from utils.character_store import (
@@ -799,6 +802,21 @@ class DupeRollView(discord.ui.View):
                 pass
 
 
+class CollectionConnectionView(discord.ui.View):
+    """Optional link to the connection traits web dashboard (OAuth)."""
+
+    def __init__(self, dashboard_url: str | None):
+        super().__init__(timeout=180)
+        if dashboard_url:
+            self.add_item(
+                discord.ui.Button(
+                    label="Connection traits (web)",
+                    style=discord.ButtonStyle.link,
+                    url=dashboard_url,
+                )
+            )
+
+
 class SlashCharacter(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -852,13 +870,13 @@ class SlashCharacter(commands.Cog):
 
             e.add_field(name="Inventory", value=f"{inv_count} / {int(slots)}", inline=True)
 
-            # Some older code uses "shards"; your current character_store uses "points"
-            shards_like = int(getattr(state, "shards", 0) or 0)
-            points_like = int(getattr(state, "points", 0) or 0)
-            currency = shards_like if shards_like else points_like
-            e.add_field(name="Shards", value=str(currency), inline=True)
+            # Shards are stored in CharacterUserState.points (legacy column name).
+            e.add_field(name="Shards", value=str(int(getattr(state, "points", 0) or 0)), inline=True)
 
-            kwargs = {"embed": e, "ephemeral": True}
+            kwargs: dict = {"embed": e, "ephemeral": True}
+            base = (config.BASE_URL or "").strip().rstrip("/")
+            if base:
+                kwargs["view"] = CollectionConnectionView(f"{base}/connection")
             try:
                 if active and s_obj and getattr(s_obj, "image_url", None):
                     f_img, _url2 = _image_attachment_for_style(s_obj)
@@ -1308,12 +1326,18 @@ class SlashCharacter(commands.Cog):
                 reward_sfx = ""
             # Duplicate handling: ONLY Roll again + Close
             if rolled.style_id.lower() in owned:
-                await award_dupe_shards(user_id=user_id, amount=1)
+                dupe_amount = duplicate_shards_for_rarity(getattr(rolled, "rarity", None))
+                await award_dupe_shards(user_id=user_id, amount=dupe_amount)
 
                 badge = await badges_for_style_id(rolled.style_id)
                 rolls_left_after = max(0, remaining - 1) if consume_roll_credit else max(0, remaining)
                 e, f = character_embed(rolled, rolls_left=rolls_left_after, per_day=per_day, badges=badge)
-                e.add_field(name="Duplicate!", value="You already own this character → **+1 shard**", inline=False)
+                e.add_field(
+                    name="Duplicate!",
+                    value=f"You already own this character → **+{dupe_amount}** shards "
+                    f"(rarity **{str(getattr(rolled, 'rarity', 'common') or 'common').lower()}**)",
+                    inline=False,
+                )
 
                 view = DupeRollView(bot=self.bot, user_id=user_id, guild_id=guild_id, out_of_rolls=(rolls_left_after <= 0))
                 kwargs = {"embed": e, "view": view, "ephemeral": True}

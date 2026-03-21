@@ -312,11 +312,32 @@ async def request_text(
                 pass
 
             # Hard truncate output so we never pass downstream more than requested (anti-abuse: API may ignore max_tokens)
+            def _trim_to_boundary(s: str, limit: int) -> str:
+                s = (s or "").strip()
+                if limit <= 0 or len(s) <= limit:
+                    return s
+                head = s[:limit].rstrip()
+                if not head:
+                    return ""
+                for punct in (".", "!", "?", "…"):
+                    i = head.rfind(punct)
+                    if i >= max(0, len(head) - 240):
+                        out = head[: i + 1].rstrip()
+                        if len(out) >= 20:
+                            return out
+                if " " in head:
+                    out = head.rsplit(" ", 1)[0].rstrip()
+                    if len(out) >= 10:
+                        return out
+                return head
+
             approx_chars_per_token = 3  # stricter than 4 to reduce displayed/stored length
             max_chars = max(64, int(max_tokens * approx_chars_per_token))
             if text and len(text) > max_chars:
-                trimmed = text[:max_chars].rsplit(maxsplit=1)[0] if max_chars > 20 else text[:max_chars]
-                text = (trimmed + "…") if len(trimmed) < len(text) else trimmed
+                trimmed = _trim_to_boundary(text, max_chars)
+                if trimmed and trimmed[-1] not in ".!?…":
+                    trimmed = trimmed.rstrip() + "…"
+                text = trimmed
 
             # Global/product analytics (real token usage when available)
             try:

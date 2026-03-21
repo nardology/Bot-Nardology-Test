@@ -170,14 +170,44 @@ def enforce_limits(text: str, *, max_paragraphs: int = 3, max_chars: int = 1900)
     text = (text or "").strip()
     text = text.replace("\r\n", "\n").replace("\r", "\n")
 
+    def _trim_to_boundary(s: str, limit: int) -> str:
+        s = (s or "").strip()
+        if limit <= 0 or len(s) <= limit:
+            return s
+        head = s[:limit].rstrip()
+        if not head:
+            return ""
+        # Prefer ending on a sentence boundary.
+        for punct in (".", "!", "?", "…"):
+            i = head.rfind(punct)
+            if i >= max(0, len(head) - 240):  # don't jump too far back
+                out = head[: i + 1].rstrip()
+                if len(out) >= 20:
+                    return out
+        # Fall back to a clause boundary.
+        for punct in (",", ";", ":"):
+            i = head.rfind(punct)
+            if i >= max(0, len(head) - 160):
+                out = head[: i + 1].rstrip()
+                if len(out) >= 20:
+                    return out
+        # Final fallback: word boundary.
+        if " " in head:
+            out = head.rsplit(" ", 1)[0].rstrip()
+            if len(out) >= 10:
+                return out
+        return head
+
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
 
     if len(paragraphs) > max_paragraphs:
         paragraphs = paragraphs[:max_paragraphs]
-        text = "\n\n".join(paragraphs).strip() + "\n…(truncated)"
+        text = "\n\n".join(paragraphs).strip()
 
     if len(text) > max_chars:
-        text = text[:max_chars].rstrip() + "\n…(truncated)"
+        text = _trim_to_boundary(text, max_chars)
+        if text and text[-1] not in ".!?…":
+            text = text.rstrip() + "…"
 
     return text
 
@@ -732,6 +762,34 @@ class SlashTalk(commands.Cog):
                             system = system.rstrip() + "\n\n" + _mem_block + "\n"
                     except Exception:
                         logger.debug("Memory block injection skipped", exc_info=True)
+
+            # ---- Connection traits (shard shop; all tiers) ----
+            try:
+                from utils.connection_traits_store import load_profile, build_prompt_context, has_trait
+                from utils.emotion_classifier import classify_emotion
+
+                _cp = await load_profile(user_id=user_id, style_id=effective_style)
+                _purch = _cp.get("purchased") or {}
+                _pload = _cp.get("payload") or {}
+                mtier = (
+                    "permanent"
+                    if has_trait(_purch, "memory_permanent")
+                    else ("semi" if has_trait(_purch, "memory_semi") else "none")
+                )
+                ctx = build_prompt_context(
+                    payload=_pload,
+                    purchased=_purch,
+                    memory_tier=mtier,
+                    max_chars=int(getattr(config, "CONNECTION_CONTEXT_MAX_CHARS", 3500)),
+                )
+                if has_trait(_purch, "emotion_adapt"):
+                    emo = await classify_emotion(prompt)
+                    if emo and emo != "neutral":
+                        ctx = (ctx + "\n\nDetected user emotional tone: " + emo).strip()
+                if ctx:
+                    system = system.rstrip() + "\n\n[Connection profile]\n" + ctx + "\n"
+            except Exception:
+                logger.debug("Connection traits injection skipped", exc_info=True)
 
             # ---- Pro-only short memory ----
             prompt_for_model = prompt

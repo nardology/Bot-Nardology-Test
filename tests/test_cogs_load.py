@@ -20,6 +20,7 @@ EXTENSIONS = [
     "commands.slash.bond",
     "commands.slash.penalty",
     "commands.slash.character",
+    "commands.slash.connection",
     "commands.slash.points",
     "commands.slash.packs",
     "commands.slash.owner",
