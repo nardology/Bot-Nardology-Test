@@ -2165,20 +2165,28 @@ class SlashOwner(commands.Cog):
     @ai_abuse.command(name="list", description="List flagged and restricted users (AI abuse moderation)")
     @_owner_only()
     async def ai_abuse_list(self, interaction: discord.Interaction):
-        from utils.ai_abuse import get_flagged_user_ids, get_restricted_user_ids
+        from utils.ai_abuse import get_flagged_user_ids, get_restricted_user_ids, get_throttle_exempt_user_ids
         from utils.cost_tracker import get_today_cost_cents_user
 
         await interaction.response.defer(ephemeral=True)
         flagged = await get_flagged_user_ids()
         restricted = await get_restricted_user_ids()
+        exempt = await get_throttle_exempt_user_ids()
         lines = ["**AI abuse moderation**"]
         if flagged:
             lines.append(f"\n**Flagged** (high daily cost; auto-throttled if AI_ABUSE_AUTO_THROTTLE=true):")
             for uid in flagged[:25]:
                 cents = await get_today_cost_cents_user(uid)
-                lines.append(f"• <@{uid}> `{uid}` — ${cents/100:.2f} today")
+                ex = " *(throttle exempt)*" if uid in exempt else ""
+                lines.append(f"• <@{uid}> `{uid}` — ${cents/100:.2f} today{ex}")
         else:
             lines.append("\n**Flagged:** (none)")
+        if exempt:
+            lines.append("\n**Throttle exempt** (still flagged/logged; no free-tier downgrade from flag):")
+            for uid in exempt[:25]:
+                lines.append(f"• <@{uid}> `{uid}`")
+        else:
+            lines.append("\n**Throttle exempt:** (none)")
         if restricted:
             lines.append(f"\n**Restricted** (owner-applied free-tier limits):")
             for uid in restricted[:25]:
@@ -2186,6 +2194,40 @@ class SlashOwner(commands.Cog):
         else:
             lines.append("\n**Restricted:** (none)")
         await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
+
+    @ai_abuse.command(
+        name="throttle_exempt_add",
+        description="Whitelist user: no auto free-tier throttle when flagged (logs/flags continue)",
+    )
+    @_owner_only()
+    @app_commands.describe(user_id="Discord user ID")
+    async def ai_abuse_throttle_exempt_add(self, interaction: discord.Interaction, user_id: str):
+        from utils.ai_abuse import set_throttle_exempt
+
+        try:
+            uid = int(user_id.strip())
+        except ValueError:
+            await _ephemeral(interaction, "❌ Provide a numeric Discord user ID.")
+            return
+        await set_throttle_exempt(uid, exempt=True)
+        await _ephemeral(
+            interaction,
+            f"✅ <@{uid}> (`{uid}`) is **throttle exempt**. They can still be flagged; abuse logs unchanged.",
+        )
+
+    @ai_abuse.command(name="throttle_exempt_remove", description="Remove throttle exemption for a user")
+    @_owner_only()
+    @app_commands.describe(user_id="Discord user ID")
+    async def ai_abuse_throttle_exempt_remove(self, interaction: discord.Interaction, user_id: str):
+        from utils.ai_abuse import set_throttle_exempt
+
+        try:
+            uid = int(user_id.strip())
+        except ValueError:
+            await _ephemeral(interaction, "❌ Provide a numeric Discord user ID.")
+            return
+        await set_throttle_exempt(uid, exempt=False)
+        await _ephemeral(interaction, f"✅ Removed throttle exemption for <@{uid}> (`{uid}`).")
 
     @ai_abuse.command(name="restrict", description="Restrict a user to free-tier /talk limits (stops abuse)")
     @_owner_only()

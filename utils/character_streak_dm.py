@@ -148,6 +148,21 @@ async def send_character_streak_dm(
         from utils.ai_client import generate_text
         import config
 
+        # Weekly topic hint (reminder stage): soft inspiration without naming "quest"
+        if stage == "reminder":
+            try:
+                from utils.character_weekly_topics import get_weekly_hint_for_streak_dm  # noqa: WPS433
+
+                hint = await get_weekly_hint_for_streak_dm(user_id, style_id)
+                if hint:
+                    system = (
+                        system
+                        + " Something you might naturally want to bring up (weave in, don't quote): "
+                        + hint[:400]
+                    )
+            except Exception:
+                pass
+
         model = getattr(config, "OPENAI_MODEL_FREE", None) or getattr(config, "OPENAI_MODEL", "gpt-4.1-nano")
 
         result = await generate_text(

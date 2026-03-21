@@ -258,6 +258,8 @@ def character_embed(
     rolls_left: int | None = None,
     per_day: int | None = None,
     badges: str | None = None,
+    pity_legendary: int | None = None,
+    pity_mythic: int | None = None,
 ) -> tuple[discord.Embed, discord.File | None]:
     badge_txt = (badges or "").strip()
     title_suffix = f" — {badge_txt}" if badge_txt else ""
@@ -275,6 +277,18 @@ def character_embed(
     if rolls_left is not None and per_day is not None:
         rarity_val = f"{emoji} **{rarity_title}**\nRolls left: **{max(0, int(rolls_left))} / {int(per_day)}**"
     e.add_field(name="Rarity", value=rarity_val, inline=True)
+
+    if pity_legendary is not None and pity_mythic is not None:
+        try:
+            from utils.pity_display import format_luck_progress_embed_value
+
+            e.add_field(
+                name="Luck progress",
+                value=format_luck_progress_embed_value(int(pity_legendary), int(pity_mythic)),
+                inline=False,
+            )
+        except Exception:
+            pass
 
     f, attach_url = _image_attachment_for_style(s)
     if attach_url:
@@ -1331,7 +1345,14 @@ class SlashCharacter(commands.Cog):
 
                 badge = await badges_for_style_id(rolled.style_id)
                 rolls_left_after = max(0, remaining - 1) if consume_roll_credit else max(0, remaining)
-                e, f = character_embed(rolled, rolls_left=rolls_left_after, per_day=per_day, badges=badge)
+                e, f = character_embed(
+                    rolled,
+                    rolls_left=rolls_left_after,
+                    per_day=per_day,
+                    badges=badge,
+                    pity_legendary=new_pity_leg,
+                    pity_mythic=new_pity_myth,
+                )
                 e.add_field(
                     name="Duplicate!",
                     value=f"You already own this character → **+{dupe_amount}** shards "
@@ -1393,7 +1414,14 @@ class SlashCharacter(commands.Cog):
 
             badge = await badges_for_style_id(rolled.style_id)
             rolls_left_after = max(0, remaining - 1) if consume_roll_credit else max(0, remaining)
-            e, f = character_embed(rolled, rolls_left=rolls_left_after, per_day=per_day, badges=badge)
+            e, f = character_embed(
+                rolled,
+                rolls_left=rolls_left_after,
+                per_day=per_day,
+                badges=badge,
+                pity_legendary=new_pity_leg,
+                pity_mythic=new_pity_myth,
+            )
 
             # Re-check for safety (cheap)
             _state_now = await load_state(user_id=user_id)

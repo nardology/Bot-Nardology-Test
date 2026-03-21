@@ -38,7 +38,13 @@ from utils.media_assets import resolve_embed_image_url, fetch_embed_image_as_fil
 from utils.emotion_predictor import predict_emotion, detect_topics
 from utils.daily_topic import get_or_rotate_daily_topic, topic_bonus_already_claimed, mark_topic_bonus_claimed
 
-from utils.talk_prompts import build_talk_system_prompt, build_active_topic_block, build_awareness_block
+from utils.talk_prompts import (
+    build_talk_system_prompt,
+    build_active_topic_block,
+    build_awareness_block,
+    pick_delivery_mode,
+    format_delivery_mode_instruction,
+)
 from utils.mood_tracker import advance_mood_turn, build_mood_prompt_block, analyze_mood_background
 from utils.world_events import build_world_events_prompt_block
 from utils.world_lore import build_world_context_block, build_reverse_relationships_block
@@ -841,6 +847,15 @@ class SlashTalk(commands.Cog):
             else:
                 effective_max_tokens = ent.max_output_tokens_talk
 
+            # ---- Random delivery mode (tone variety; includes rare refusal beat) ----
+            try:
+                _del_rng = random.Random()
+                _del_rng.seed((int(user_id) ^ int(guild_id) ^ int(time.time() * 1000)) & 0xFFFFFFFF)
+                _dm = pick_delivery_mode(_del_rng)
+                system = (system or "").rstrip() + "\n\n" + format_delivery_mode_instruction(_dm)
+            except Exception:
+                pass
+
             if not _bypass and (system or "").strip():
                 system = (system or "").rstrip() + "\n\n" + TALK_RESPONSE_LIMIT_SYSTEM
 
@@ -1093,6 +1108,38 @@ class SlashTalk(commands.Cog):
                                         await interaction.followup.send("💬 Topic hit! **+65 points**", ephemeral=True)
                                     except Exception:
                                         pass
+            except Exception:
+                pass
+
+            # ---- Weekly character topic bonus (mirror daily topic gates) ----
+            try:
+                from utils.character_weekly_topics import (
+                    ensure_weekly_topics_row,
+                    match_weekly_topic_indices,
+                    claim_weekly_topic_indices,
+                )
+
+                _bundle = await ensure_weekly_topics_row(
+                    user_id=int(user_id),
+                    style_id=str(effective_style or ""),
+                )
+                if _bundle is not None and any(t.get("title") for t in _bundle.topics):
+                    _idxs = match_weekly_topic_indices(prompt, bundle=_bundle)
+                    if _idxs:
+                        pts, _m = await claim_weekly_topic_indices(
+                            guild_id=int(guild_id),
+                            user_id=int(user_id),
+                            style_id=str(effective_style or ""),
+                            indices=_idxs,
+                        )
+                        if pts > 0:
+                            try:
+                                await interaction.followup.send(
+                                    f"💡 Weekly character topic matched! **+{pts} points**",
+                                    ephemeral=True,
+                                )
+                            except Exception:
+                                pass
             except Exception:
                 pass
 

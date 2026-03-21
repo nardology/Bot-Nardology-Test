@@ -367,6 +367,12 @@ class SlashOnlyBot(commands.AutoShardedBot):
         except Exception:
             logger.exception("Failed to start weekly analytics loop")
 
+        try:
+            from utils.character_weekly_topics_loop import start_character_weekly_topics_loop
+            start_character_weekly_topics_loop(self)
+        except Exception:
+            logger.exception("Failed to start character weekly topics loop")
+
         # Background: leaderboard period resets (daily/weekly/monthly)
         try:
             from utils.leaderboard_reset_loop import start_leaderboard_reset_loop

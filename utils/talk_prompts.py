@@ -1,6 +1,7 @@
 # utils/talk_prompts.py
 from __future__ import annotations
 
+import random
 from typing import Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -241,3 +242,66 @@ def build_talk_system_prompt(
         parts.append(topic_block)
 
     return "\n\n".join(parts)
+
+
+# ---------------------------------------------------------------------------
+# Random delivery variety (rare "not in the mood" beat)
+# ---------------------------------------------------------------------------
+
+_DELIVERY_WEIGHTS: list[tuple[str, float]] = [
+    ("micro", 0.18),
+    ("casual", 0.18),
+    ("deep", 0.16),
+    ("high_emotion", 0.16),
+    ("playful_rp", 0.18),
+    ("refusal", 0.07),
+]
+
+
+def pick_delivery_mode(rng: random.Random) -> str:
+    """Weighted delivery mode id for this /talk turn."""
+    r = rng.random()
+    acc = 0.0
+    total = sum(w for _, w in _DELIVERY_WEIGHTS)
+    target = r * total
+    for name, w in _DELIVERY_WEIGHTS:
+        acc += w
+        if target < acc:
+            return name
+    return "casual"
+
+
+def format_delivery_mode_instruction(mode: str) -> str:
+    """Short system addendum; keep persona anchors from the main prompt."""
+    m = (mode or "").strip().lower()
+    blocks = {
+        "micro": (
+            "# Delivery mode (micro)\n"
+            "Keep this exchange like elevator banter: very short, playful, one beat. "
+            "No monologue."
+        ),
+        "casual": (
+            "# Delivery mode (slice-of-life)\n"
+            "Casual, grounded, everyday tone — small observations, natural reactions."
+        ),
+        "deep": (
+            "# Delivery mode (vulnerable, safe)\n"
+            "You may go a touch deeper emotionally, but stay safe-for-work and consensual. "
+            "No trauma dumping; keep it human-sized."
+        ),
+        "high_emotion": (
+            "# Delivery mode (high emotion)\n"
+            "Let feelings show clearly through voice and action beats — still concise."
+        ),
+        "playful_rp": (
+            "# Delivery mode (playful RP)\n"
+            "Lean into playful banter and light roleplay energy; tease a little if it fits."
+        ),
+        "refusal": (
+            "# Delivery mode (stubborn beat)\n"
+            "You're briefly not in the mood for heavy topics: politely decline or deflect once, "
+            "stay kind and in-character (no insults, no harassment). Still offer a small hook "
+            "so the chat can continue."
+        ),
+    }
+    return blocks.get(m, blocks["casual"])

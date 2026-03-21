@@ -383,6 +383,27 @@ try:
             Index("ix_daily_topic_completion_user", "guild_id", "user_id"),
         )
 
+    class CharacterWeeklyTopics(Base):
+        """Per-(guild,user,character,ISO week) AI-generated talk topics."""
+
+        __tablename__ = "character_weekly_topics"
+
+        guild_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+        user_id: Mapped[int] = mapped_column(BigInteger, primary_key=True)
+        style_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+        week_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+
+        topics_json: Mapped[str] = mapped_column(Text, default="[]")
+        keywords_json: Mapped[str] = mapped_column(Text, default="[]")
+        hints_json: Mapped[str] = mapped_column(Text, default="[]")
+        topic_version: Mapped[int] = mapped_column(Integer, default=1)
+        claimed_mask: Mapped[int] = mapped_column(Integer, default=0)
+        generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_char_weekly_topics_user_week", "user_id", "week_id"),
+        )
+
     # ------------------------------------------------------------------
     # Stripe (Phase 6)
     # ------------------------------------------------------------------

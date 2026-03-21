@@ -575,6 +575,19 @@ def list_rollable(
 def _cap(p: float, cap: float = 0.50) -> float:
     return min(max(p, 0.0), cap)
 
+
+def _pity_env_float(name: str, default: str) -> float:
+    import os
+
+    try:
+        return float((os.getenv(name) or default).strip() or default)
+    except ValueError:
+        try:
+            return float(default)
+        except ValueError:
+            return 1.0
+
+
 def choose_rarity(
     *,
     pity_legendary: int,
@@ -603,9 +616,11 @@ def choose_rarity(
     if pity_mythic >= 999:
         return "mythic"
 
-    # Soft-ramp mythic after 200 misses: +0.002% per miss, capped at 1%.
-    mythic_ramp = max(0, pity_mythic - 200) * 0.00002
-    p_mythic = min(base_mythic + mythic_ramp, 0.01)
+    # Soft-ramp mythic after 200 misses: +0.002% per miss, capped at 1% (tunable via env).
+    mythic_ramp_mult = _pity_env_float("PITY_MYTHIC_RAMP_MULT", "1.0")
+    mythic_max_p = _pity_env_float("PITY_MYTHIC_MAX_P", "0.01")
+    mythic_ramp = max(0, pity_mythic - 200) * 0.00002 * mythic_ramp_mult
+    p_mythic = min(base_mythic + mythic_ramp, min(1.0, mythic_max_p))
     if rng.random() < p_mythic:
         return "mythic"
 
@@ -613,9 +628,11 @@ def choose_rarity(
     if pity_legendary >= 99:
         return "legendary"
 
-    # Soft-ramp legendary after 20 misses: +0.05% per miss, capped at 10%.
-    legendary_ramp = max(0, pity_legendary - 20) * 0.0005
-    p_legendary = min(base_legendary + legendary_ramp, 0.10)
+    # Soft-ramp legendary after 20 misses: +0.05% per miss, capped at 10% (tunable via env).
+    leg_ramp_mult = _pity_env_float("PITY_LEGENDARY_RAMP_MULT", "1.0")
+    leg_max_p = _pity_env_float("PITY_LEGENDARY_MAX_P", "0.10")
+    legendary_ramp = max(0, pity_legendary - 20) * 0.0005 * leg_ramp_mult
+    p_legendary = min(base_legendary + legendary_ramp, min(1.0, leg_max_p))
     if rng.random() < p_legendary:
         return "legendary"
 

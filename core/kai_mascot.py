@@ -12,8 +12,8 @@ import discord
 from utils.character_emotion_manifest import ROLL_ANIMATION_UI_BASE
 
 # Pity threshold: only show kaihappy encouragement when user has built up pity (feels "close").
-PITY_LEGENDARY_THRESHOLD = 5
-PITY_MYTHIC_THRESHOLD = 10
+PITY_LEGENDARY_THRESHOLD = 15
+PITY_MYTHIC_THRESHOLD = 25
 
 # Image filenames (case-sensitive on GitHub)
 KAI_START_IMAGE = "start.png"
@@ -123,17 +123,27 @@ def get_kai_daily_claim_message_varied(streak: int) -> str:
 
 
 def get_kai_pity_roll_message(pity_legendary: int = 0, pity_mythic: int = 0) -> str:
-    """When user gets a pity point (rolled but not legendary/mythic). Variants; can mention pity when high."""
+    """When user rolled below legendary. Use progress language, not raw 'pity' as a broken luck meter."""
+    try:
+        from utils.pity_display import kai_pity_message_line
+    except Exception:
+        kai_pity_message_line = None  # type: ignore
+
     variants = [
         "It's been a while since you rolled something rare — "
         "maybe the next one will be an amazing roll! I'm rooting for you!",
         "Your next roll could be the big one — KAI believes in you! Keep going!",
-        "Every roll gets you closer. The next one might just be legendary!",
+        "Every roll nudges your **safety nets** — legendary and mythic odds slowly improve until they pop!",
     ]
     if pity_legendary >= PITY_LEGENDARY_THRESHOLD or pity_mythic >= PITY_MYTHIC_THRESHOLD:
+        progress = (
+            kai_pity_message_line(pity_legendary, pity_mythic)
+            if kai_pity_message_line
+            else "Your luck tracks are warming up — keep going!"
+        )
         high_pity = [
-            f"You're at **{pity_legendary}** pity for legendary — the next one could be it!",
-            "You're so close! KAI can feel it. One more roll!",
+            progress,
+            "You're climbing both **legendary** and **mythic** tracks — KAI can feel it!",
         ]
         variants = high_pity + variants
     return random.choice(variants)

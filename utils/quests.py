@@ -168,6 +168,41 @@ def _period_key(period: str, now: datetime) -> str:
     return _daily_key(now)
 
 
+async def sum_daily_quest_progress_for_day(*, user_id: int, day_key: str) -> int:
+    """Sum progress across all daily quests for a given UTC day (YYYYMMDD), global scope."""
+    if select is None:
+        return 0
+    uid = int(user_id)
+    dk = (day_key or "").strip()
+    if len(dk) != 8:
+        return 0
+    Session = get_sessionmaker()
+    async with Session() as session:
+        try:
+            res = await session.execute(
+                select(QuestProgress)
+                .where(QuestProgress.guild_id == GLOBAL_GUILD_ID)
+                .where(QuestProgress.user_id == uid)
+                .where(QuestProgress.period == "daily")
+                .where(QuestProgress.period_key == dk)
+            )
+            rows = res.scalars().all()
+            return sum(int(getattr(r, "progress", 0) or 0) for r in rows)
+        except Exception:
+            logger.exception("sum_daily_quest_progress_for_day failed")
+            return 0
+
+
+async def sum_daily_quest_progress_today(*, user_id: int) -> int:
+    """Sum progress across all daily quests for today (UTC), global wallet scope.
+
+    Used for weekly character topic eligibility (must exceed 5).
+    """
+    now = _now_utc()
+    day_key = _period_key("daily", now)
+    return await sum_daily_quest_progress_for_day(user_id=int(user_id), day_key=day_key)
+
+
 def _counts_roll(meta: dict | None, *, min_rarity: str) -> bool:
     if not min_rarity:
         return True
@@ -490,6 +525,21 @@ async def claim_all_rewards(*, guild_id: int, user_id: int) -> tuple[int, int, l
     return awarded_total, new_balance, claimed_defs
 
 
+async def build_weekly_character_topics_quest_block(*, user_id: int) -> str | None:
+    """Teaser lines for /points quests (weekly section). Returns None if DB off."""
+    try:
+        from utils.character_store import load_state  # noqa: WPS433
+        from utils.character_weekly_topics import weekly_topics_quest_embed_lines  # noqa: WPS433
+
+        st = await load_state(int(user_id))
+        sid = (getattr(st, "active_style_id", "") or "").strip().lower()
+        lines = await weekly_topics_quest_embed_lines(user_id=int(user_id), style_id=sid or None)
+        return "\n".join(lines)
+    except Exception:
+        logger.debug("build_weekly_character_topics_quest_block failed", exc_info=True)
+        return None
+
+
 async def build_quest_status_embed(*, guild_id: int, user_id: int) -> discord.Embed:
     """Build an embed showing current quest progress. Uses global wallet/progress so balance matches daily."""
     uid = int(user_id)
@@ -564,6 +614,17 @@ async def build_quest_status_embed(*, guild_id: int, user_id: int) -> discord.Em
                     mark_topic = "✅" if done_topic else "▫️"
                     name = f"Daily Topic: {topic.topic_text}"
                     lines.append(f"{mark_topic} **0. {name}** — {1 if done_topic else 0}/1  *(+65)*")
+            except Exception:
+                pass
+
+        if period == "weekly":
+            try:
+                wblock = await build_weekly_character_topics_quest_block(user_id=uid)
+                if wblock:
+                    lines.append("**Weekly character topics** *(via /talk)*")
+                    for line in wblock.split("\n"):
+                        if line.strip():
+                            lines.append(line)
             except Exception:
                 pass
 

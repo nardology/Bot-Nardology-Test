@@ -24,6 +24,7 @@ log = logging.getLogger("ai_abuse")
 
 _PREFIX_FLAGGED = "ai:abuse:flagged:"
 _PREFIX_RESTRICTED = "ai:abuse:restricted:"
+_PREFIX_THROTTLE_EXEMPT = "ai:abuse:throttle_exempt:"
 _PREFIX_CALLS = "ai:abuse:calls:user:"
 _PREFIX_TOKENS = "ai:abuse:tokens:user:"
 _PREFIX_PROMPTS = "ai:abuse:prompts:user:"
@@ -42,6 +43,10 @@ def _key_flagged(user_id: int) -> str:
 
 def _key_restricted(user_id: int) -> str:
     return f"{_PREFIX_RESTRICTED}{int(user_id)}"
+
+
+def _key_throttle_exempt(user_id: int) -> str:
+    return f"{_PREFIX_THROTTLE_EXEMPT}{int(user_id)}"
 
 
 def _key_calls(user_id: int, day_utc: str) -> str:
@@ -242,10 +247,56 @@ async def is_abuse_restricted(user_id: int) -> bool:
         return False
 
 
+async def is_throttle_exempt(user_id: int) -> bool:
+    """If True, auto-throttle from *flagging* does not apply; flagging/logging still runs."""
+    r = await get_redis_or_none()
+    if r is None:
+        return False
+    try:
+        val = await r.get(_key_throttle_exempt(int(user_id)))
+        return val is not None
+    except Exception:
+        return False
+
+
+async def set_throttle_exempt(user_id: int, exempt: bool = True) -> None:
+    """Whitelist user from free-tier downgrade when flagged (owners)."""
+    r = await get_redis_or_none()
+    if r is None:
+        return
+    key = _key_throttle_exempt(int(user_id))
+    if exempt:
+        await r.set(key, "1", ex=_TTL_DAYS * 24 * 3600)
+    else:
+        await r.delete(key)
+
+
+async def get_throttle_exempt_user_ids() -> list[int]:
+    r = await get_redis_or_none()
+    if r is None:
+        return []
+    try:
+        keys = await r.keys(_PREFIX_THROTTLE_EXEMPT + "*")
+        out: list[int] = []
+        for k in keys or []:
+            if isinstance(k, bytes):
+                k = k.decode("utf-8", errors="ignore")
+            try:
+                uid = int(k.replace(_PREFIX_THROTTLE_EXEMPT, ""))
+                out.append(uid)
+            except ValueError:
+                pass
+        return sorted(set(out))
+    except Exception:
+        return []
+
+
 async def should_throttle_user(user_id: int) -> bool:
     """True if this user should be throttled to free-tier limits (flagged + auto_throttle, or restricted)."""
     if await is_abuse_restricted(user_id):
         return True
+    if await is_throttle_exempt(user_id):
+        return False
     if not getattr(config, "AI_ABUSE_AUTO_THROTTLE", True):
         return False
     return await is_abuse_flagged(user_id)
