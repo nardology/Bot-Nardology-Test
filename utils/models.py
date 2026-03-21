@@ -566,10 +566,6 @@ try:
         created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
         updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
 
-        __table_args__ = (
-            Index("ix_global_quest_events_status", "status"),
-        )
-
     class GlobalQuestContribution(Base):
         """Training points per user per character toward an event (guild context for scope)."""
 
