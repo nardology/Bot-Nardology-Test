@@ -33,6 +33,9 @@ def _add_stats_fields(e: discord.Embed, stats: UserStats, *, max_inventory_slots
         badges.append("🏅 90-day")
     if badges:
         e.add_field(name="Streak badges", value=" · ".join(badges), inline=True)
+    ev_badges = getattr(stats, "event_badges", None) or []
+    if ev_badges:
+        e.add_field(name="Event badges", value=" · ".join(str(b) for b in ev_badges[:12]), inline=False)
     if max_inventory_slots is not None:
         e.add_field(
             name="Inventory",

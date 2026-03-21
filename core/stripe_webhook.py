@@ -784,6 +784,18 @@ async def start_webhook_server(bot) -> None:
     except Exception:
         log.exception("Failed to register connection traits routes (non-fatal)")
 
+    try:
+        from core.global_quest_page import register_routes as _register_gq_routes
+        _register_gq_routes(app, bot)
+    except Exception:
+        log.exception("Failed to register global quest routes (non-fatal)")
+
+    try:
+        from utils.global_quest_loop import start_global_quest_loop
+        start_global_quest_loop()
+    except Exception:
+        log.exception("Failed to start global quest loop (non-fatal)")
+
     port = int(os.getenv("PORT", "8080"))
     runner = web.AppRunner(app)
     await runner.setup()

@@ -458,6 +458,7 @@ EXTENSIONS = [
     "commands.slash.recommend",
     "commands.slash.lore",
     "commands.slash.about",
+    "commands.slash.global_quest",
 ]
 
 logger.info("EXTENSIONS tuple: %r", EXTENSIONS)

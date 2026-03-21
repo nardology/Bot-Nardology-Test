@@ -35,6 +35,8 @@ class UserStats:
     streak_badge_30: bool = False
     streak_badge_60: bool = False
     streak_badge_90: bool = False
+    # Event / quest badges (same display style as streak badges)
+    event_badges: list[str] = field(default_factory=list)
 
 
 def _format_character_name(style_id: str) -> str:
@@ -62,6 +64,13 @@ async def get_user_stats(user_id: int, guild_id: int = 0) -> UserStats:
         stats.streak_badge_30 = bool(getattr(w, "streak_badge_30", False))
         stats.streak_badge_60 = bool(getattr(w, "streak_badge_60", False))
         stats.streak_badge_90 = bool(getattr(w, "streak_badge_90", False))
+    except Exception:
+        pass
+
+    try:
+        from utils.global_quest import list_user_badges
+
+        stats.event_badges = await list_user_badges(user_id=uid, limit=15)
     except Exception:
         pass
 

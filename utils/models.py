@@ -11,7 +11,7 @@ from typing import Any
 
 try:
     from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship  # type: ignore
-    from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, Text, ForeignKey, Index  # type: ignore
+    from sqlalchemy import String, Integer, BigInteger, Boolean, DateTime, Text, ForeignKey, Index, UniqueConstraint  # type: ignore
     from datetime import datetime, timezone
 
     class Base(DeclarativeBase):
@@ -529,6 +529,86 @@ try:
         updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
 
         __table_args__ = (Index("ix_conn_profile_user", "user_id"),)
+
+    # ------------------------------------------------------------------
+    # Global monthly quest (team training)
+    # ------------------------------------------------------------------
+
+    class GlobalQuestEvent(Base):
+        """Server-wide or global community event with training-point progress."""
+
+        __tablename__ = "global_quest_events"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+        title: Mapped[str] = mapped_column(String(200), nullable=False)
+        description: Mapped[str] = mapped_column(Text, default="")
+        image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+        image_url_secondary: Mapped[str | None] = mapped_column(Text, nullable=True)
+        # "global" | "guild"
+        scope: Mapped[str] = mapped_column(String(16), default="global")
+        guild_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True, index=True)
+
+        starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+        ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+        target_training_points: Mapped[int] = mapped_column(BigInteger(), default=100_000)
+        character_multipliers_json: Mapped[str] = mapped_column(Text, default="{}")
+        # draft | active | completed_success | completed_fail | cancelled
+        status: Mapped[str] = mapped_column(String(24), default="draft", index=True)
+
+        reward_points: Mapped[int] = mapped_column(Integer, default=0)
+        failure_points: Mapped[int] = mapped_column(Integer, default=0)
+        success_badge_emoji: Mapped[str | None] = mapped_column(String(16), nullable=True)
+        success_badge_label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+        grant_success_badge: Mapped[bool] = mapped_column(Boolean, default=True)
+        resolution_applied: Mapped[bool] = mapped_column(Boolean, default=False)
+
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_global_quest_events_status", "status"),
+        )
+
+    class GlobalQuestContribution(Base):
+        """Training points per user per character toward an event (guild context for scope)."""
+
+        __tablename__ = "global_quest_contributions"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        event_id: Mapped[int] = mapped_column(Integer, ForeignKey("global_quest_events.id", ondelete="CASCADE"), nullable=False)
+        guild_id: Mapped[int] = mapped_column(BigInteger, nullable=False)
+        user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+        style_id: Mapped[str] = mapped_column(String(64), nullable=False)
+        training_points: Mapped[int] = mapped_column(BigInteger(), default=0)
+        updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_gq_contrib_event", "event_id"),
+            UniqueConstraint(
+                "event_id",
+                "guild_id",
+                "user_id",
+                "style_id",
+                name="uq_gq_contrib_event_guild_user_style",
+            ),
+        )
+
+    class UserProfileBadge(Base):
+        """Custom badges shown on /inspect (e.g. global quest rewards)."""
+
+        __tablename__ = "user_profile_badges"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        user_id: Mapped[int] = mapped_column(BigInteger, nullable=False, index=True)
+        badge_key: Mapped[str] = mapped_column(String(128), nullable=False)
+        display_text: Mapped[str] = mapped_column(String(200), nullable=False)
+        source_event_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("global_quest_events.id", ondelete="SET NULL"), nullable=True)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            UniqueConstraint("user_id", "badge_key", name="uq_user_profile_badges_user_key"),
+        )
 
     # ------------------------------------------------------------------
     # Phase 6b: Persistent Memory Anchors

@@ -1212,6 +1212,19 @@ class SlashTalk(commands.Cog):
                 gained = max(0, int(new_xp or 0) - int(old_xp or 0))
                 bond_footer = f"Bond: Lvl {new_level} ({title}) • +{gained} XP"
                 milestone_hit = _milestone_crossed(old_level, new_level)
+
+                try:
+                    from utils.global_quest import record_training_from_talk
+
+                    await record_training_from_talk(
+                        guild_id=int(guild_id),
+                        user_id=int(user_id),
+                        style_id=str(effective_style or ""),
+                        selected_style_id=str(selected_style_id or ""),
+                        bond_xp_gained=int(gained),
+                    )
+                except Exception:
+                    pass
                 
                 # Update leaderboard for bond XP (global + server)
                 try:

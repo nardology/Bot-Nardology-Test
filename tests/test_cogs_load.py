@@ -35,6 +35,7 @@ EXTENSIONS = [
     "commands.slash.premium",
     "commands.slash.privacy",
     "commands.slash.tutorial",
+    "commands.slash.global_quest",
 ]
 
 

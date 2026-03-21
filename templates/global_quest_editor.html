@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Global quest editor</title>
+<style>
+  :root { --bg:#0d1117; --card:#161b22; --border:#30363d; --accent:#e94560; --text:#e6edf3; --muted:#8b949e; }
+  body { font-family: system-ui, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 24px; max-width: 900px; margin-left: auto; margin-right: auto; }
+  h1 { font-size: 1.2rem; }
+  label { display: block; margin-top: 12px; color: var(--muted); font-size: 0.85rem; }
+  input, textarea, select { width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: #0f0f14; color: var(--text); }
+  textarea { min-height: 80px; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
+  button { background: var(--accent); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; margin: 8px 8px 0 0; }
+  button.secondary { background: #444; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 16px 0; }
+  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); margin-top: 8px; }
+  .drop.drag { border-color: var(--accent); }
+  .preview img { max-width: 100%; max-height: 160px; border-radius: 8px; margin-top: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
+  a { color: #7c89ff; }
+</style>
+<script>/*__INJECT__*/</script>
+</head>
+<body>
+  <h1>Monthly global quest</h1>
+  <p style="color:var(--muted)">Owner-only. Training points come from <strong>/talk</strong> with your <strong>selected</strong> character (bond XP increases training).</p>
+  <p><a id="public-link" href="#" target="_blank">Open public status page</a></p>
+  <div class="card">
+    <h2 style="font-size:1rem;margin:0 0 12px;">Saved events</h2>
+    <div id="list-wrap"><p class="muted">Loading…</p></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:1rem;margin:0 0 12px;">Edit</h2>
+    <input type="hidden" id="f-id" value=""/>
+    <label>Slug (URL id)</label>
+    <input id="f-slug" placeholder="winter-raid-2026"/>
+    <label>Title</label>
+    <input id="f-title"/>
+    <label>Description</label>
+    <textarea id="f-desc"></textarea>
+    <div class="row">
+      <div>
+        <label>Scope</label>
+        <select id="f-scope"><option value="global">Global (all servers)</option><option value="guild">Single server</option></select>
+      </div>
+      <div>
+        <label>Server ID (guild scope only)</label>
+        <input id="f-guild-id" placeholder="1455356537383157914"/>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Starts at (ISO UTC)</label>
+        <input id="f-start" placeholder="2026-04-01T00:00:00+00:00"/>
+      </div>
+      <div>
+        <label>Ends at (ISO UTC)</label>
+        <input id="f-end" placeholder="2026-04-30T23:59:59+00:00"/>
+      </div>
+    </div>
+    <label>Target training points (community)</label>
+    <input id="f-target" type="number" value="100000"/>
+    <label>Character multipliers (JSON: style_id → number)</label>
+    <textarea id="f-mult" placeholder='{"fun": 1.5, "serious": 2}'></textarea>
+    <div class="row">
+      <div>
+        <label>Reward points (contributors on success)</label>
+        <input id="f-reward" type="number" value="100"/>
+      </div>
+      <div>
+        <label>Failure points (contributors if time runs out)</label>
+        <input id="f-fail" type="number" value="0"/>
+      </div>
+    </div>
+    <div class="row">
+      <div>
+        <label>Success badge emoji</label>
+        <input id="f-badge-emoji" value="🏆"/>
+      </div>
+      <div>
+        <label>Success badge label</label>
+        <input id="f-badge-label" placeholder="Raid hero"/>
+      </div>
+    </div>
+    <label><input type="checkbox" id="f-grant-badge" checked/> Grant badge to all contributors on success</label>
+    <label>Image URL (optional)</label>
+    <input id="f-img" placeholder="https://..."/>
+    <div class="drop" id="drop1">Drag &amp; drop an image here — copy URL to field above or host elsewhere.</div>
+    <div class="preview" id="preview1"></div>
+    <label>Secondary image URL (optional)</label>
+    <input id="f-img2"/>
+    <div class="drop" id="drop2">Drag &amp; drop second image</div>
+    <div class="preview" id="preview2"></div>
+    <button type="button" id="btn-save">Save draft</button>
+    <button type="button" class="secondary" id="btn-act">Activate (deactivates other events)</button>
+    <p id="msg" style="color:var(--muted)"></p>
+  </div>
+  <script>
+(function () {
+  const token = typeof window.__ADMIN_TOKEN__ !== 'undefined' ? window.__ADMIN_TOKEN__ : '';
+  const base = typeof window.__PUBLIC_BASE__ !== 'undefined' ? window.__PUBLIC_BASE__ : '';
+  const q = () => '?token=' + encodeURIComponent(token);
+  function setMsg(t) { document.getElementById('msg').textContent = t || ''; }
+  function setupDrop(elDrop, elUrl, elPrev) {
+    if (!elDrop) return;
+    ['dragenter','dragover'].forEach(ev => elDrop.addEventListener(ev, e => { e.preventDefault(); elDrop.classList.add('drag'); }));
+    ['dragleave','drop'].forEach(ev => elDrop.addEventListener(ev, e => { e.preventDefault(); elDrop.classList.remove('drag'); }));
+    elDrop.addEventListener('drop', e => {
+      const f = e.dataTransfer.files[0];
+      if (!f || !f.type.startsWith('image/')) return;
+      const r = new FileReader();
+      r.onload = () => {
+        elUrl.value = r.result;
+        elPrev.innerHTML = '<img src="'+r.result+'" alt="preview"/>';
+      };
+      r.readAsDataURL(f);
+    });
+  }
+  setupDrop(document.getElementById('drop1'), document.getElementById('f-img'), document.getElementById('preview1'));
+  setupDrop(document.getElementById('drop2'), document.getElementById('f-img2'), document.getElementById('preview2'));
+  document.getElementById('public-link').href = base + '/global-quest';
+  async function loadList() {
+    try {
+      const r = await fetch('/api/admin/global-quest/events' + q());
+      if (!r.ok) throw new Error('auth');
+      const rows = await r.json();
+      if (!Array.isArray(rows) || rows.length === 0) {
+        document.getElementById('list-wrap').innerHTML = '<p class="muted">No events yet.</p>';
+        return;
+      }
+      document.getElementById('list-wrap').innerHTML = '<table><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Scope</th></tr></thead><tbody>' +
+        rows.map(x => '<tr data-id="'+x.id+'" style="cursor:pointer"><td>'+x.id+'</td><td>'+escapeHtml(x.title)+'</td><td>'+escapeHtml(x.status)+'</td><td>'+escapeHtml(x.scope)+(x.guild_id? ' '+x.guild_id:'')+'</td></tr>').join('') +
+        '</tbody></table><p class="muted">Click a row to load.</p>';
+      document.querySelectorAll('#list-wrap tbody tr').forEach(tr => {
+        tr.addEventListener('click', () => fillForm(rows.find(r => r.id === parseInt(tr.dataset.id, 10))));
+      });
+    } catch (e) {
+      document.getElementById('list-wrap').innerHTML = '<p>Failed to load (token?).</p>';
+    }
+  }
+  function fillForm(x) {
+    if (!x) return;
+    document.getElementById('f-id').value = x.id;
+    document.getElementById('f-slug').value = x.slug || '';
+    document.getElementById('f-title').value = x.title || '';
+    document.getElementById('f-desc').value = x.description || '';
+    document.getElementById('f-scope').value = x.scope || 'global';
+    document.getElementById('f-guild-id').value = x.guild_id != null ? x.guild_id : '';
+    document.getElementById('f-start').value = x.starts_at || '';
+    document.getElementById('f-end').value = x.ends_at || '';
+    document.getElementById('f-target').value = x.target_training_points || 100000;
+    document.getElementById('f-mult').value = JSON.stringify(x.character_multipliers || {}, null, 2);
+    document.getElementById('f-reward').value = x.reward_points || 0;
+    document.getElementById('f-fail').value = x.failure_points || 0;
+    document.getElementById('f-badge-emoji').value = x.success_badge_emoji || '🏆';
+    document.getElementById('f-badge-label').value = x.success_badge_label || '';
+    document.getElementById('f-grant-badge').checked = x.grant_success_badge !== false;
+    document.getElementById('f-img').value = x.image_url || '';
+    document.getElementById('f-img2').value = x.image_url_secondary || '';
+    setMsg('Loaded event #' + x.id);
+  }
+  function escapeHtml(s) {
+    const d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+  function collect() {
+    let mult = {};
+    try { mult = JSON.parse(document.getElementById('f-mult').value || '{}'); } catch (e) { throw new Error('Invalid JSON in multipliers'); }
+    const gid = document.getElementById('f-guild-id').value.trim();
+    return {
+      id: document.getElementById('f-id').value ? parseInt(document.getElementById('f-id').value, 10) : null,
+      slug: document.getElementById('f-slug').value.trim(),
+      title: document.getElementById('f-title').value.trim(),
+      description: document.getElementById('f-desc').value,
+      scope: document.getElementById('f-scope').value,
+      guild_id: gid ? parseInt(gid, 10) : null,
+      starts_at: document.getElementById('f-start').value.trim() || null,
+      ends_at: document.getElementById('f-end').value.trim() || null,
+      target_training_points: parseInt(document.getElementById('f-target').value, 10) || 100000,
+      character_multipliers: mult,
+      reward_points: parseInt(document.getElementById('f-reward').value, 10) || 0,
+      failure_points: parseInt(document.getElementById('f-fail').value, 10) || 0,
+      success_badge_emoji: document.getElementById('f-badge-emoji').value,
+      success_badge_label: document.getElementById('f-badge-label').value,
+      grant_success_badge: document.getElementById('f-grant-badge').checked,
+      image_url: document.getElementById('f-img').value.trim() || null,
+      image_url_secondary: document.getElementById('f-img2').value.trim() || null,
+    };
+  }
+  document.getElementById('btn-save').addEventListener('click', async () => {
+    try {
+      const body = collect();
+      const r = await fetch('/api/admin/global-quest/save' + q(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'save failed');
+      document.getElementById('f-id').value = j.id;
+      setMsg('Saved id ' + j.id);
+      loadList();
+    } catch (e) { setMsg(e.message); }
+  });
+  document.getElementById('btn-act').addEventListener('click', async () => {
+    const id = document.getElementById('f-id').value;
+    if (!id) { setMsg('Save first'); return; }
+    try {
+      const r = await fetch('/api/admin/global-quest/activate' + q(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: parseInt(id, 10) }) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'activate failed');
+      setMsg('Activated');
+      loadList();
+    } catch (e) { setMsg(e.message); }
+  });
+  loadList();
+})();
+  </script>
+</body>
+</html>

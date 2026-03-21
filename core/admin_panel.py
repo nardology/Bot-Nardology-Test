@@ -156,6 +156,26 @@ async def handle_api_analytics_overview(request: web.Request) -> web.Response:
         return web.json_response({"error": str(e)}, status=500)
 
 
+async def handle_api_analytics_spending(request: web.Request) -> web.Response:
+    """GET /api/admin/analytics/spending?token=... — AI spend by period + projections."""
+    _, err = _require_admin_token(request, json_response=True)
+    if err is not None:
+        return err
+    series = request.query.get("series_days", "90")
+    try:
+        series_days = max(7, min(int(series or "90"), 365))
+    except (ValueError, TypeError):
+        series_days = 90
+    try:
+        from utils.dashboard_queries import get_spending_dashboard
+
+        data = await get_spending_dashboard(series_days=series_days)
+        return web.json_response(data)
+    except Exception as e:
+        log.exception("analytics spending failed: %s", e)
+        return web.json_response({"error": str(e)}, status=500)
+
+
 async def handle_api_analytics_retention(request: web.Request) -> web.Response:
     """GET /api/admin/analytics/retention?token=... — retention stats."""
     _, err = _require_admin_token(request, json_response=True)
@@ -223,6 +243,7 @@ def register_routes(app: web.Application, bot) -> None:
     app.router.add_get("/api/admin/servers", handle_api_servers)
     app.router.add_get("/api/admin/limits", handle_api_limits)
     app.router.add_get("/api/admin/analytics/overview", handle_api_analytics_overview)
+    app.router.add_get("/api/admin/analytics/spending", handle_api_analytics_spending)
     app.router.add_get("/api/admin/analytics/retention", handle_api_analytics_retention)
     app.router.add_get("/api/admin/reports", handle_api_reports)
     app.router.add_get("/api/admin/abuse/flagged", handle_api_abuse_flagged)

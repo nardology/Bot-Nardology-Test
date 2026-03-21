@@ -545,6 +545,28 @@ class SlashOwner(commands.Cog):
                 ephemeral=True,
             )
 
+    @owner.command(name="global_quest_link", description="Magic link to edit the monthly global quest (owner only)")
+    @_owner_only()
+    async def owner_global_quest_link(self, interaction: discord.Interaction):
+        base = (getattr(config, "BASE_URL") or "").strip().rstrip("/")
+        if not base:
+            await _ephemeral(interaction, "Set **BASE_URL** in the environment.")
+            return
+        from core.recommendations import generate_token
+
+        token = generate_token(int(interaction.user.id), "admin")
+        url = f"{base}/global-quest/edit?token={token}"
+        await _ephemeral(interaction, "Check your DMs for the global quest editor link.")
+        try:
+            await interaction.user.send(
+                "**Global quest editor** (valid 30 days):\n" + url + "\n\nPublic page: " + base + "/global-quest"
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't DM you. Use this link (do not share):\n" + url,
+                ephemeral=True,
+            )
+
     # ----------------------------
     # /owner packs ...
     # ----------------------------

@@ -362,6 +362,183 @@ async def get_inactive_users(*, active_min_days: int = 3, inactive_days: int = 7
         return InactiveUserStats(0, [])
 
 
+async def _sum_metric_global_days(*, metric: str, day_list: list[str]) -> int:
+    """Sum metric values across all guilds for the given UTC days."""
+    if select is None or func is None:
+        return 0
+    if not day_list:
+        return 0
+    try:
+        from utils.models import AnalyticsDailyMetric
+
+        Session = get_sessionmaker()
+        async with Session() as session:
+            row = (
+                await session.execute(
+                    select(func.sum(AnalyticsDailyMetric.value)).where(
+                        AnalyticsDailyMetric.metric == metric,
+                        AnalyticsDailyMetric.day_utc.in_(day_list),
+                    )
+                )
+            ).scalar()
+            return int(row or 0)
+    except Exception as e:
+        logger.exception("_sum_metric_global_days failed: %s", e)
+        return 0
+
+
+def _day_list_last_n_days(*, now_ts: int, n: int) -> list[str]:
+    """UTC YYYYMMDD for today and the previous n-1 days (n days total)."""
+    return [utc_day_str(now_ts - 86400 * i) for i in range(max(1, n))]
+
+
+async def get_spending_dashboard(*, series_days: int = 90) -> dict[str, Any]:
+    """AI spend (tokens → USD) by period + simple projections. Uses analytics_daily_metrics.
+
+    Covers token-budget totals (same basis as existing AI cost estimates). Does not include
+    Stripe fees or other vendors unless you extend metrics.
+    """
+    import os
+
+    from utils.analytics import METRIC_DAILY_AI_CALLS, METRIC_DAILY_AI_TOKEN_BUDGET
+    from datetime import datetime, timezone
+    import calendar
+    import time as time_mod
+
+    now_ts = int(time_mod.time())
+    today = utc_day_str(now_ts)
+
+    tok_today = await _sum_metric_global_days(metric=METRIC_DAILY_AI_TOKEN_BUDGET, day_list=[today])
+    calls_today = await _sum_metric_global_days(metric=METRIC_DAILY_AI_CALLS, day_list=[today])
+
+    days_7 = _day_list_last_n_days(now_ts=now_ts, n=7)
+    days_30 = _day_list_last_n_days(now_ts=now_ts, n=30)
+    days_365 = _day_list_last_n_days(now_ts=now_ts, n=365)
+
+    tok_7 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_TOKEN_BUDGET, day_list=days_7)
+    tok_30 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_TOKEN_BUDGET, day_list=days_30)
+    tok_365 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_TOKEN_BUDGET, day_list=days_365)
+
+    calls_7 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_CALLS, day_list=days_7)
+    calls_30 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_CALLS, day_list=days_30)
+    calls_365 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_CALLS, day_list=days_365)
+
+    usd_today = estimate_ai_cost_usd_from_tokens(tok_today)
+    usd_7 = estimate_ai_cost_usd_from_tokens(tok_7)
+    usd_30 = estimate_ai_cost_usd_from_tokens(tok_30)
+    usd_365 = estimate_ai_cost_usd_from_tokens(tok_365)
+
+    avg_daily_7 = usd_7 / 7.0
+    avg_daily_30 = usd_30 / 30.0
+
+    # Previous week (days 8–14) for simple trend
+    days_prev_7 = [utc_day_str(now_ts - 86400 * i) for i in range(7, 14)]
+    tok_prev_7 = await _sum_metric_global_days(metric=METRIC_DAILY_AI_TOKEN_BUDGET, day_list=days_prev_7)
+    usd_prev_7 = estimate_ai_cost_usd_from_tokens(tok_prev_7)
+    avg_daily_prev_7 = usd_prev_7 / 7.0
+    week_over_week_pct: float | None = None
+    if avg_daily_prev_7 > 0:
+        week_over_week_pct = round((avg_daily_7 - avg_daily_prev_7) / avg_daily_prev_7 * 100.0, 1)
+
+    # Projections (linear from recent averages)
+    proj = {
+        "from_7d_avg_usd_per_day": round(avg_daily_7, 6),
+        "next_7d_usd": round(avg_daily_7 * 7, 4),
+        "next_30d_usd": round(avg_daily_7 * 30, 4),
+        "next_365d_usd": round(avg_daily_7 * 365, 4),
+        "from_30d_avg_usd_per_day": round(avg_daily_30, 6),
+        "next_365d_usd_from_30d_avg": round(avg_daily_30 * 365, 4),
+    }
+
+    # Rest of calendar month (UTC), starting tomorrow
+    now_dt = datetime.now(timezone.utc)
+    last_d = calendar.monthrange(now_dt.year, now_dt.month)[1]
+    days_after_today = max(0, last_d - now_dt.day)
+    proj["rest_of_month_usd_from_7d_avg"] = round(avg_daily_7 * days_after_today, 4)
+    proj["days_remaining_in_month_utc"] = days_after_today
+
+    # Daily series for chart (token + usd per day)
+    n_series = max(7, min(int(series_days), 365))
+    series_days_list = _day_list_last_n_days(now_ts=now_ts, n=n_series)
+    series: list[dict[str, Any]] = []
+    try:
+        from utils.models import AnalyticsDailyMetric
+
+        if select is not None:
+            Session = get_sessionmaker()
+            async with Session() as session:
+                rows = (
+                    await session.execute(
+                        select(AnalyticsDailyMetric.day_utc, func.sum(AnalyticsDailyMetric.value))
+                        .where(AnalyticsDailyMetric.metric == METRIC_DAILY_AI_TOKEN_BUDGET)
+                        .where(AnalyticsDailyMetric.day_utc.in_(series_days_list))
+                        .group_by(AnalyticsDailyMetric.day_utc)
+                    )
+                ).all()
+                by_day = {str(d): int(v or 0) for d, v in rows}
+                for i in range(n_series - 1, -1, -1):
+                    d = utc_day_str(now_ts - 86400 * i)
+                    t = int(by_day.get(d, 0))
+                    series.append(
+                        {
+                            "day_utc": d,
+                            "tokens_budget": t,
+                            "estimated_usd": round(estimate_ai_cost_usd_from_tokens(t), 6),
+                        }
+                    )
+    except Exception as e:
+        logger.exception("spending series failed: %s", e)
+
+    try:
+        price_1k = float(os.getenv("AI_COST_PER_1K_TOKENS", "0.002"))
+    except Exception:
+        price_1k = 0.002
+
+    return {
+        "currency": "USD",
+        "basis": "OpenAI-style token budget totals (METRIC_DAILY_AI_TOKEN_BUDGET); est. using AI_COST_PER_1K_TOKENS.",
+        "price_per_1k_tokens": price_1k,
+        "periods": {
+            "daily": {
+                "day_utc": today,
+                "tokens_budget": tok_today,
+                "ai_calls": calls_today,
+                "estimated_usd": round(usd_today, 6),
+            },
+            "weekly": {
+                "days": 7,
+                "tokens_budget": tok_7,
+                "ai_calls": calls_7,
+                "estimated_usd": round(usd_7, 4),
+                "avg_daily_usd": round(avg_daily_7, 6),
+            },
+            "monthly": {
+                "days": 30,
+                "tokens_budget": tok_30,
+                "ai_calls": calls_30,
+                "estimated_usd": round(usd_30, 4),
+                "avg_daily_usd": round(avg_daily_30, 6),
+            },
+            "yearly": {
+                "days": 365,
+                "tokens_budget": tok_365,
+                "ai_calls": calls_365,
+                "estimated_usd": round(usd_365, 4),
+            },
+        },
+        "trend": {
+            "avg_daily_usd_prior_7d": round(avg_daily_prev_7, 6),
+            "week_over_week_avg_daily_pct": week_over_week_pct,
+        },
+        "projections": proj,
+        "disclaimer": (
+            "Forecasts assume usage stays near recent averages. Stripe/hosting/other costs are not included "
+            "unless you add metrics for them."
+        ),
+        "series_last_days": series,
+    }
+
+
 async def get_churn_stats(*, guild_ids: list[int] | None = None) -> ChurnStats:
     """Guilds with declining activity, trials ended."""
     if select is None or func is None:

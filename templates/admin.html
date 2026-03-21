@@ -79,6 +79,7 @@
         <li><button type="button" data-panel="servers">Servers</button></li>
         <li><button type="button" data-panel="limits">Limits</button></li>
         <li><button type="button" data-panel="analytics">Analytics</button></li>
+        <li><button type="button" data-panel="spending">Spending</button></li>
         <li><button type="button" data-panel="reports">Reports</button></li>
         <li><button type="button" data-panel="abuse">Abuse</button></li>
       </ul>
@@ -106,6 +107,21 @@
       <div class="card">
         <h3>Retention (cohorts)</h3>
         <div id="analytics-retention"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+    <div id="panel-spending" class="panel">
+      <div class="card">
+        <h3>AI spend (estimated)</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;" id="spending-basis">Loading…</p>
+        <div id="spending-periods"><p class="empty">Loading…</p></div>
+      </div>
+      <div class="card">
+        <h3>Forecasts &amp; trends</h3>
+        <div id="spending-projections"><p class="empty">Loading…</p></div>
+      </div>
+      <div class="card">
+        <h3>Daily history (recent)</h3>
+        <div id="spending-series"><p class="empty">Loading…</p></div>
       </div>
     </div>
     <div id="panel-reports" class="panel">
@@ -186,6 +202,56 @@
   });
   document.querySelector('.tabs button[data-panel="analytics"]').classList.add('active');
   document.getElementById('panel-analytics').classList.add('active');
+
+  async function loadSpending() {
+    try {
+      const data = await fetchJSON('/api/admin/analytics/spending' + q() + '&series_days=90');
+      if (!data) return;
+      const basis = document.getElementById('spending-basis');
+      basis.textContent = (data.basis || '') + ' — Price: $' + Number(data.price_per_1k_tokens || 0).toFixed(4) + ' / 1k tokens (AI_COST_PER_1K_TOKENS).';
+      const p = data.periods || {};
+      const fmtUsd = (x) => (x != null && !isNaN(x) ? '$' + Number(x).toFixed(4) : '—');
+      const periodsEl = document.getElementById('spending-periods');
+      periodsEl.innerHTML =
+        '<div class="card-grid">' +
+        '<div class="stat"><span class="stat-value">' + fmtUsd(p.daily && p.daily.estimated_usd) + '</span><span class="stat-label">Today (UTC) — AI est.</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (p.daily && p.daily.ai_calls != null ? p.daily.ai_calls : '—') + '</span><span class="stat-label">AI calls today</span></div>' +
+        '<div class="stat"><span class="stat-value">' + fmtUsd(p.weekly && p.weekly.estimated_usd) + '</span><span class="stat-label">Last 7 days</span></div>' +
+        '<div class="stat"><span class="stat-value">' + fmtUsd(p.monthly && p.monthly.estimated_usd) + '</span><span class="stat-label">Last 30 days</span></div>' +
+        '<div class="stat"><span class="stat-value">' + fmtUsd(p.yearly && p.yearly.estimated_usd) + '</span><span class="stat-label">Last 365 days</span></div>' +
+        '<div class="stat"><span class="stat-value">' + (p.weekly && p.weekly.tokens_budget != null ? p.weekly.tokens_budget : '—') + '</span><span class="stat-label">Token budget (7d)</span></div>' +
+        '</div>';
+      const proj = data.projections || {};
+      const tr = data.trend || {};
+      const wow = tr.week_over_week_avg_daily_pct;
+      const projEl = document.getElementById('spending-projections');
+      projEl.innerHTML =
+        '<p style="color:var(--text-muted);margin-bottom:12px;">' + escapeHtml(data.disclaimer || '') + '</p>' +
+        '<table><tbody>' +
+        '<tr><th style="width:40%">Avg $/day (last 7d)</th><td>' + fmtUsd(proj.from_7d_avg_usd_per_day) + '</td></tr>' +
+        '<tr><th>Projected next 30d (from 7d avg)</th><td>' + fmtUsd(proj.next_30d_usd) + '</td></tr>' +
+        '<tr><th>Projected next 365d (from 7d avg)</th><td>' + fmtUsd(proj.next_365d_usd) + '</td></tr>' +
+        '<tr><th>Avg $/day (last 30d)</th><td>' + fmtUsd(proj.from_30d_avg_usd_per_day) + '</td></tr>' +
+        '<tr><th>Projected next 365d (from 30d avg)</th><td>' + fmtUsd(proj.next_365d_usd_from_30d_avg) + '</td></tr>' +
+        '<tr><th>Est. rest of month (UTC, after today)</th><td>' + fmtUsd(proj.rest_of_month_usd_from_7d_avg) + ' <span style="color:var(--text-muted)">(' + (proj.days_remaining_in_month_utc || 0) + ' days)</span></td></tr>' +
+        '<tr><th>Prior 7d avg vs current 7d</th><td>' + (wow != null ? (wow > 0 ? '+' : '') + wow + '% avg daily' : '—') + '</td></tr>' +
+        '</tbody></table>';
+      const ser = Array.isArray(data.series_last_days) ? data.series_last_days : [];
+      const tail = ser.slice(-21);
+      const seriesEl = document.getElementById('spending-series');
+      if (tail.length === 0) {
+        seriesEl.innerHTML = '<p class="empty">No daily series yet (flush analytics to Postgres).</p>';
+      } else {
+        seriesEl.innerHTML = '<table><thead><tr><th>Day (UTC)</th><th>Token budget</th><th>Est. USD</th></tr></thead><tbody>' +
+          tail.map(function (row) {
+            return '<tr><td><code>' + escapeHtml(String(row.day_utc || '')) + '</code></td><td>' + escapeHtml(String(row.tokens_budget != null ? row.tokens_budget : '')) + '</td><td>' + fmtUsd(row.estimated_usd) + '</td></tr>';
+          }).join('') +
+          '</tbody></table><p style="margin-top:8px;color:var(--text-muted);font-size:0.85rem;">Showing last ' + tail.length + ' days of ' + ser.length + ' loaded.</p>';
+      }
+    } catch (e) {
+      document.getElementById('spending-periods').innerHTML = '<p class="empty">Error: ' + escapeHtml(e.message) + '</p>';
+    }
+  }
 
   async function loadServers() {
     try {
@@ -328,6 +394,7 @@
   loadServers();
   loadLimits();
   loadAnalytics();
+  loadSpending();
   loadReports();
   loadAbuse();
 })();
