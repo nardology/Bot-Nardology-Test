@@ -1,4 +1,4 @@
-"""Global / guild-scoped monthly quest: training points from /talk + bond XP."""
+"""Global / guild-scoped monthly quest: training from /talk (guild vs global formulas in _apply_training_delta)."""
 from __future__ import annotations
 
 import json
@@ -236,6 +236,7 @@ async def record_training_from_talk(
     style_id: str,
     selected_style_id: str,
     bond_xp_gained: int,
+    bond_level: int | None = None,
 ) -> None:
     """Award training when user talks with their selected owned character."""
     sid = (style_id or "").strip().lower()
@@ -259,6 +260,7 @@ async def record_training_from_talk(
             user_id=int(user_id),
             style_id=sid,
             bond_xp_gained=int(bond_xp_gained),
+            bond_level=int(bond_level) if bond_level is not None else None,
         )
     except Exception:
         logger.debug("training event failed", exc_info=True)
@@ -271,6 +273,7 @@ async def _apply_training_delta(
     user_id: int,
     style_id: str,
     bond_xp_gained: int,
+    bond_level: int | None = None,
 ) -> None:
     from utils.models import GlobalQuestContribution
 
@@ -278,8 +281,18 @@ async def _apply_training_delta(
     mult = _parse_multipliers(getattr(event, "character_multipliers_json", None)).get(
         style_id, 1.0
     )
-    base = 1 + max(0, min(50, int(bond_xp_gained)))
-    delta = max(1, int(round(base * float(mult))))
+    scope = (getattr(event, "scope", "") or "").strip().lower()
+    if scope == "global":
+        # Bond image tier 0–5 (Soulbound = tier 5); training = 2 × tier, min 2 (tier 0).
+        from utils.bonds import tier_for_level
+
+        lvl = max(1, int(bond_level or 1))
+        tier = tier_for_level(lvl)
+        tp = 2 * max(1, min(5, tier))
+        delta = max(1, int(round(tp * float(mult))))
+    else:
+        base = 1 + max(0, min(50, int(bond_xp_gained)))
+        delta = max(1, int(round(base * float(mult))))
 
     if select is None:
         return

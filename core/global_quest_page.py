@@ -316,6 +316,31 @@ async def handle_admin_gq_cancel(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def handle_admin_gq_delete(request: web.Request) -> web.Response:
+    _, err = _require_admin_token(request, json_response=True)
+    if err is not None:
+        return err
+    try:
+        body = await request.json()
+        eid = int(body.get("id") or 0)
+    except Exception:
+        return web.json_response({"error": "id required"}, status=400)
+    if eid <= 0:
+        return web.json_response({"error": "invalid id"}, status=400)
+
+    from utils.models import GlobalQuestEvent
+    from utils.db import get_sessionmaker
+
+    Session = get_sessionmaker()
+    async with Session() as session:
+        ev = await session.get(GlobalQuestEvent, eid)
+        if ev is None:
+            return web.json_response({"error": "not found"}, status=404)
+        await session.delete(ev)
+        await session.commit()
+    return web.json_response({"ok": True})
+
+
 def register_routes(app: web.Application, bot) -> None:
     global _bot
     _bot = bot
@@ -326,4 +351,5 @@ def register_routes(app: web.Application, bot) -> None:
     app.router.add_post("/api/admin/global-quest/save", handle_admin_gq_save)
     app.router.add_post("/api/admin/global-quest/activate", handle_admin_gq_activate)
     app.router.add_post("/api/admin/global-quest/cancel", handle_admin_gq_cancel)
+    app.router.add_post("/api/admin/global-quest/delete", handle_admin_gq_delete)
     log.info("Global quest routes registered at /global-quest")

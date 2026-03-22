@@ -1222,6 +1222,7 @@ class SlashTalk(commands.Cog):
                         style_id=str(effective_style or ""),
                         selected_style_id=str(selected_style_id or ""),
                         bond_xp_gained=int(gained),
+                        bond_level=int(new_level),
                     )
                 except Exception:
                     pass

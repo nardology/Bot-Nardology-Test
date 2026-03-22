@@ -15,6 +15,8 @@
   @media (max-width: 700px) { .row { grid-template-columns: 1fr; } }
   button { background: var(--accent); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; margin: 8px 8px 0 0; }
   button.secondary { background: #444; }
+  button.danger { background: #842929; }
+  button.danger:hover { filter: brightness(1.08); }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 16px 0; }
   .preview img { max-width: 100%; max-height: 160px; border-radius: 8px; margin-top: 8px; border: 1px solid var(--border); }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
@@ -26,14 +28,18 @@
 </head>
 <body>
   <h1>Monthly global quest</h1>
-  <p style="color:var(--muted)">Owner-only. Training points come from <strong>/talk</strong> with your <strong>selected</strong> character (bond XP increases training).</p>
+  <p style="color:var(--muted)">Owner-only. Training comes from <strong>/talk</strong> with your <strong>selected</strong> character. <strong>Global</strong> quests: training per talk = <strong>2× bond tier</strong> (tiers 1–5 → 2–10 base), then style multipliers. <strong>Guild</strong> quests: unchanged (based on bond XP gained this message).</p>
   <p><a id="public-link" href="#" target="_blank">Open public status page</a></p>
   <div class="card">
     <h2 style="font-size:1rem;margin:0 0 12px;">Saved events</h2>
     <div id="list-wrap"><p class="muted">Loading…</p></div>
   </div>
   <div class="card">
-    <h2 style="font-size:1rem;margin:0 0 12px;">Edit</h2>
+    <h2 style="font-size:1rem;margin:0 0 8px;">Edit</h2>
+    <p style="margin:0 0 12px;">
+      <button type="button" class="secondary" id="btn-new">New event</button>
+      <button type="button" class="danger" id="btn-del">Delete this event</button>
+    </p>
     <input type="hidden" id="f-id" value=""/>
     <label>Slug (URL id)</label>
     <input id="f-slug" placeholder="winter-raid-2026"/>
@@ -133,6 +139,30 @@
       document.getElementById('list-wrap').innerHTML = '<p>Failed to load (token?).</p>';
     }
   }
+  function clearForm(msg) {
+    document.getElementById('f-id').value = '';
+    document.getElementById('f-slug').value = '';
+    document.getElementById('f-title').value = '';
+    document.getElementById('f-desc').value = '';
+    document.getElementById('f-scope').value = 'global';
+    document.getElementById('f-guild-id').value = '';
+    document.getElementById('f-end').value = '';
+    document.getElementById('f-target').value = '100000';
+    document.getElementById('f-mult').value = '{}';
+    document.getElementById('f-reward').value = '100';
+    document.getElementById('f-fail').value = '0';
+    document.getElementById('f-badge-emoji').value = '🏆';
+    document.getElementById('f-badge-label').value = '';
+    document.getElementById('f-grant-badge').checked = true;
+    document.getElementById('f-img').value = '';
+    document.getElementById('f-img2').value = '';
+    document.getElementById('preview1').innerHTML = '';
+    document.getElementById('preview2').innerHTML = '';
+    var aw = document.getElementById('f-activated-wrap');
+    aw.style.display = 'none';
+    aw.textContent = '';
+    setMsg(msg || 'New draft — set a slug and save.');
+  }
   function fillForm(x) {
     if (!x) return;
     document.getElementById('f-id').value = x.id;
@@ -205,6 +235,19 @@
       if (!r.ok) throw new Error(j.error || 'save failed');
       document.getElementById('f-id').value = j.id;
       setMsg('Saved id ' + j.id);
+      loadList();
+    } catch (e) { setMsg(e.message); }
+  });
+  document.getElementById('btn-new').addEventListener('click', function () { clearForm(); });
+  document.getElementById('btn-del').addEventListener('click', async function () {
+    var id = document.getElementById('f-id').value;
+    if (!id) { setMsg('Nothing to delete — load an event or use New event.'); return; }
+    if (!window.confirm('Delete event #' + id + '? This cannot be undone.')) return;
+    try {
+      var r = await fetch('/api/admin/global-quest/delete' + q(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: parseInt(id, 10) }) });
+      var j = await r.json();
+      if (!r.ok) throw new Error(j.error || 'delete failed');
+      clearForm('Deleted.');
       loadList();
     } catch (e) { setMsg(e.message); }
   });
