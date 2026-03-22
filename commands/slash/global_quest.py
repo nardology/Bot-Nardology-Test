@@ -61,6 +61,12 @@ class GlobalQuestCog(commands.Cog):
             color=0xE94560,
         )
         embed.add_field(name="Scope", value=scope_note, inline=False)
+        if v.activated_at:
+            embed.add_field(
+                name="Activated (UTC)",
+                value=f"<t:{int(v.activated_at.timestamp())}:F>",
+                inline=True,
+            )
         bar_amt = v.total_training if v.scope == "global" else v.guild_training
         embed.add_field(
             name="Community progress",

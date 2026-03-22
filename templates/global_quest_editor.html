@@ -16,12 +16,11 @@
   button { background: var(--accent); color: #fff; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; margin: 8px 8px 0 0; }
   button.secondary { background: #444; }
   .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 16px; margin: 16px 0; }
-  .drop { border: 2px dashed var(--border); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); margin-top: 8px; }
-  .drop.drag { border-color: var(--accent); }
-  .preview img { max-width: 100%; max-height: 160px; border-radius: 8px; margin-top: 8px; }
+  .preview img { max-width: 100%; max-height: 160px; border-radius: 8px; margin-top: 8px; border: 1px solid var(--border); }
   table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
   th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
   a { color: #7c89ff; }
+  .hint { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
 </style>
 <script>/*__INJECT__*/</script>
 </head>
@@ -52,16 +51,10 @@
         <input id="f-guild-id" placeholder="1455356537383157914"/>
       </div>
     </div>
-    <div class="row">
-      <div>
-        <label>Starts at (ISO UTC)</label>
-        <input id="f-start" placeholder="2026-04-01T00:00:00+00:00"/>
-      </div>
-      <div>
-        <label>Ends at (ISO UTC)</label>
-        <input id="f-end" placeholder="2026-04-30T23:59:59+00:00"/>
-      </div>
-    </div>
+    <label>Quest ends (ISO UTC)</label>
+    <input id="f-end" placeholder="2026-04-30T23:59:59+00:00"/>
+    <p class="hint">Deadline for the community goal and for “days left.” Empty defaults to 30 days from save. Activation is only via <strong>Activate</strong> below (no scheduled start).</p>
+    <p id="f-activated-wrap" class="hint" style="display:none;"></p>
     <label>Target training points (community)</label>
     <input id="f-target" type="number" value="100000"/>
     <label>Character multipliers (JSON: style_id → number)</label>
@@ -87,16 +80,15 @@
       </div>
     </div>
     <label><input type="checkbox" id="f-grant-badge" checked/> Grant badge to all contributors on success</label>
-    <label>Image URL (optional)</label>
-    <input id="f-img" placeholder="https://..."/>
-    <div class="drop" id="drop1">Drag &amp; drop an image here — copy URL to field above or host elsewhere.</div>
+    <label>Primary image URL (optional)</label>
+    <input id="f-img" placeholder="https://raw.githubusercontent.com/<org>/<repo>/main/public/assets/..."/>
+    <div class="hint">Use a raw GitHub URL (e.g. <code>raw.githubusercontent.com/.../public/assets/...</code>).</div>
     <div class="preview" id="preview1"></div>
     <label>Secondary image URL (optional)</label>
-    <input id="f-img2"/>
-    <div class="drop" id="drop2">Drag &amp; drop second image</div>
+    <input id="f-img2" placeholder="https://raw.githubusercontent.com/..."/>
     <div class="preview" id="preview2"></div>
     <button type="button" id="btn-save">Save draft</button>
-    <button type="button" class="secondary" id="btn-act">Activate (deactivates other events)</button>
+    <button type="button" class="secondary" id="btn-act">Activate (goes live now; deactivates other events)</button>
     <p id="msg" style="color:var(--muted)"></p>
   </div>
   <script>
@@ -105,23 +97,18 @@
   const base = typeof window.__PUBLIC_BASE__ !== 'undefined' ? window.__PUBLIC_BASE__ : '';
   const q = () => '?token=' + encodeURIComponent(token);
   function setMsg(t) { document.getElementById('msg').textContent = t || ''; }
-  function setupDrop(elDrop, elUrl, elPrev) {
-    if (!elDrop) return;
-    ['dragenter','dragover'].forEach(ev => elDrop.addEventListener(ev, e => { e.preventDefault(); elDrop.classList.add('drag'); }));
-    ['dragleave','drop'].forEach(ev => elDrop.addEventListener(ev, e => { e.preventDefault(); elDrop.classList.remove('drag'); }));
-    elDrop.addEventListener('drop', e => {
-      const f = e.dataTransfer.files[0];
-      if (!f || !f.type.startsWith('image/')) return;
-      const r = new FileReader();
-      r.onload = () => {
-        elUrl.value = r.result;
-        elPrev.innerHTML = '<img src="'+r.result+'" alt="preview"/>';
-      };
-      r.readAsDataURL(f);
-    });
+  function setupUrlPreview(urlInput, prevEl) {
+    if (!urlInput || !prevEl) return;
+    function refresh() {
+      const u = (urlInput.value || '').trim();
+      if (!u || !/^https?:\/\//i.test(u)) { prevEl.innerHTML = ''; return; }
+      prevEl.innerHTML = '<img src="'+u.replace(/"/g, '&quot;')+'" alt="preview" onerror="this.parentNode.innerHTML=\'\'"/>';
+    }
+    urlInput.addEventListener('blur', refresh);
+    urlInput.addEventListener('change', refresh);
   }
-  setupDrop(document.getElementById('drop1'), document.getElementById('f-img'), document.getElementById('preview1'));
-  setupDrop(document.getElementById('drop2'), document.getElementById('f-img2'), document.getElementById('preview2'));
+  setupUrlPreview(document.getElementById('f-img'), document.getElementById('preview1'));
+  setupUrlPreview(document.getElementById('f-img2'), document.getElementById('preview2'));
   document.getElementById('public-link').href = base + '/global-quest';
   async function loadList() {
     try {
@@ -132,8 +119,12 @@
         document.getElementById('list-wrap').innerHTML = '<p class="muted">No events yet.</p>';
         return;
       }
-      document.getElementById('list-wrap').innerHTML = '<table><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Scope</th></tr></thead><tbody>' +
-        rows.map(x => '<tr data-id="'+x.id+'" style="cursor:pointer"><td>'+x.id+'</td><td>'+escapeHtml(x.title)+'</td><td>'+escapeHtml(x.status)+'</td><td>'+escapeHtml(x.scope)+(x.guild_id? ' '+x.guild_id:'')+'</td></tr>').join('') +
+      function fmtAct(x) {
+        if (!x.activated_at) return '—';
+        try { return new Date(x.activated_at).toISOString().replace('T', ' ').slice(0, 19) + ' UTC'; } catch (e) { return x.activated_at; }
+      }
+      document.getElementById('list-wrap').innerHTML = '<table><thead><tr><th>ID</th><th>Title</th><th>Status</th><th>Activated (UTC)</th><th>Scope</th></tr></thead><tbody>' +
+        rows.map(x => '<tr data-id="'+x.id+'" style="cursor:pointer"><td>'+x.id+'</td><td>'+escapeHtml(x.title)+'</td><td>'+escapeHtml(x.status)+'</td><td>'+escapeHtml(fmtAct(x))+'</td><td>'+escapeHtml(x.scope)+(x.guild_id? ' '+x.guild_id:'')+'</td></tr>').join('') +
         '</tbody></table><p class="muted">Click a row to load.</p>';
       document.querySelectorAll('#list-wrap tbody tr').forEach(tr => {
         tr.addEventListener('click', () => fillForm(rows.find(r => r.id === parseInt(tr.dataset.id, 10))));
@@ -150,7 +141,6 @@
     document.getElementById('f-desc').value = x.description || '';
     document.getElementById('f-scope').value = x.scope || 'global';
     document.getElementById('f-guild-id').value = x.guild_id != null ? x.guild_id : '';
-    document.getElementById('f-start').value = x.starts_at || '';
     document.getElementById('f-end').value = x.ends_at || '';
     document.getElementById('f-target').value = x.target_training_points || 100000;
     document.getElementById('f-mult').value = JSON.stringify(x.character_multipliers || {}, null, 2);
@@ -161,7 +151,23 @@
     document.getElementById('f-grant-badge').checked = x.grant_success_badge !== false;
     document.getElementById('f-img').value = x.image_url || '';
     document.getElementById('f-img2').value = x.image_url_secondary || '';
+    var aw = document.getElementById('f-activated-wrap');
+    if (x.activated_at) {
+      aw.style.display = 'block';
+      try {
+        aw.textContent = 'Last activated (UTC): ' + new Date(x.activated_at).toISOString().replace('T', ' ').slice(0, 19);
+      } catch (e) {
+        aw.textContent = 'Last activated: ' + x.activated_at;
+      }
+    } else {
+      aw.style.display = 'none';
+      aw.textContent = '';
+    }
     setMsg('Loaded event #' + x.id);
+    ['f-img','f-img2'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.dispatchEvent(new Event('blur'));
+    });
   }
   function escapeHtml(s) {
     const d = document.createElement('div');
@@ -179,7 +185,6 @@
       description: document.getElementById('f-desc').value,
       scope: document.getElementById('f-scope').value,
       guild_id: gid ? parseInt(gid, 10) : null,
-      starts_at: document.getElementById('f-start').value.trim() || null,
       ends_at: document.getElementById('f-end').value.trim() || null,
       target_training_points: parseInt(document.getElementById('f-target').value, 10) || 100000,
       character_multipliers: mult,
@@ -210,8 +215,21 @@
       const r = await fetch('/api/admin/global-quest/activate' + q(), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: parseInt(id, 10) }) });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error || 'activate failed');
-      setMsg('Activated');
+      var msg = 'Activated';
+      if (j.activated_at) {
+        try {
+          msg += ' at ' + new Date(j.activated_at).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
+        } catch (e) { msg += ' at ' + j.activated_at; }
+      }
+      setMsg(msg);
       loadList();
+      const rid = parseInt(id, 10);
+      const lr = await fetch('/api/admin/global-quest/events' + q());
+      if (lr.ok) {
+        const rows = await lr.json();
+        const row = Array.isArray(rows) ? rows.find(function(x) { return x.id === rid; }) : null;
+        if (row) fillForm(row);
+      }
     } catch (e) { setMsg(e.message); }
   });
   loadList();

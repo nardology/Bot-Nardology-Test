@@ -551,6 +551,7 @@ try:
 
         starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
         ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+        activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
         target_training_points: Mapped[int] = mapped_column(BigInteger(), default=100_000)
         character_multipliers_json: Mapped[str] = mapped_column(Text, default="{}")
         # draft | active | completed_success | completed_fail | cancelled

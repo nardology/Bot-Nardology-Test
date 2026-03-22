@@ -37,10 +37,17 @@
       const imgs = [];
       if (d.image_url) imgs.push('<img src="'+escapeAttr(d.image_url)+'" alt=""/>');
       if (d.image_url_secondary) imgs.push('<img src="'+escapeAttr(d.image_url_secondary)+'" alt=""/>');
+      var actLine = '';
+      if (d.activated_at) {
+        try {
+          actLine = '<p class="muted">Activated (UTC): ' + escapeHtml(new Date(d.activated_at).toISOString().replace('T', ' ').slice(0, 19)) + '</p>';
+        } catch (e) { actLine = ''; }
+      }
       root.innerHTML =
         '<div class="card">' +
         '<h1>' + escapeHtml(d.title || 'Event') + '</h1>' +
         '<p class="muted">' + (d.scope === 'guild' ? 'Server event' : 'Global event') + '</p>' +
+        actLine +
         '<p style="white-space:pre-wrap;">' + escapeHtml(d.description || '') + '</p>' +
         (imgs.length ? '<div class="imgs">'+imgs.join('')+'</div>' : '') +
         '<div class="stat"><span>Progress</span><strong>' + pct.toFixed(1) + '%</strong></div>' +

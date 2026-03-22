@@ -30,6 +30,7 @@ class ActiveQuestView:
     guild_id: int | None
     starts_at: datetime
     ends_at: datetime
+    activated_at: datetime | None
     target_training_points: int
     status: str
     character_multipliers: dict[str, float]
@@ -75,7 +76,6 @@ async def get_active_events_for_guild(*, guild_id: int) -> list[Any]:
             res = await session.execute(
                 select(GlobalQuestEvent)
                 .where(GlobalQuestEvent.status == "active")
-                .where(GlobalQuestEvent.starts_at <= now)
                 .where(GlobalQuestEvent.ends_at >= now),
             )
             rows = res.scalars().all()
@@ -201,6 +201,10 @@ async def build_quest_view_for_user(
 
     mult = _parse_multipliers(getattr(ev, "character_multipliers_json", None))
 
+    act_at = getattr(ev, "activated_at", None)
+    if act_at and getattr(act_at, "tzinfo", None) is None:
+        act_at = act_at.replace(tzinfo=timezone.utc)
+
     return ActiveQuestView(
         event_id=eid,
         slug=str(getattr(ev, "slug", "") or ""),
@@ -212,6 +216,7 @@ async def build_quest_view_for_user(
         guild_id=int(eg) if eg is not None else None,
         starts_at=getattr(ev, "starts_at", _now()),
         ends_at=ends or _now(),
+        activated_at=act_at,
         target_training_points=target,
         status=str(getattr(ev, "status", "") or ""),
         character_multipliers=mult,

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from aiohttp import web
@@ -68,6 +68,7 @@ async def handle_public_global_quest_json(request: web.Request) -> web.Response:
                 "progress_pct": v.progress_pct,
                 "days_left": v.days_left,
                 "ends_at": v.ends_at.isoformat() if v.ends_at else None,
+                "activated_at": v.activated_at.isoformat() if v.activated_at else None,
             }
         )
     except Exception as e:
@@ -122,6 +123,11 @@ async def handle_admin_gq_list(request: web.Request) -> web.Response:
                     "guild_id": r.guild_id,
                     "starts_at": r.starts_at.isoformat() if r.starts_at else None,
                     "ends_at": r.ends_at.isoformat() if r.ends_at else None,
+                    "activated_at": (
+                        r.activated_at.isoformat()
+                        if getattr(r, "activated_at", None) is not None
+                        else None
+                    ),
                     "target_training_points": int(r.target_training_points or 0),
                     "character_multipliers": json.loads(r.character_multipliers_json or "{}"),
                     "status": r.status,
@@ -183,8 +189,7 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
     if scope == "guild" and gid is None:
         return web.json_response({"error": "guild_id required for guild scope"}, status=400)
 
-    starts = _parse_dt(body.get("starts_at")) or now
-    ends = _parse_dt(body.get("ends_at")) or now
+    ends = _parse_dt(body.get("ends_at")) or (now + timedelta(days=30))
     target = int(body.get("target_training_points") or 100_000)
     mult = body.get("character_multipliers") or {}
     if not isinstance(mult, dict):
@@ -211,7 +216,7 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
                 image_url_secondary=image_url_secondary,
                 scope=scope,
                 guild_id=gid,
-                starts_at=starts,
+                starts_at=now,
                 ends_at=ends,
                 target_training_points=target,
                 character_multipliers_json=json.dumps(mult, separators=(",", ":")),
@@ -234,7 +239,6 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
         ev.image_url_secondary = image_url_secondary
         ev.scope = scope
         ev.guild_id = gid
-        ev.starts_at = starts
         ev.ends_at = ends
         ev.target_training_points = target
         ev.character_multipliers_json = json.dumps(mult, separators=(",", ":"))
@@ -278,9 +282,12 @@ async def handle_admin_gq_activate(request: web.Request) -> web.Response:
             await session.rollback()
             return web.json_response({"error": "not found"}, status=404)
         ev.status = "active"
+        ev.starts_at = now
+        ev.activated_at = now
         ev.updated_at = now
         await session.commit()
-    return web.json_response({"ok": True})
+        act_iso = ev.activated_at.isoformat() if ev.activated_at else None
+    return web.json_response({"ok": True, "activated_at": act_iso})
 
 
 async def handle_admin_gq_cancel(request: web.Request) -> web.Response:

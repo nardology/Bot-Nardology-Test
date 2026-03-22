@@ -228,6 +228,24 @@ async def _ensure_stripe_columns(conn) -> None:
         log.exception("Stripe column ensure failed (non-fatal)")
 
 
+async def _ensure_global_quest_columns(conn) -> None:
+    """ADD COLUMN activated_at when migrations were not run (create_all does not alter)."""
+    try:
+        from sqlalchemy import text  # type: ignore
+
+        dialect = getattr(conn, "dialect", None)
+        if getattr(dialect, "name", "") != "postgresql":
+            return
+        await conn.execute(
+            text(
+                "ALTER TABLE global_quest_events "
+                "ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ"
+            )
+        )
+    except Exception:
+        log.exception("global_quest_events column ensure failed")
+
+
 _DB_RETRY_ATTEMPTS = 5
 _DB_RETRY_BASE_DELAY = 2.0
 
@@ -280,6 +298,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
             await _ensure_points_wallet_columns(conn)
             await _ensure_character_user_state_columns(conn)
             await _ensure_stripe_columns(conn)
+            await _ensure_global_quest_columns(conn)
             log.info("DB init OK (tables ensured; env=%s auto_create=%s)", env, auto_create)
         else:
             from sqlalchemy import text  # type: ignore
@@ -307,6 +326,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                 await conn.run_sync(lambda sync_conn: QuestClaim.__table__.create(sync_conn, checkfirst=True))
                 await conn.run_sync(lambda sync_conn: CharacterRecommendation.__table__.create(sync_conn, checkfirst=True))
                 await _ensure_stripe_columns(conn)
+                await _ensure_global_quest_columns(conn)
                 log.info("DB preflight OK (env=%s). Analytics + points tables ensured.", env)
             except Exception:
                 log.exception("DB analytics table ensure failed")
