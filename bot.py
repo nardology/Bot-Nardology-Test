@@ -156,8 +156,15 @@ class RequestLimiterTree(discord.app_commands.CommandTree):
 # AutoShardedBot handles shard management automatically.
 class SlashOnlyBot(commands.AutoShardedBot):
     async def setup_hook(self) -> None:
-        # Start health-check server first so Railway sees the container as healthy quickly
-        # (avoids deploy loop while DB/Redis/extensions load).
+        # Redis preflight (best-effort): do NOT crash-loop if Redis is down.
+        redis_ok = await ensure_redis_best_effort()
+        if not redis_ok:
+            logger.warning("Redis unavailable at startup; running in degraded mode.")
+
+        # DB before HTTP so /global-quest, /connection, admin APIs, and /talk DB paths see tables.
+        await init_db()
+
+        # Health/webhook server after DB init so global quest + dashboard routes work on first request.
         try:
             print("[boot] starting health/webhook server…", flush=True)
             from core.stripe_webhook import start_webhook_server
@@ -165,14 +172,6 @@ class SlashOnlyBot(commands.AutoShardedBot):
             print("[boot] health/webhook server UP", flush=True)
         except Exception:
             logger.exception("Failed to start webhook/health server — Railway may stay stuck on 'Creating containers'")
-
-        # Redis preflight (best-effort): do NOT crash-loop if Redis is down.
-        redis_ok = await ensure_redis_best_effort()
-        if not redis_ok:
-            logger.warning("Redis unavailable at startup; running in degraded mode.")
-
-        # DB preflight for durable data.
-        await init_db()
 
         await load_extensions()
 

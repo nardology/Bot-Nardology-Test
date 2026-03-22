@@ -234,16 +234,37 @@ async def _ensure_global_quest_columns(conn) -> None:
         from sqlalchemy import text  # type: ignore
 
         dialect = getattr(conn, "dialect", None)
-        if getattr(dialect, "name", "") != "postgresql":
-            return
-        await conn.execute(
-            text(
-                "ALTER TABLE global_quest_events "
-                "ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ"
+        name = getattr(dialect, "name", "")
+        if name == "postgresql":
+            await conn.execute(
+                text(
+                    "ALTER TABLE global_quest_events "
+                    "ADD COLUMN IF NOT EXISTS activated_at TIMESTAMPTZ"
+                )
             )
-        )
+        elif name == "sqlite":
+            try:
+                await conn.execute(
+                    text("ALTER TABLE global_quest_events ADD COLUMN activated_at DATETIME")
+                )
+            except Exception:
+                pass
     except Exception:
         log.exception("global_quest_events column ensure failed")
+
+
+async def _ensure_global_quest_schema(conn) -> None:
+    """Create global quest tables when prod skips Base.metadata.create_all (same data path as /connection traits)."""
+    try:
+        from utils.models import GlobalQuestContribution, GlobalQuestEvent, UserProfileBadge
+
+        await conn.run_sync(lambda sync_conn: GlobalQuestEvent.__table__.create(sync_conn, checkfirst=True))
+        await conn.run_sync(lambda sync_conn: GlobalQuestContribution.__table__.create(sync_conn, checkfirst=True))
+        await conn.run_sync(lambda sync_conn: UserProfileBadge.__table__.create(sync_conn, checkfirst=True))
+        log.info("global_quest schema: tables present or created")
+    except Exception:
+        log.exception("global_quest table create failed")
+    await _ensure_global_quest_columns(conn)
 
 
 _DB_RETRY_ATTEMPTS = 5
@@ -298,7 +319,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
             await _ensure_points_wallet_columns(conn)
             await _ensure_character_user_state_columns(conn)
             await _ensure_stripe_columns(conn)
-            await _ensure_global_quest_columns(conn)
+            await _ensure_global_quest_schema(conn)
             log.info("DB init OK (tables ensured; env=%s auto_create=%s)", env, auto_create)
         else:
             from sqlalchemy import text  # type: ignore
@@ -326,8 +347,11 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                 await conn.run_sync(lambda sync_conn: QuestClaim.__table__.create(sync_conn, checkfirst=True))
                 await conn.run_sync(lambda sync_conn: CharacterRecommendation.__table__.create(sync_conn, checkfirst=True))
                 await _ensure_stripe_columns(conn)
-                await _ensure_global_quest_columns(conn)
                 log.info("DB preflight OK (env=%s). Analytics + points tables ensured.", env)
             except Exception:
                 log.exception("DB analytics table ensure failed")
                 log.info("DB preflight OK (env=%s). Apply full migrations via Alembic.", env)
+            try:
+                await _ensure_global_quest_schema(conn)
+            except Exception:
+                log.exception("global_quest schema ensure failed (non-fatal)")

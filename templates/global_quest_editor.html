@@ -264,6 +264,11 @@
           msg += ' at ' + new Date(j.activated_at).toISOString().replace('T', ' ').slice(0, 19) + ' UTC';
         } catch (e) { msg += ' at ' + j.activated_at; }
       }
+      if (j.ends_at) {
+        try {
+          msg += '. Quest ends (UTC): ' + new Date(j.ends_at).toISOString().replace('T', ' ').slice(0, 19);
+        } catch (e) { msg += '. ends_at=' + j.ends_at; }
+      }
       setMsg(msg);
       loadList();
       const rid = parseInt(id, 10);

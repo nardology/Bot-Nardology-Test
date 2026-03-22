@@ -285,9 +285,24 @@ async def handle_admin_gq_activate(request: web.Request) -> web.Response:
         ev.starts_at = now
         ev.activated_at = now
         ev.updated_at = now
+        ends = getattr(ev, "ends_at", None)
+        if ends is not None and getattr(ends, "tzinfo", None) is None:
+            ends = ends.replace(tzinfo=timezone.utc)
+        if ends is None or ends <= now:
+            ev.ends_at = now + timedelta(days=30)
+            log.info(
+                "global quest %s: extended ends_at to 30d (was missing or past)",
+                eid,
+            )
         await session.commit()
         act_iso = ev.activated_at.isoformat() if ev.activated_at else None
-    return web.json_response({"ok": True, "activated_at": act_iso})
+        ends_iso = ev.ends_at.isoformat() if ev.ends_at else None
+        log.info(
+            "global quest activated id=%s ends_at=%s",
+            eid,
+            ends_iso,
+        )
+    return web.json_response({"ok": True, "activated_at": act_iso, "ends_at": ends_iso})
 
 
 async def handle_admin_gq_cancel(request: web.Request) -> web.Response:
