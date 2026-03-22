@@ -74,13 +74,17 @@ async def get_active_events_for_guild(*, guild_id: int) -> list[Any]:
     async with Session() as session:
         try:
             res = await session.execute(
-                select(GlobalQuestEvent)
-                .where(GlobalQuestEvent.status == "active")
-                .where(GlobalQuestEvent.ends_at >= now),
+                select(GlobalQuestEvent).where(GlobalQuestEvent.status == "active"),
             )
             rows = res.scalars().all()
             out: list[Any] = []
             for ev in rows:
+                ends = getattr(ev, "ends_at", None)
+                if ends is not None:
+                    if getattr(ends, "tzinfo", None) is None:
+                        ends = ends.replace(tzinfo=timezone.utc)
+                    if ends < now:
+                        continue
                 sc = (getattr(ev, "scope", "") or "").strip().lower()
                 eg = getattr(ev, "guild_id", None)
                 if sc == "global":

@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote_plus
 
 from aiohttp import web
 
@@ -77,7 +78,23 @@ async def handle_public_global_quest_json(request: web.Request) -> web.Response:
 
 
 async def handle_global_quest_editor_page(request: web.Request) -> web.Response:
-    """GET /global-quest/edit?token=... — owner editor."""
+    """GET /global-quest/edit?token=... — owner editor (iframe: ?embed=1). Standalone opens admin panel."""
+    embed = str(request.query.get("embed") or "").strip().lower() in {"1", "true", "yes"}
+    if not embed:
+        tok = _get_token(request)
+        if not tok:
+            return web.Response(
+                text="<h2>Missing token</h2><p>Use <strong>/z_owner admin_link</strong> or <strong>/z_owner global_quest_link</strong> in Discord.</p>",
+                content_type="text/html",
+                status=403,
+            )
+        owner_id, err = _require_admin_token(request, json_response=False)
+        if err is not None:
+            return err
+        base = _public_base().rstrip("/")
+        raise web.HTTPFound(
+            location=f"{base}/admin?token={quote_plus(tok)}&panel=global-quest",
+        )
     owner_id, err = _require_admin_token(request, json_response=False)
     if err is not None:
         return err
@@ -86,7 +103,11 @@ async def handle_global_quest_editor_page(request: web.Request) -> web.Response:
         return web.Response(text="Template missing", status=500)
     html = path.read_text(encoding="utf-8")
     token = _get_token(request) or ""
-    inject = f"window.__ADMIN_TOKEN__ = {json.dumps(token)}; window.__PUBLIC_BASE__ = {json.dumps(_public_base())};"
+    inject = (
+        f"window.__ADMIN_TOKEN__ = {json.dumps(token)}; "
+        f"window.__PUBLIC_BASE__ = {json.dumps(_public_base())}; "
+        f"window.__GQ_EMBED__ = true;"
+    )
     if "/*__INJECT__*/" in html:
         html = html.replace("/*__INJECT__*/", inject)
     else:
@@ -111,12 +132,15 @@ async def handle_admin_gq_list(request: web.Request) -> web.Response:
             rows = res.scalars().all()
         out = []
         for r in rows:
+            raw_desc = str(r.description or "")
+            if len(raw_desc) > 4000:
+                raw_desc = raw_desc[:4000] + "…"
             out.append(
                 {
                     "id": r.id,
                     "slug": r.slug,
                     "title": r.title,
-                    "description": r.description,
+                    "description": raw_desc,
                     "image_url": r.image_url,
                     "image_url_secondary": r.image_url_secondary,
                     "scope": r.scope,

@@ -61,9 +61,13 @@ async def handle_admin_page(request: web.Request) -> web.Response:
     if err is not None:
         return err
     token = _get_token(request)
+    panel = (request.query.get("panel") or "").strip().lower()
     path = _TEMPLATE_DIR / "admin.html"
     html = path.read_text(encoding="utf-8")
-    inject_js = f"window.__ADMIN_TOKEN__ = {json.dumps(token)};"
+    inject_js = (
+        f"window.__ADMIN_TOKEN__ = {json.dumps(token)}; "
+        f"window.__INITIAL_PANEL__ = {json.dumps(panel)};"
+    )
     if "/*__INJECT__*/" in html:
         html = html.replace("/*__INJECT__*/", inject_js)
     else:

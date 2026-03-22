@@ -23,10 +23,16 @@
   th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
   a { color: #7c89ff; }
   .hint { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+  html.gq-embed body { padding: 16px; max-width: none; margin: 0; }
 </style>
 <script>/*__INJECT__*/</script>
 </head>
 <body>
+<script>
+  if (typeof window.__GQ_EMBED__ !== 'undefined' && window.__GQ_EMBED__) {
+    document.documentElement.classList.add('gq-embed');
+  }
+</script>
   <h1>Monthly global quest</h1>
   <p style="color:var(--muted)">Owner-only. Training comes from <strong>/talk</strong> with your <strong>selected</strong> character. <strong>Global</strong> quests: training per talk = <strong>2× bond tier</strong> (tiers 1–5 → 2–10 base), then style multipliers. <strong>Guild</strong> quests: unchanged (based on bond XP gained this message).</p>
   <p><a id="public-link" href="#" target="_blank">Open public status page</a></p>

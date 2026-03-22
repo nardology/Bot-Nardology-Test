@@ -82,6 +82,7 @@
         <li><button type="button" data-panel="spending">Spending</button></li>
         <li><button type="button" data-panel="reports">Reports</button></li>
         <li><button type="button" data-panel="abuse">Abuse</button></li>
+        <li><button type="button" data-panel="global-quest">Global quest</button></li>
       </ul>
     </div>
   </nav>
@@ -128,6 +129,21 @@
       <div class="card">
         <h3>Open reports</h3>
         <div id="reports-content"><p class="empty">Loading…</p></div>
+      </div>
+    </div>
+    <div id="panel-global-quest" class="panel">
+      <div class="card">
+        <h3>Community global quest</h3>
+        <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;">
+          Create drafts, then <strong>Activate</strong> one event — it becomes visible on the <a href="/global-quest" target="_blank" rel="noopener">public status page</a> and in Discord <code>/globalquest</code>.
+          Training points accrue from <code>/talk</code> (selected character). The editor loads below (same tool as before, now embedded here).
+        </p>
+        <p style="color:var(--text-muted);font-size:0.85rem;margin-bottom:12px;">
+          <strong>After you publish:</strong> users see progress on the web page; in Discord they use <code>/globalquest</code>; the background job resolves success/fail at quest end and may grant points/badges to contributors.
+        </p>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <iframe id="gq-iframe" title="Global quest editor" style="width:100%;min-height:78vh;border:0;display:block;background:#0d1117;"></iframe>
       </div>
     </div>
     <div id="panel-abuse" class="panel">
@@ -189,19 +205,32 @@
     }
     return r.json();
   }
-  function tabSwitch() {
+  let gqIframeLoaded = false;
+  function ensureGqIframe() {
+    const iframe = document.getElementById('gq-iframe');
+    if (!iframe || gqIframeLoaded) return;
+    iframe.src = '/global-quest/edit?token=' + encodeURIComponent(token) + '&embed=1';
+    gqIframeLoaded = true;
+  }
+  function tabSwitch(panelId) {
     document.querySelectorAll('.tabs button').forEach(b => {
-      b.classList.toggle('active', b.getAttribute('data-panel') === this);
+      b.classList.toggle('active', b.getAttribute('data-panel') === panelId);
     });
     document.querySelectorAll('.panel').forEach(p => {
-      p.classList.toggle('active', p.id === 'panel-' + this);
+      p.classList.toggle('active', p.id === 'panel-' + panelId);
     });
+    if (panelId === 'global-quest') ensureGqIframe();
   }
   document.querySelectorAll('.tabs button').forEach(b => {
-    b.addEventListener('click', () => tabSwitch.call(b.getAttribute('data-panel')));
+    b.addEventListener('click', () => tabSwitch(b.getAttribute('data-panel')));
   });
-  document.querySelector('.tabs button[data-panel="analytics"]').classList.add('active');
-  document.getElementById('panel-analytics').classList.add('active');
+  (function initPanel() {
+    const allowed = ['servers','limits','analytics','spending','reports','abuse','global-quest'];
+    const req = (typeof window.__INITIAL_PANEL__ !== 'undefined' && window.__INITIAL_PANEL__)
+      ? String(window.__INITIAL_PANEL__).trim().toLowerCase() : '';
+    const target = allowed.indexOf(req) >= 0 ? req : 'analytics';
+    tabSwitch(target);
+  })();
 
   async function loadSpending() {
     try {
