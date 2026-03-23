@@ -117,6 +117,19 @@ def _trim_memory_block_to_limit(lines: list[str], max_chars: int = MEMORY_BLOCK_
         out.insert(0, line)
     return out
 
+
+def _trim_text_to_chars(s: str, limit: int) -> str:
+    """Hard cap text length while preferring a word boundary."""
+    txt = (s or "").strip()
+    if limit <= 0 or len(txt) <= limit:
+        return txt
+    head = txt[:limit].rstrip()
+    if " " in head:
+        word = head.rsplit(" ", 1)[0].rstrip()
+        if len(word) >= max(16, int(limit * 0.6)):
+            return word
+    return head
+
 # -----------------------
 # Autocomplete: /talk character dropdown
 # -----------------------
@@ -859,10 +872,22 @@ class SlashTalk(commands.Cog):
             if not _bypass and (system or "").strip():
                 system = (system or "").rstrip() + "\n\n" + TALK_RESPONSE_LIMIT_SYSTEM
 
-            # Per-request input token budget (~4 chars per token): reject if too large (cost + safety)
+            # Per-request input token budget (~4 chars per token): trim oversized context before rejecting.
             INPUT_TOKEN_ESTIMATE_CHARS = 4
             MAX_INPUT_TOKENS = 4000
-            total_input_chars = len((system or "")) + len(prompt_for_model)
+            MAX_TOTAL_INPUT_CHARS = MAX_INPUT_TOKENS * INPUT_TOKEN_ESTIMATE_CHARS
+            MAX_SYSTEM_CHARS = min(12000, MAX_TOTAL_INPUT_CHARS - 400)
+            system = _trim_text_to_chars(system or "", MAX_SYSTEM_CHARS)
+            total_input_chars = len(system) + len(prompt_for_model)
+            if total_input_chars > MAX_TOTAL_INPUT_CHARS:
+                # First fallback: drop memory-expanded prompt and keep the user's raw message.
+                prompt_for_model = prompt
+                total_input_chars = len(system) + len(prompt_for_model)
+            if total_input_chars > MAX_TOTAL_INPUT_CHARS:
+                # Final fallback: trim user message to fit hard request budget.
+                remaining = max(40, MAX_TOTAL_INPUT_CHARS - len(system))
+                prompt_for_model = _trim_text_to_chars(prompt_for_model, remaining)
+                total_input_chars = len(system) + len(prompt_for_model)
             if total_input_chars > MAX_INPUT_TOKENS * INPUT_TOKEN_ESTIMATE_CHARS:
                 await self._send_private(
                     interaction,
