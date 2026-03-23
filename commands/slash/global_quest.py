@@ -105,7 +105,13 @@ class GlobalQuestCog(commands.Cog):
             raw = (v.image_url or v.image_url_secondary or "").strip()
             if raw:
                 logger.info("globalquest: skipped invalid embed image url (len=%s)", len(raw))
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except discord.HTTPException:
+            # Last-resort safety: if Discord rejects image URL formatting, resend without image.
+            logger.exception("globalquest: embed send failed; retrying without image")
+            embed.set_image(url=None)
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 async def setup(bot: commands.Bot) -> None:
