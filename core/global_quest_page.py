@@ -7,7 +7,7 @@ import os
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, urlparse
 
 from aiohttp import web
 
@@ -205,6 +205,27 @@ def _clean_name(s: str) -> str:
     return cleaned or "image"
 
 
+def _normalize_optional_image_url(v: object) -> str | None:
+    if v is None:
+        return None
+    s = str(v).strip()
+    if not s:
+        return None
+    if s.startswith("asset:"):
+        return s
+    if not (s.startswith("http://") or s.startswith("https://")):
+        return None
+    if len(s) > 2048:
+        return None
+    try:
+        p = urlparse(s)
+    except Exception:
+        return None
+    if p.scheme not in {"http", "https"} or not p.netloc:
+        return None
+    return s
+
+
 async def handle_admin_gq_save(request: web.Request) -> web.Response:
     _, err = _require_admin_token(request, json_response=True)
     if err is not None:
@@ -224,8 +245,8 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
         return web.json_response({"error": "slug required"}, status=400)
 
     desc = str(body.get("description") or "")
-    image_url = body.get("image_url") or None
-    image_url_secondary = body.get("image_url_secondary") or None
+    image_url = _normalize_optional_image_url(body.get("image_url"))
+    image_url_secondary = _normalize_optional_image_url(body.get("image_url_secondary"))
     scope = str(body.get("scope") or "global").strip().lower()
     if scope not in ("global", "guild"):
         scope = "global"

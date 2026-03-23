@@ -5,6 +5,7 @@ import os
 import re
 from io import BytesIO
 from typing import Optional
+from urllib.parse import urlparse
 
 import discord
 
@@ -104,6 +105,15 @@ def resolve_embed_image_url(url: str | None) -> str | None:
             return None
         return f"{base}/{rel}"
     if s.startswith("http://") or s.startswith("https://"):
+        # Discord rejects malformed/oversized embed URLs; guard centrally.
+        if len(s) > 2048:
+            return None
+        try:
+            p = urlparse(s)
+        except Exception:
+            return None
+        if p.scheme not in {"http", "https"} or not p.netloc:
+            return None
         return s
     return None
 
