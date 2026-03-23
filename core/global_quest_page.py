@@ -440,7 +440,7 @@ async def handle_admin_gq_active_debug(request: web.Request) -> web.Response:
         active_ids: list[int] = []
         for ev in rows:
             status = (getattr(ev, "status", "") or "").strip().lower()
-            scope = (getattr(ev, "scope", "") or "").strip().lower()
+            scope = (getattr(ev, "scope", "") or "").strip().lower() or "global"
             eg = getattr(ev, "guild_id", None)
             ends = getattr(ev, "ends_at", None)
             ends_utc = None

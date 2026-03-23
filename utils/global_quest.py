@@ -87,7 +87,7 @@ async def get_active_events_for_guild(*, guild_id: int) -> list[Any]:
                         ends = ends.replace(tzinfo=timezone.utc)
                     if ends < now:
                         continue
-                sc = (getattr(ev, "scope", "") or "").strip().lower()
+                sc = (getattr(ev, "scope", "") or "").strip().lower() or "global"
                 eg = getattr(ev, "guild_id", None)
                 if sc == "global":
                     out.append(ev)
