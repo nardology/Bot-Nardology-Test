@@ -23,6 +23,8 @@
   th, td { border-bottom: 1px solid var(--border); padding: 8px; text-align: left; }
   a { color: #7c89ff; }
   .hint { font-size: 0.8rem; color: var(--muted); margin-top: 4px; }
+  .dropzone { margin-top: 8px; border: 1px dashed var(--border); border-radius: 10px; padding: 12px; color: var(--muted); font-size: 0.85rem; text-align: center; }
+  .dropzone.drag { border-color: var(--accent); color: var(--text); background: #121824; }
   html.gq-embed body { padding: 16px; max-width: none; margin: 0; }
 </style>
 <script>/*__INJECT__*/</script>
@@ -65,7 +67,7 @@
     </div>
     <label>Quest ends (ISO UTC)</label>
     <input id="f-end" placeholder="2026-04-30T23:59:59+00:00"/>
-    <p class="hint">Deadline for the community goal and for “days left.” Empty defaults to 30 days from save. Activation is only via <strong>Activate</strong> below (no scheduled start).</p>
+    <p class="hint">Deadline for the community goal and for “days left.” Empty defaults to <strong>end of current month (UTC)</strong>. Activation is only via <strong>Activate</strong> below (no scheduled start).</p>
     <p id="f-activated-wrap" class="hint" style="display:none;"></p>
     <label>Target training points (community)</label>
     <input id="f-target" type="number" value="100000"/>
@@ -94,10 +96,14 @@
     <label><input type="checkbox" id="f-grant-badge" checked/> Grant badge to all contributors on success</label>
     <label>Primary image URL (optional)</label>
     <input id="f-img" placeholder="https://raw.githubusercontent.com/<org>/<repo>/main/public/assets/..."/>
-    <div class="hint">Use a raw GitHub URL (e.g. <code>raw.githubusercontent.com/.../public/assets/...</code>).</div>
+    <div class="hint">Use a raw GitHub URL, or drag & drop below to upload to bot storage (Cloudflare/S3 mode when configured).</div>
+    <div class="dropzone" id="drop1">Drop primary image here (or click to choose)</div>
+    <input id="pick1" type="file" accept="image/*" style="display:none"/>
     <div class="preview" id="preview1"></div>
     <label>Secondary image URL (optional)</label>
     <input id="f-img2" placeholder="https://raw.githubusercontent.com/..."/>
+    <div class="dropzone" id="drop2">Drop secondary image here (or click to choose)</div>
+    <input id="pick2" type="file" accept="image/*" style="display:none"/>
     <div class="preview" id="preview2"></div>
     <button type="button" id="btn-save">Save draft</button>
     <button type="button" class="secondary" id="btn-act">Activate (goes live now; deactivates other events)</button>
@@ -121,6 +127,68 @@
   }
   setupUrlPreview(document.getElementById('f-img'), document.getElementById('preview1'));
   setupUrlPreview(document.getElementById('f-img2'), document.getElementById('preview2'));
+  function activeScope() {
+    const s = (document.getElementById('f-scope').value || '').trim().toLowerCase();
+    return (s === 'guild') ? 'guild' : 'global';
+  }
+  function activeSlug() {
+    const s = (document.getElementById('f-slug').value || '').trim().toLowerCase();
+    return s || 'event';
+  }
+  async function uploadImage(file, slot) {
+    if (!file) return null;
+    const fd = new FormData();
+    fd.append('file', file);
+    const r = await fetch('/api/admin/global-quest/upload-image' + q() + '&scope=' + encodeURIComponent(activeScope()) + '&slug=' + encodeURIComponent(activeSlug()) + '&slot=' + encodeURIComponent(slot), {
+      method: 'POST',
+      body: fd
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'upload failed');
+    return j.url || null;
+  }
+  function setupDropUpload(dropId, pickId, inputId, slot) {
+    const dz = document.getElementById(dropId);
+    const pick = document.getElementById(pickId);
+    const input = document.getElementById(inputId);
+    if (!dz || !pick || !input) return;
+    dz.addEventListener('click', function () { pick.click(); });
+    ['dragenter','dragover'].forEach(function(ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.add('drag'); });
+    });
+    ['dragleave','drop'].forEach(function(ev) {
+      dz.addEventListener(ev, function (e) { e.preventDefault(); dz.classList.remove('drag'); });
+    });
+    dz.addEventListener('drop', async function (e) {
+      const f = e.dataTransfer && e.dataTransfer.files ? e.dataTransfer.files[0] : null;
+      if (!f) return;
+      try {
+        setMsg('Uploading image…');
+        const url = await uploadImage(f, slot);
+        if (url) {
+          input.value = url;
+          input.dispatchEvent(new Event('change'));
+          setMsg('Image uploaded.');
+        }
+      } catch (err) { setMsg(err.message || String(err)); }
+    });
+    pick.addEventListener('change', async function () {
+      const f = pick.files && pick.files[0] ? pick.files[0] : null;
+      if (!f) return;
+      try {
+        setMsg('Uploading image…');
+        const url = await uploadImage(f, slot);
+        if (url) {
+          input.value = url;
+          input.dispatchEvent(new Event('change'));
+          setMsg('Image uploaded.');
+        }
+      } catch (err) { setMsg(err.message || String(err)); }
+      pick.value = '';
+    });
+  }
+  setupDropUpload('drop1', 'pick1', 'f-img', 'primary');
+  setupDropUpload('drop2', 'pick2', 'f-img2', 'secondary');
   document.getElementById('public-link').href = base + '/global-quest';
   async function loadList() {
     try {

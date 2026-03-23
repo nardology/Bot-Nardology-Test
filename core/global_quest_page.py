@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import quote_plus
@@ -15,6 +17,8 @@ log = logging.getLogger("global_quest_page")
 
 _TEMPLATE_DIR = Path(__file__).resolve().parent.parent / "templates"
 _bot = None
+_UPLOAD_MAX_BYTES = 6 * 1024 * 1024
+_SAFE_NAME = re.compile(r"[^a-zA-Z0-9._-]+")
 
 
 def _public_base() -> str:
@@ -45,6 +49,7 @@ async def handle_public_global_quest_json(request: web.Request) -> web.Response:
         gid = 0
     try:
         from utils.global_quest import build_quest_view_for_user
+        from utils.media_assets import resolve_embed_image_url
 
         v = await build_quest_view_for_user(
             guild_id=gid,
@@ -59,8 +64,8 @@ async def handle_public_global_quest_json(request: web.Request) -> web.Response:
                 "slug": v.slug,
                 "title": v.title,
                 "description": v.description,
-                "image_url": v.image_url,
-                "image_url_secondary": v.image_url_secondary,
+                "image_url": resolve_embed_image_url(v.image_url),
+                "image_url_secondary": resolve_embed_image_url(v.image_url_secondary),
                 "scope": v.scope,
                 "guild_id": v.guild_id,
                 "target_training_points": v.target_training_points,
@@ -184,6 +189,22 @@ def _parse_dt(s: str | None) -> datetime | None:
         return None
 
 
+def _end_of_month_utc(now: datetime) -> datetime:
+    """Return last second of current month in UTC."""
+    n = now.astimezone(timezone.utc)
+    if n.month == 12:
+        first_next = n.replace(year=n.year + 1, month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    else:
+        first_next = n.replace(month=n.month + 1, day=1, hour=0, minute=0, second=0, microsecond=0)
+    return first_next - timedelta(seconds=1)
+
+
+def _clean_name(s: str) -> str:
+    cleaned = _SAFE_NAME.sub("-", (s or "").strip().lower())
+    cleaned = cleaned.strip("-")
+    return cleaned or "image"
+
+
 async def handle_admin_gq_save(request: web.Request) -> web.Response:
     _, err = _require_admin_token(request, json_response=True)
     if err is not None:
@@ -213,7 +234,7 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
     if scope == "guild" and gid is None:
         return web.json_response({"error": "guild_id required for guild scope"}, status=400)
 
-    ends = _parse_dt(body.get("ends_at")) or (now + timedelta(days=30))
+    ends = _parse_dt(body.get("ends_at")) or _end_of_month_utc(now)
     target = int(body.get("target_training_points") or 100_000)
     mult = body.get("character_multipliers") or {}
     if not isinstance(mult, dict):
@@ -313,9 +334,9 @@ async def handle_admin_gq_activate(request: web.Request) -> web.Response:
         if ends is not None and getattr(ends, "tzinfo", None) is None:
             ends = ends.replace(tzinfo=timezone.utc)
         if ends is None or ends <= now:
-            ev.ends_at = now + timedelta(days=30)
+            ev.ends_at = _end_of_month_utc(now)
             log.info(
-                "global quest %s: extended ends_at to 30d (was missing or past)",
+                "global quest %s: extended ends_at to end-of-month (was missing or past)",
                 eid,
             )
         await session.commit()
@@ -380,6 +401,83 @@ async def handle_admin_gq_delete(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
+async def handle_admin_gq_upload_image(request: web.Request) -> web.Response:
+    """Upload an image for global quest editor and return a URL/path."""
+    _, err = _require_admin_token(request, json_response=True)
+    if err is not None:
+        return err
+    try:
+        reader = await request.multipart()
+        part = await reader.next()
+        if part is None or getattr(part, "name", "") != "file":
+            return web.json_response({"error": "file field is required"}, status=400)
+        data = await part.read()
+        if not data:
+            return web.json_response({"error": "empty file"}, status=400)
+        if len(data) > _UPLOAD_MAX_BYTES:
+            return web.json_response({"error": "file too large (max 6MB)"}, status=400)
+        ctype = (getattr(part, "headers", {}) or {}).get("Content-Type", "")
+        if not str(ctype).lower().startswith("image/"):
+            return web.json_response({"error": "image file required"}, status=400)
+
+        from utils.media_assets import (
+            asset_abspath,
+            asset_storage_mode,
+            ensure_assets_dirs,
+        )
+        from utils.object_store import upload_bytes
+
+        scope = _clean_name(str(request.query.get("scope") or "global"))
+        slot = _clean_name(str(request.query.get("slot") or "primary"))
+        slug = _clean_name(str(request.query.get("slug") or "event"))
+        filename = _clean_name(str(getattr(part, "filename", "") or "image"))
+        ext = os.path.splitext(filename)[1].lower()
+        if ext not in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
+            ct_map = {
+                "image/png": ".png",
+                "image/jpeg": ".jpg",
+                "image/jpg": ".jpg",
+                "image/webp": ".webp",
+                "image/gif": ".gif",
+            }
+            ext = ct_map.get(str(ctype).lower(), ".png")
+        key_name = f"{slug}-{slot}-{int(datetime.now(timezone.utc).timestamp())}{ext}"
+        rel = f"global-quest/{scope}/{key_name}"
+
+        if asset_storage_mode() == "s3":
+            ref = await upload_bytes(
+                key=f"assets/{rel}",
+                data=data,
+                content_type=str(ctype or "image/png"),
+                bucket_override=(os.getenv("ASSET_S3_BUCKET") or os.getenv("S3_BUCKET") or "").strip() or None,
+                public_base_url_override=(os.getenv("ASSET_PUBLIC_BASE_URL") or "").strip() or None,
+                presign_expires_s_override=(
+                    int(os.getenv("ASSET_PRESIGN_EXPIRES_S", "0"))
+                    if (os.getenv("ASSET_PRESIGN_EXPIRES_S", "0") or "0").isdigit()
+                    else None
+                ),
+                public_base_url_env="ASSET_PUBLIC_BASE_URL",
+                presign_expires_env="ASSET_PRESIGN_EXPIRES_S",
+            )
+            return web.json_response({"ok": True, "url": ref.url})
+
+        ensure_assets_dirs()
+        public_base = (os.getenv("ASSET_PUBLIC_BASE_URL") or "").strip().rstrip("/")
+        if not public_base:
+            return web.json_response(
+                {"error": "ASSET_PUBLIC_BASE_URL is not set; configure s3 asset mode for web-visible uploads"},
+                status=400,
+            )
+        out_abs = asset_abspath(rel)
+        os.makedirs(os.path.dirname(out_abs), exist_ok=True)
+        with open(out_abs, "wb") as f:
+            f.write(data)
+        return web.json_response({"ok": True, "url": f"{public_base}/{rel.lstrip('/')}"})
+    except Exception as e:
+        log.exception("global quest upload failed")
+        return web.json_response({"error": str(e)}, status=500)
+
+
 def register_routes(app: web.Application, bot) -> None:
     global _bot
     _bot = bot
@@ -391,4 +489,5 @@ def register_routes(app: web.Application, bot) -> None:
     app.router.add_post("/api/admin/global-quest/activate", handle_admin_gq_activate)
     app.router.add_post("/api/admin/global-quest/cancel", handle_admin_gq_cancel)
     app.router.add_post("/api/admin/global-quest/delete", handle_admin_gq_delete)
+    app.router.add_post("/api/admin/global-quest/upload-image", handle_admin_gq_upload_image)
     log.info("Global quest routes registered at /global-quest")

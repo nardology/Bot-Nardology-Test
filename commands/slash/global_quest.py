@@ -32,6 +32,7 @@ class GlobalQuestCog(commands.Cog):
 
         try:
             from utils.global_quest import build_quest_view_for_user
+            from utils.media_assets import resolve_embed_image_url
 
             v = await build_quest_view_for_user(
                 guild_id=gid,
@@ -75,10 +76,9 @@ class GlobalQuestCog(commands.Cog):
         )
         embed.add_field(name="You", value=user_line, inline=False)
         embed.add_field(name="Days left (UTC)", value=str(v.days_left), inline=True)
-        if v.image_url:
-            embed.set_image(url=v.image_url)
-        elif v.image_url_secondary:
-            embed.set_image(url=v.image_url_secondary)
+        img = resolve_embed_image_url(v.image_url) or resolve_embed_image_url(v.image_url_secondary)
+        if img:
+            embed.set_image(url=img)
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 
