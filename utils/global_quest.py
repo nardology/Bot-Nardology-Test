@@ -73,12 +73,14 @@ async def get_active_events_for_guild(*, guild_id: int) -> list[Any]:
     Session = get_sessionmaker()
     async with Session() as session:
         try:
-            res = await session.execute(
-                select(GlobalQuestEvent).where(GlobalQuestEvent.status == "active"),
-            )
+            # Query broadly, then normalize/filter in Python to tolerate legacy status values.
+            res = await session.execute(select(GlobalQuestEvent))
             rows = res.scalars().all()
             out: list[Any] = []
             for ev in rows:
+                st = (getattr(ev, "status", "") or "").strip().lower()
+                if st != "active":
+                    continue
                 ends = getattr(ev, "ends_at", None)
                 if ends is not None:
                     if getattr(ends, "tzinfo", None) is None:

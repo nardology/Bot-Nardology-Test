@@ -396,9 +396,95 @@ async def handle_admin_gq_delete(request: web.Request) -> web.Response:
         ev = await session.get(GlobalQuestEvent, eid)
         if ev is None:
             return web.json_response({"error": "not found"}, status=404)
-        await session.delete(ev)
-        await session.commit()
-    return web.json_response({"ok": True})
+        try:
+            await session.delete(ev)
+            await session.commit()
+            return web.json_response({"ok": True, "mode": "hard_delete"})
+        except Exception:
+            # Fallback for deployments where FK constraints block deletion:
+            # keep history but hide the event from active lists/UI.
+            await session.rollback()
+            try:
+                ev.status = "cancelled"
+                ev.resolution_applied = True
+                ev.updated_at = datetime.now(timezone.utc)
+                await session.commit()
+                log.exception("global quest delete fallback to soft-cancel id=%s", eid)
+                return web.json_response({"ok": True, "mode": "soft_cancel"})
+            except Exception as e:
+                await session.rollback()
+                log.exception("global quest delete failed id=%s", eid)
+                return web.json_response({"error": str(e)}, status=500)
+
+
+async def handle_admin_gq_active_debug(request: web.Request) -> web.Response:
+    """Diagnostic: explain why events are/aren't active for a guild."""
+    _, err = _require_admin_token(request, json_response=True)
+    if err is not None:
+        return err
+    gid_s = request.query.get("guild_id", "0")
+    try:
+        gid = int(gid_s) if str(gid_s).strip().lstrip("-").isdigit() else 0
+    except Exception:
+        gid = 0
+    try:
+        from sqlalchemy import select  # type: ignore
+        from utils.models import GlobalQuestEvent
+        from utils.db import get_sessionmaker
+
+        now = datetime.now(timezone.utc)
+        Session = get_sessionmaker()
+        async with Session() as session:
+            rows = (await session.execute(select(GlobalQuestEvent).order_by(GlobalQuestEvent.id.desc()).limit(100))).scalars().all()
+        out = []
+        active_ids: list[int] = []
+        for ev in rows:
+            status = (getattr(ev, "status", "") or "").strip().lower()
+            scope = (getattr(ev, "scope", "") or "").strip().lower()
+            eg = getattr(ev, "guild_id", None)
+            ends = getattr(ev, "ends_at", None)
+            ends_utc = None
+            if ends is not None:
+                ends_utc = ends.replace(tzinfo=timezone.utc) if getattr(ends, "tzinfo", None) is None else ends
+            reasons: list[str] = []
+            if status != "active":
+                reasons.append("status_not_active")
+            if ends_utc is not None and ends_utc < now:
+                reasons.append("ended")
+            if scope == "guild":
+                if eg is None:
+                    reasons.append("guild_scope_missing_guild_id")
+                elif int(eg) != int(gid):
+                    reasons.append(f"guild_mismatch(event={int(eg)} req={int(gid)})")
+            elif scope != "global":
+                reasons.append("unknown_scope")
+            is_active_here = len(reasons) == 0
+            if is_active_here:
+                active_ids.append(int(getattr(ev, "id", 0) or 0))
+            out.append(
+                {
+                    "id": int(getattr(ev, "id", 0) or 0),
+                    "slug": str(getattr(ev, "slug", "") or ""),
+                    "title": str(getattr(ev, "title", "") or ""),
+                    "status": status,
+                    "scope": scope,
+                    "guild_id": int(eg) if eg is not None else None,
+                    "ends_at": ends_utc.isoformat() if ends_utc else None,
+                    "is_active_for_guild": is_active_here,
+                    "reasons": reasons,
+                }
+            )
+        return web.json_response(
+            {
+                "guild_id": gid,
+                "now_utc": now.isoformat(),
+                "active_ids": [x for x in active_ids if x > 0],
+                "events": out,
+            }
+        )
+    except Exception as e:
+        log.exception("admin gq active debug failed")
+        return web.json_response({"error": str(e)}, status=500)
 
 
 async def handle_admin_gq_upload_image(request: web.Request) -> web.Response:
@@ -490,4 +576,5 @@ def register_routes(app: web.Application, bot) -> None:
     app.router.add_post("/api/admin/global-quest/cancel", handle_admin_gq_cancel)
     app.router.add_post("/api/admin/global-quest/delete", handle_admin_gq_delete)
     app.router.add_post("/api/admin/global-quest/upload-image", handle_admin_gq_upload_image)
+    app.router.add_get("/api/admin/global-quest/active-debug", handle_admin_gq_active_debug)
     log.info("Global quest routes registered at /global-quest")
