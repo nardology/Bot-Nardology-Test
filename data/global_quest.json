@@ -1,25 +1,51 @@
 {
-  "event": {
-    "id": 1,
-    "slug": "global-quest",
-    "title": "Community Global Quest",
-    "description": "",
-    "image_url": null,
-    "image_url_secondary": null,
-    "scope": "global",
-    "guild_id": null,
-    "starts_at": "2026-01-01T00:00:00+00:00",
-    "ends_at": "2026-01-31T23:59:59+00:00",
-    "activated_at": null,
-    "target_training_points": 100000,
-    "status": "draft",
-    "character_multipliers": {},
-    "reward_points": 0,
-    "failure_points": 0,
-    "success_badge_emoji": "🏆",
-    "success_badge_label": "Quest Winner",
-    "grant_success_badge": true,
-    "resolution_applied": false
-  },
-  "contributions": {}
+  "events": [
+    {
+      "id": 1,
+      "slug": "global-quest",
+      "title": "Community Global Quest",
+      "description": "Hello",
+      "image_url": null,
+      "image_url_secondary": null,
+      "scope": "global",
+      "guild_id": null,
+      "starts_at": "2026-01-01T00:00:00+00:00",
+      "ends_at": "2026-03-31T23:59:59+00:00",
+      "activated_at": null,
+      "target_training_points": 5,
+      "status": "active",
+      "character_multipliers": {},
+      "reward_points": 0,
+      "failure_points": 0,
+      "success_badge_emoji": "🏆",
+      "success_badge_label": "Quest Winner",
+      "grant_success_badge": true,
+      "resolution_applied": false
+    },
+    {
+      "id": 2,
+      "slug": "evil-horse",
+      "title": "Evil Horse",
+      "description": "Example second global quest (draft). Activate it when you want it live alongside others.",
+      "image_url": "https://raw.githubusercontent.com/nardology/BotNardology-Assets/main/assets/style_images/evilhorse.jpg",
+      "image_url_secondary": null,
+      "scope": "global",
+      "guild_id": null,
+      "starts_at": "2026-01-01T00:00:00+00:00",
+      "ends_at": "2026-03-31T23:59:59+00:00",
+      "activated_at": null,
+      "target_training_points": 100000,
+      "status": "draft",
+      "character_multipliers": {},
+      "reward_points": 0,
+      "failure_points": 0,
+      "success_badge_emoji": "🐴",
+      "success_badge_label": "Evil Horse Hero",
+      "grant_success_badge": true,
+      "resolution_applied": false
+    }
+  ],
+  "contributions": {
+    "1": {}
+  }
 }

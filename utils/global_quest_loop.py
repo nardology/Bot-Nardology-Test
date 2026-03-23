@@ -11,7 +11,19 @@ async def tick_global_quest_resolutions() -> None:
     try:
         from utils.global_quest import resolve_event_if_needed, _json_mode_enabled
         if _json_mode_enabled():
-            await resolve_event_if_needed(event_id=1)
+            from utils.global_quest import _read_store_sync
+
+            data = _read_store_sync()
+            for row in data.get("events") or []:
+                if not isinstance(row, dict):
+                    continue
+                eid = int(row.get("id") or 0)
+                if eid <= 0:
+                    continue
+                try:
+                    await resolve_event_if_needed(event_id=eid)
+                except Exception:
+                    logger.debug("resolve_event_if_needed failed id=%s", eid, exc_info=True)
             return
         from utils.models import GlobalQuestEvent
         from utils.db import get_sessionmaker

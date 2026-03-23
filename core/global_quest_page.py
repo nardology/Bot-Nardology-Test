@@ -309,7 +309,10 @@ async def handle_admin_gq_activate(request: web.Request) -> web.Response:
         return web.json_response({"error": "invalid id"}, status=400)
 
     from utils.global_quest import json_admin_activate_event
+
     act_iso, ends_iso = await json_admin_activate_event(event_id=eid)
+    if act_iso is None and ends_iso is None:
+        return web.json_response({"error": "not found"}, status=404)
     return web.json_response({"ok": True, "activated_at": act_iso, "ends_at": ends_iso})
 
 
