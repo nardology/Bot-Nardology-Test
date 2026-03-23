@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from urllib.parse import urlparse
 
 import discord
 from discord import app_commands
@@ -11,6 +12,24 @@ from discord.ext import commands
 from utils.character_store import load_state
 
 logger = logging.getLogger("bot.global_quest")
+
+
+def _safe_embed_image_url(url: str | None) -> str | None:
+    """Return a Discord-safe embed image URL or None."""
+    if not url or not isinstance(url, str):
+        return None
+    s = url.strip()
+    if not s or len(s) > 2048:
+        return None
+    try:
+        p = urlparse(s)
+    except Exception:
+        return None
+    if p.scheme not in {"http", "https"}:
+        return None
+    if not p.netloc:
+        return None
+    return s
 
 
 class GlobalQuestCog(commands.Cog):
@@ -76,9 +95,16 @@ class GlobalQuestCog(commands.Cog):
         )
         embed.add_field(name="You", value=user_line, inline=False)
         embed.add_field(name="Days left (UTC)", value=str(v.days_left), inline=True)
-        img = resolve_embed_image_url(v.image_url) or resolve_embed_image_url(v.image_url_secondary)
+        img = _safe_embed_image_url(resolve_embed_image_url(v.image_url)) or _safe_embed_image_url(
+            resolve_embed_image_url(v.image_url_secondary)
+        )
         if img:
             embed.set_image(url=img)
+        else:
+            # Avoid command failure if admins pasted non-URL/blob/data values into image fields.
+            raw = (v.image_url or v.image_url_secondary or "").strip()
+            if raw:
+                logger.info("globalquest: skipped invalid embed image url (len=%s)", len(raw))
         await interaction.followup.send(embed=embed, ephemeral=True)
 
 

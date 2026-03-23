@@ -326,6 +326,14 @@ async def handle_admin_gq_activate(request: web.Request) -> web.Response:
         if ev is None:
             await session.rollback()
             return web.json_response({"error": "not found"}, status=404)
+        # Self-heal legacy rows before activation so old data doesn't disappear from active filters.
+        raw_scope = (getattr(ev, "scope", "") or "").strip().lower()
+        if raw_scope not in {"global", "guild"}:
+            ev.scope = "global"
+            log.info("global quest %s: normalized empty/invalid scope=%r -> 'global'", eid, raw_scope)
+        raw_status = (getattr(ev, "status", "") or "").strip().lower()
+        if raw_status != "active":
+            log.info("global quest %s: status transition %r -> 'active'", eid, raw_status)
         ev.status = "active"
         ev.starts_at = now
         ev.activated_at = now
