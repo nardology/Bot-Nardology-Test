@@ -125,6 +125,12 @@ async def handle_admin_gq_list(request: web.Request) -> web.Response:
     if err is not None:
         return err
     try:
+        from utils.global_quest import json_admin_list_events
+        rows = await json_admin_list_events()
+        return web.json_response(rows)
+    except Exception:
+        pass
+    try:
         from sqlalchemy import select  # type: ignore
         from utils.models import GlobalQuestEvent
         from utils.db import get_sessionmaker
@@ -235,8 +241,7 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
     except Exception:
         return web.json_response({"error": "Invalid JSON"}, status=400)
 
-    from utils.models import GlobalQuestEvent
-    from utils.db import get_sessionmaker
+    from utils.global_quest import json_admin_save_event
 
     now = datetime.now(timezone.utc)
     slug = str(body.get("slug") or "").strip()[:64]
@@ -266,56 +271,28 @@ async def handle_admin_gq_save(request: web.Request) -> web.Response:
     badge_label = str(body.get("success_badge_label") or title)[:120]
     grant_badge = bool(body.get("grant_success_badge", True))
 
-    event_id = body.get("id")
-    Session = get_sessionmaker()
-    async with Session() as session:
-        if event_id:
-            ev = await session.get(GlobalQuestEvent, int(event_id))
-            if ev is None:
-                return web.json_response({"error": "not found"}, status=404)
-        else:
-            ev = GlobalQuestEvent(
-                slug=slug,
-                title=title,
-                description=desc,
-                image_url=image_url,
-                image_url_secondary=image_url_secondary,
-                scope=scope,
-                guild_id=gid,
-                starts_at=now,
-                ends_at=ends,
-                target_training_points=target,
-                character_multipliers_json=json.dumps(mult, separators=(",", ":")),
-                status="draft",
-                reward_points=reward_points,
-                failure_points=failure_points,
-                success_badge_emoji=badge_emoji,
-                success_badge_label=badge_label,
-                grant_success_badge=grant_badge,
-                created_at=now,
-                updated_at=now,
-            )
-            session.add(ev)
-            await session.flush()
-
-        ev.slug = slug
-        ev.title = title
-        ev.description = desc
-        ev.image_url = image_url
-        ev.image_url_secondary = image_url_secondary
-        ev.scope = scope
-        ev.guild_id = gid
-        ev.ends_at = ends
-        ev.target_training_points = target
-        ev.character_multipliers_json = json.dumps(mult, separators=(",", ":"))
-        ev.reward_points = reward_points
-        ev.failure_points = failure_points
-        ev.success_badge_emoji = badge_emoji
-        ev.success_badge_label = badge_label
-        ev.grant_success_badge = grant_badge
-        ev.updated_at = now
-        await session.commit()
-        eid = int(ev.id)
+    eid = await json_admin_save_event(
+        body={
+            "id": body.get("id"),
+            "slug": slug,
+            "title": title,
+            "description": desc,
+            "image_url": image_url,
+            "image_url_secondary": image_url_secondary,
+            "scope": scope,
+            "guild_id": gid,
+            "ends_at": ends.isoformat() if ends else None,
+            "target_training_points": target,
+            "character_multipliers": mult,
+            "reward_points": reward_points,
+            "failure_points": failure_points,
+            "success_badge_emoji": badge_emoji,
+            "success_badge_label": badge_label,
+            "grant_success_badge": grant_badge,
+            "status": "draft",
+            "updated_at": now.isoformat(),
+        }
+    )
     return web.json_response({"ok": True, "id": eid})
 
 
@@ -331,51 +308,8 @@ async def handle_admin_gq_activate(request: web.Request) -> web.Response:
     if eid <= 0:
         return web.json_response({"error": "invalid id"}, status=400)
 
-    from sqlalchemy import update  # type: ignore
-    from utils.models import GlobalQuestEvent
-    from utils.db import get_sessionmaker
-
-    now = datetime.now(timezone.utc)
-    Session = get_sessionmaker()
-    async with Session() as session:
-        await session.execute(
-            update(GlobalQuestEvent)
-            .where(GlobalQuestEvent.status == "active")
-            .values(status="draft", updated_at=now)
-        )
-        ev = await session.get(GlobalQuestEvent, eid)
-        if ev is None:
-            await session.rollback()
-            return web.json_response({"error": "not found"}, status=404)
-        # Self-heal legacy rows before activation so old data doesn't disappear from active filters.
-        raw_scope = (getattr(ev, "scope", "") or "").strip().lower()
-        if raw_scope not in {"global", "guild"}:
-            ev.scope = "global"
-            log.info("global quest %s: normalized empty/invalid scope=%r -> 'global'", eid, raw_scope)
-        raw_status = (getattr(ev, "status", "") or "").strip().lower()
-        if raw_status != "active":
-            log.info("global quest %s: status transition %r -> 'active'", eid, raw_status)
-        ev.status = "active"
-        ev.starts_at = now
-        ev.activated_at = now
-        ev.updated_at = now
-        ends = getattr(ev, "ends_at", None)
-        if ends is not None and getattr(ends, "tzinfo", None) is None:
-            ends = ends.replace(tzinfo=timezone.utc)
-        if ends is None or ends <= now:
-            ev.ends_at = _end_of_month_utc(now)
-            log.info(
-                "global quest %s: extended ends_at to end-of-month (was missing or past)",
-                eid,
-            )
-        await session.commit()
-        act_iso = ev.activated_at.isoformat() if ev.activated_at else None
-        ends_iso = ev.ends_at.isoformat() if ev.ends_at else None
-        log.info(
-            "global quest activated id=%s ends_at=%s",
-            eid,
-            ends_iso,
-        )
+    from utils.global_quest import json_admin_activate_event
+    act_iso, ends_iso = await json_admin_activate_event(event_id=eid)
     return web.json_response({"ok": True, "activated_at": act_iso, "ends_at": ends_iso})
 
 
@@ -389,19 +323,10 @@ async def handle_admin_gq_cancel(request: web.Request) -> web.Response:
         eid = int(body.get("id") or 0)
     except Exception:
         return web.json_response({"error": "id required"}, status=400)
-    from utils.models import GlobalQuestEvent
-    from utils.db import get_sessionmaker
-
-    now = datetime.now(timezone.utc)
-    Session = get_sessionmaker()
-    async with Session() as session:
-        ev = await session.get(GlobalQuestEvent, eid)
-        if ev is None:
-            return web.json_response({"error": "not found"}, status=404)
-        ev.status = "cancelled"
-        ev.resolution_applied = True
-        ev.updated_at = now
-        await session.commit()
+    from utils.global_quest import json_admin_cancel_event
+    ok = await json_admin_cancel_event(event_id=eid)
+    if not ok:
+        return web.json_response({"error": "not found"}, status=404)
     return web.json_response({"ok": True})
 
 
@@ -417,33 +342,11 @@ async def handle_admin_gq_delete(request: web.Request) -> web.Response:
     if eid <= 0:
         return web.json_response({"error": "invalid id"}, status=400)
 
-    from utils.models import GlobalQuestEvent
-    from utils.db import get_sessionmaker
-
-    Session = get_sessionmaker()
-    async with Session() as session:
-        ev = await session.get(GlobalQuestEvent, eid)
-        if ev is None:
-            return web.json_response({"error": "not found"}, status=404)
-        try:
-            await session.delete(ev)
-            await session.commit()
-            return web.json_response({"ok": True, "mode": "hard_delete"})
-        except Exception:
-            # Fallback for deployments where FK constraints block deletion:
-            # keep history but hide the event from active lists/UI.
-            await session.rollback()
-            try:
-                ev.status = "cancelled"
-                ev.resolution_applied = True
-                ev.updated_at = datetime.now(timezone.utc)
-                await session.commit()
-                log.exception("global quest delete fallback to soft-cancel id=%s", eid)
-                return web.json_response({"ok": True, "mode": "soft_cancel"})
-            except Exception as e:
-                await session.rollback()
-                log.exception("global quest delete failed id=%s", eid)
-                return web.json_response({"error": str(e)}, status=500)
+    from utils.global_quest import json_admin_delete_event
+    ok = await json_admin_delete_event(event_id=eid)
+    if not ok:
+        return web.json_response({"error": "not found"}, status=404)
+    return web.json_response({"ok": True, "mode": "json_reset"})
 
 
 async def handle_admin_gq_active_debug(request: web.Request) -> web.Response:

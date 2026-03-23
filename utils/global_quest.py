@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from utils.points_store import GLOBAL_GUILD_ID, adjust_points
@@ -16,6 +20,105 @@ except Exception:  # pragma: no cover
     select = func = update = None  # type: ignore
 
 logger = logging.getLogger("bot.global_quest")
+_JSON_LOCK = threading.Lock()
+
+
+def _json_mode_enabled() -> bool:
+    raw = (os.getenv("GLOBAL_QUEST_JSON_MODE", "1") or "1").strip().lower()
+    return raw not in {"0", "false", "no", "off"}
+
+
+def _json_path() -> Path:
+    raw = (os.getenv("GLOBAL_QUEST_JSON_PATH", "data/global_quest.json") or "data/global_quest.json").strip()
+    return Path(raw)
+
+
+def _iso(dt: datetime | None) -> str | None:
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
+def _from_iso(s: Any) -> datetime | None:
+    if not s:
+        return None
+    try:
+        txt = str(s).strip()
+        if txt.endswith("Z"):
+            txt = txt[:-1] + "+00:00"
+        d = datetime.fromisoformat(txt)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d
+    except Exception:
+        return None
+
+
+def _default_store() -> dict[str, Any]:
+    now = _now()
+    return {
+        "event": {
+            "id": 1,
+            "slug": "global-quest",
+            "title": "Community Global Quest",
+            "description": "",
+            "image_url": None,
+            "image_url_secondary": None,
+            "scope": "global",
+            "guild_id": None,
+            "starts_at": _iso(now),
+            "ends_at": _iso(now),
+            "activated_at": None,
+            "target_training_points": 100000,
+            "status": "draft",
+            "character_multipliers": {},
+            "reward_points": 0,
+            "failure_points": 0,
+            "success_badge_emoji": "🏆",
+            "success_badge_label": "Quest Winner",
+            "grant_success_badge": True,
+            "resolution_applied": False,
+        },
+        "contributions": {},
+    }
+
+
+def _read_store_sync() -> dict[str, Any]:
+    p = _json_path()
+    with _JSON_LOCK:
+        if not p.exists():
+            p.parent.mkdir(parents=True, exist_ok=True)
+            data = _default_store()
+            p.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+            return data
+        try:
+            data = json.loads(p.read_text(encoding="utf-8") or "{}")
+        except Exception:
+            data = {}
+        if not isinstance(data, dict):
+            data = {}
+        if not isinstance(data.get("event"), dict):
+            data["event"] = _default_store()["event"]
+        if not isinstance(data.get("contributions"), dict):
+            data["contributions"] = {}
+        return data
+
+
+def _write_store_sync(data: dict[str, Any]) -> None:
+    p = _json_path()
+    with _JSON_LOCK:
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(json.dumps(data, ensure_ascii=True, indent=2), encoding="utf-8")
+
+
+async def _read_store() -> dict[str, Any]:
+    return _read_store_sync()
+
+
+async def _write_store(data: dict[str, Any]) -> None:
+    _write_store_sync(data)
 
 
 @dataclass
@@ -64,6 +167,47 @@ def _parse_multipliers(raw: str | None) -> dict[str, float]:
 
 async def get_active_events_for_guild(*, guild_id: int) -> list[Any]:
     """Active events that apply to this guild (global + guild-specific)."""
+    if _json_mode_enabled():
+        data = await _read_store()
+        ev = dict(data.get("event") or {})
+        status = (str(ev.get("status") or "").strip().lower())
+        if status != "active":
+            return []
+        now = _now()
+        ends = _from_iso(ev.get("ends_at"))
+        if ends and ends < now:
+            return []
+        sc = (str(ev.get("scope") or "global").strip().lower() or "global")
+        eg = ev.get("guild_id")
+        if sc == "guild":
+            try:
+                if eg is None or int(eg) != int(guild_id):
+                    return []
+            except Exception:
+                return []
+        wrapped = SimpleNamespace(
+            id=int(ev.get("id") or 1),
+            slug=str(ev.get("slug") or ""),
+            title=str(ev.get("title") or ""),
+            description=str(ev.get("description") or ""),
+            image_url=ev.get("image_url"),
+            image_url_secondary=ev.get("image_url_secondary"),
+            scope=sc,
+            guild_id=(int(eg) if eg is not None and str(eg).strip().lstrip("-").isdigit() else None),
+            starts_at=_from_iso(ev.get("starts_at")) or now,
+            ends_at=ends or now,
+            activated_at=_from_iso(ev.get("activated_at")),
+            target_training_points=int(ev.get("target_training_points") or 1),
+            status=status,
+            character_multipliers_json=json.dumps(ev.get("character_multipliers") or {}, separators=(",", ":")),
+            reward_points=int(ev.get("reward_points") or 0),
+            failure_points=int(ev.get("failure_points") or 0),
+            success_badge_emoji=str(ev.get("success_badge_emoji") or "🏆"),
+            success_badge_label=str(ev.get("success_badge_label") or ev.get("title") or "Quest"),
+            grant_success_badge=bool(ev.get("grant_success_badge", True)),
+            resolution_applied=bool(ev.get("resolution_applied", False)),
+        )
+        return [wrapped]
     if select is None:
         return []
     from utils.models import GlobalQuestEvent
@@ -100,6 +244,21 @@ async def get_active_events_for_guild(*, guild_id: int) -> list[Any]:
 
 
 async def _sum_training(*, event_id: int, guild_id: int | None = None) -> int:
+    if _json_mode_enabled():
+        data = await _read_store()
+        contrib = data.get("contributions") or {}
+        total = 0
+        for key, raw in contrib.items():
+            try:
+                egid_s, _, _ = str(key).split(":", 2)
+                egid = int(egid_s)
+                pts = int(raw or 0)
+            except Exception:
+                continue
+            if guild_id is not None and egid != int(guild_id):
+                continue
+            total += max(0, pts)
+        return int(total)
     from utils.models import GlobalQuestContribution
 
     if select is None:
@@ -116,6 +275,19 @@ async def _sum_training(*, event_id: int, guild_id: int | None = None) -> int:
 
 
 async def _user_training_sum(*, event_id: int, user_id: int, guild_id: int) -> int:
+    if _json_mode_enabled():
+        data = await _read_store()
+        contrib = data.get("contributions") or {}
+        total = 0
+        prefix = f"{int(guild_id)}:{int(user_id)}:"
+        for key, raw in contrib.items():
+            if not str(key).startswith(prefix):
+                continue
+            try:
+                total += max(0, int(raw or 0))
+            except Exception:
+                continue
+        return int(total)
     from utils.models import GlobalQuestContribution
 
     if select is None:
@@ -137,6 +309,14 @@ async def _user_training_sum(*, event_id: int, user_id: int, guild_id: int) -> i
 async def _user_style_training(
     *, event_id: int, user_id: int, guild_id: int, style_id: str
 ) -> int:
+    if _json_mode_enabled():
+        data = await _read_store()
+        contrib = data.get("contributions") or {}
+        key = f"{int(guild_id)}:{int(user_id)}:{(style_id or '').strip().lower()}"
+        try:
+            return int(contrib.get(key) or 0)
+        except Exception:
+            return 0
     from utils.models import GlobalQuestContribution
 
     if select is None:
@@ -281,6 +461,30 @@ async def _apply_training_delta(
     bond_xp_gained: int,
     bond_level: int | None = None,
 ) -> None:
+    if _json_mode_enabled():
+        eid = int(getattr(event, "id", 0) or 1)
+        mult = _parse_multipliers(getattr(event, "character_multipliers_json", None)).get(
+            style_id, 1.0
+        )
+        scope = (getattr(event, "scope", "") or "").strip().lower()
+        if scope == "global":
+            from utils.bonds import tier_for_level
+            lvl = max(1, int(bond_level or 1))
+            tier = tier_for_level(lvl)
+            tp = 2 * max(1, min(5, tier))
+            delta = max(1, int(round(tp * float(mult))))
+        else:
+            base = 1 + max(0, min(50, int(bond_xp_gained)))
+            delta = max(1, int(round(base * float(mult))))
+        data = await _read_store()
+        contrib = data.get("contributions") or {}
+        key = f"{int(guild_id)}:{int(user_id)}:{(style_id or '').strip().lower()}"
+        prev = int(contrib.get(key) or 0)
+        contrib[key] = int(prev + delta)
+        data["contributions"] = contrib
+        await _write_store(data)
+        await resolve_event_if_needed(event_id=eid)
+        return
     from utils.models import GlobalQuestContribution
 
     eid = int(getattr(event, "id", 0))
@@ -337,6 +541,33 @@ async def _apply_training_delta(
 
 async def resolve_event_if_needed(*, event_id: int) -> None:
     """Complete or fail event; apply rewards once."""
+    if _json_mode_enabled():
+        data = await _read_store()
+        ev = dict(data.get("event") or {})
+        if int(ev.get("id") or 1) != int(event_id):
+            return
+        if bool(ev.get("resolution_applied", False)):
+            return
+        if str(ev.get("status") or "").strip().lower() != "active":
+            return
+        scope = (str(ev.get("scope") or "global").strip().lower() or "global")
+        eg = ev.get("guild_id")
+        target = max(1, int(ev.get("target_training_points") or 1))
+        ends = _from_iso(ev.get("ends_at"))
+        if scope == "guild" and eg is not None:
+            total = await _sum_training(event_id=event_id, guild_id=int(eg))
+        else:
+            total = await _sum_training(event_id=event_id, guild_id=None)
+        now = _now()
+        success = total >= target
+        timed_out = ends is not None and now > ends
+        if not success and not timed_out:
+            return
+        ev["status"] = "completed_success" if success else "completed_fail"
+        ev["resolution_applied"] = True
+        data["event"] = ev
+        await _write_store(data)
+        return
     from utils.models import GlobalQuestEvent
 
     if select is None:
@@ -507,3 +738,84 @@ async def list_user_badges(*, user_id: int, limit: int = 20) -> list[str]:
             return [str(r[0]) for r in res.all() if r[0]]
         except Exception:
             return []
+
+
+async def json_admin_list_events() -> list[dict[str, Any]]:
+    data = await _read_store()
+    ev = dict(data.get("event") or {})
+    out = dict(ev)
+    out["character_multipliers"] = ev.get("character_multipliers") or {}
+    return [out]
+
+
+async def json_admin_save_event(*, body: dict[str, Any]) -> int:
+    data = await _read_store()
+    ev = dict(data.get("event") or {})
+    now = _now()
+    ev["id"] = int(body.get("id") or ev.get("id") or 1)
+    ev["slug"] = str(body.get("slug") or ev.get("slug") or "global-quest")[:64]
+    ev["title"] = str(body.get("title") or ev.get("title") or "Untitled")[:200]
+    ev["description"] = str(body.get("description") or "")
+    ev["image_url"] = body.get("image_url") or None
+    ev["image_url_secondary"] = body.get("image_url_secondary") or None
+    scope = str(body.get("scope") or ev.get("scope") or "global").strip().lower()
+    ev["scope"] = scope if scope in {"global", "guild"} else "global"
+    gid = body.get("guild_id")
+    ev["guild_id"] = int(gid) if gid is not None and str(gid).strip().lstrip("-").isdigit() else None
+    ev["starts_at"] = str(ev.get("starts_at") or _iso(now))
+    ev["ends_at"] = str(body.get("ends_at") or ev.get("ends_at") or _iso(now))
+    ev["activated_at"] = body.get("activated_at") or ev.get("activated_at")
+    ev["target_training_points"] = int(body.get("target_training_points") or ev.get("target_training_points") or 100000)
+    mult = body.get("character_multipliers") or ev.get("character_multipliers") or {}
+    ev["character_multipliers"] = mult if isinstance(mult, dict) else {}
+    ev["status"] = str(body.get("status") or ev.get("status") or "draft").strip().lower()
+    ev["reward_points"] = int(body.get("reward_points") or ev.get("reward_points") or 0)
+    ev["failure_points"] = int(body.get("failure_points") or ev.get("failure_points") or 0)
+    ev["success_badge_emoji"] = str(body.get("success_badge_emoji") or ev.get("success_badge_emoji") or "🏆")[:16]
+    ev["success_badge_label"] = str(body.get("success_badge_label") or ev.get("success_badge_label") or ev["title"])[:120]
+    ev["grant_success_badge"] = bool(body.get("grant_success_badge", ev.get("grant_success_badge", True)))
+    ev["resolution_applied"] = bool(ev.get("resolution_applied", False))
+    data["event"] = ev
+    await _write_store(data)
+    return int(ev["id"])
+
+
+async def json_admin_activate_event(*, event_id: int) -> tuple[str | None, str | None]:
+    data = await _read_store()
+    ev = dict(data.get("event") or {})
+    if int(ev.get("id") or 1) != int(event_id):
+        ev["id"] = int(event_id)
+    now = _now()
+    ev["status"] = "active"
+    ev["starts_at"] = _iso(now)
+    ev["activated_at"] = _iso(now)
+    ends = _from_iso(ev.get("ends_at"))
+    if ends is None or ends <= now:
+        ev["ends_at"] = _iso(now + timedelta(days=30))
+    ev["resolution_applied"] = False
+    data["event"] = ev
+    await _write_store(data)
+    return ev.get("activated_at"), ev.get("ends_at")
+
+
+async def json_admin_cancel_event(*, event_id: int) -> bool:
+    data = await _read_store()
+    ev = dict(data.get("event") or {})
+    if int(ev.get("id") or 1) != int(event_id):
+        return False
+    ev["status"] = "cancelled"
+    ev["resolution_applied"] = True
+    data["event"] = ev
+    await _write_store(data)
+    return True
+
+
+async def json_admin_delete_event(*, event_id: int) -> bool:
+    data = await _read_store()
+    ev = dict(data.get("event") or {})
+    if int(ev.get("id") or 1) != int(event_id):
+        return False
+    data["event"] = _default_store()["event"]
+    data["contributions"] = {}
+    await _write_store(data)
+    return True

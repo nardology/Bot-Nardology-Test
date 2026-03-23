@@ -9,7 +9,10 @@ logger = logging.getLogger("bot.global_quest_loop")
 
 async def tick_global_quest_resolutions() -> None:
     try:
-        from utils.global_quest import resolve_event_if_needed
+        from utils.global_quest import resolve_event_if_needed, _json_mode_enabled
+        if _json_mode_enabled():
+            await resolve_event_if_needed(event_id=1)
+            return
         from utils.models import GlobalQuestEvent
         from utils.db import get_sessionmaker
 
