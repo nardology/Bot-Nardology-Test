@@ -1786,6 +1786,8 @@ class SlashPoints(commands.Cog):
             if gid is None:
                 await interaction.response.send_message("Use this in a server.", ephemeral=True)
                 return
+            # Defer first: build_quest_status_embed can exceed Discord's ~3s interaction window.
+            await interaction.response.defer(ephemeral=True)
             uid = int(interaction.user.id)
 
             embed = await build_quest_status_embed(guild_id=gid, user_id=uid)
@@ -1798,11 +1800,14 @@ class SlashPoints(commands.Cog):
                 embed.description = f"**KAI says:** {greeting}"
             claimable = await get_claimable_quest_ids(guild_id=gid, user_id=uid)
             view = PointsQuestsView(bot=self.bot, guild_id=gid, user_id=uid, claimable_ids=claimable)
-            await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
         except Exception:
             logger.exception("/points quests failed")
             try:
-                await interaction.response.send_message("⚠️ Quests failed. Check logs.", ephemeral=True)
+                if interaction.response.is_done():
+                    await interaction.followup.send("⚠️ Quests failed. Check logs.", ephemeral=True)
+                else:
+                    await interaction.response.send_message("⚠️ Quests failed. Check logs.", ephemeral=True)
             except Exception:
                 pass
 

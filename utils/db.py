@@ -96,7 +96,8 @@ def get_sessionmaker():
 #   2. If this table has an _ensure_* helper below, add the same column here with
 #      ADD COLUMN IF NOT EXISTS and the same type/default, so deployments that
 #      skip migrations still work. Keep this in sync with the latest migrations.
-# Tables with ensure helpers: points_wallet, character_user_state, stripe/premium.
+# Tables with ensure helpers: points_wallet, character_user_state, stripe/premium,
+# global_quest, topic engagement (daily_topic_*, character_weekly_topics).
 # ---------------------------------------------------------------------------
 
 
@@ -267,6 +268,29 @@ async def _ensure_global_quest_schema(conn) -> None:
     await _ensure_global_quest_columns(conn)
 
 
+async def _ensure_topic_engagement_schema(conn) -> None:
+    """Create daily topic + character weekly topic tables when migrations were not applied.
+
+    Production uses selective create_all; these tables are defined on Base but were not
+    included in the analytics preflight list, so Railway deploys without Alembic miss them.
+    """
+    try:
+        from utils.models import (
+            DailyTopicConfig,
+            DailyTopicHistory,
+            DailyTopicCompletion,
+            CharacterWeeklyTopics,
+        )
+
+        await conn.run_sync(lambda sc: DailyTopicConfig.__table__.create(sc, checkfirst=True))
+        await conn.run_sync(lambda sc: DailyTopicHistory.__table__.create(sc, checkfirst=True))
+        await conn.run_sync(lambda sc: DailyTopicCompletion.__table__.create(sc, checkfirst=True))
+        await conn.run_sync(lambda sc: CharacterWeeklyTopics.__table__.create(sc, checkfirst=True))
+        log.info("topic engagement schema: tables present or created")
+    except Exception:
+        log.exception("topic engagement table create failed")
+
+
 _DB_RETRY_ATTEMPTS = 5
 _DB_RETRY_BASE_DELAY = 2.0
 
@@ -355,3 +379,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                 await _ensure_global_quest_schema(conn)
             except Exception:
                 log.exception("global_quest schema ensure failed (non-fatal)")
+            try:
+                await _ensure_topic_engagement_schema(conn)
+            except Exception:
+                log.exception("topic engagement schema ensure failed (non-fatal)")
