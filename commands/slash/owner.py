@@ -2427,6 +2427,7 @@ class SlashOwner(commands.Cog):
             return
         target = user or interaction.user
         from utils.talk_store import clear_today_talk_counters_for_user
+        from utils.ai_abuse import clear_abuse_flagged
 
         ok = await clear_today_talk_counters_for_user(guild_id=int(interaction.guild.id), user_id=int(target.id))
         if not ok:
@@ -2435,8 +2436,14 @@ class SlashOwner(commands.Cog):
                 ephemeral=True,
             )
             return
+        # Clearing the counters alone doesn't remove the "flagged" key, which causes AbuseThrottled.
+        # Clear that as well so the user is immediately un-throttled after a reset.
+        try:
+            await clear_abuse_flagged(int(target.id))
+        except Exception:
+            pass
         await interaction.followup.send(
-            f"✅ Cleared today's /talk daily counters (count + tokens) for <@{target.id}> (`{target.id}`) in this server.",
+            f"✅ Cleared today's /talk daily counters (count + tokens) and removed abuse-flag throttle for <@{target.id}> (`{target.id}`) in this server.",
             ephemeral=True,
         )
 
