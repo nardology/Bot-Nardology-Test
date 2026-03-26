@@ -78,6 +78,21 @@ from utils.packs_store import list_custom_packs, normalize_style_id
 
 
 logger = logging.getLogger("bot.talk")
+def _connection_traits_link_view() -> discord.ui.View | None:
+    base = (config.BASE_URL or "").strip().rstrip("/")
+    if not base:
+        return None
+    v = discord.ui.View(timeout=180)
+    v.add_item(
+        discord.ui.Button(
+            label="Connection traits (web)",
+            style=discord.ButtonStyle.link,
+            url=f"{base}/connection",
+        )
+    )
+    return v
+
+
 
 # -----------------------
 # Budget-safe memory knobs (anti-abuse: cap context so memory can't smuggle "write essay" instructions)
@@ -1241,7 +1256,7 @@ class SlashTalk(commands.Cog):
                 try:
                     from utils.global_quest import record_training_from_talk
 
-                    await record_training_from_talk(
+                    gq_contribs = await record_training_from_talk(
                         guild_id=int(guild_id),
                         user_id=int(user_id),
                         style_id=str(effective_style or ""),
@@ -1249,6 +1264,13 @@ class SlashTalk(commands.Cog):
                         bond_xp_gained=int(gained),
                         bond_level=int(new_level),
                     )
+                    if gq_contribs:
+                        lines = []
+                        for c in gq_contribs:
+                            title = str(c.get("title") or "Global quest")
+                            delta = int(c.get("delta") or 0)
+                            lines.append(f"🌍 **{title}**: +**{delta}** training points")
+                        await interaction.followup.send("\n".join(lines), ephemeral=True)
                 except Exception:
                     pass
                 
@@ -1379,6 +1401,7 @@ class SlashTalk(commands.Cog):
                         t = title_for_level(lvl)
                         await interaction.followup.send(
                             f"🎉 Bond leveled up with **{name}** → **Lvl {lvl} ({t})**!",
+                            view=_connection_traits_link_view(),
                             ephemeral=True,
                         )
                     else:
@@ -1402,7 +1425,11 @@ class SlashTalk(commands.Cog):
                     elif level_up:
                         title = title_for_level(new_level)
                         msg = get_kai_bond_level_message(title, name)
-                        await interaction.followup.send(embed=embed_kailove(msg), ephemeral=True)
+                        await interaction.followup.send(
+                            embed=embed_kailove(msg),
+                            view=_connection_traits_link_view(),
+                            ephemeral=True,
+                        )
                 except Exception:
                     logger.exception("KAI bond followup failed")
 

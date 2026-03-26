@@ -17,6 +17,7 @@
     .muted{color:#888;font-size:0.85rem;}
     a{color:#7c89ff;}
     .trait{border-left:3px solid #5865f2;padding-left:12px;margin:10px 0;}
+    .charimg{max-width:260px;border-radius:10px;border:1px solid #2a2a35;display:block;}
   </style>
   <script>/*__INJECT__*/</script>
 </head>
@@ -35,6 +36,9 @@
         <label>Shards</label>
         <div id="shardBal" style="padding:10px 0;font-weight:600;">—</div>
       </div>
+    </div>
+    <div id="charImgWrap" style="margin-top:10px;display:none;">
+      <img id="charImg" class="charimg" alt="Character image"/>
     </div>
   </div>
 
@@ -67,6 +71,7 @@
     return r;
   }
   let state = null;
+  let initialized = false;
   async function refresh(){
     const sel = document.getElementById('charSel');
     const sid = sel.value || '';
@@ -80,7 +85,31 @@
         o.value = c; o.textContent = c;
         sel.appendChild(o);
       });
-      if(sel.options.length) sel.selectedIndex = 0;
+      const preferred = (state.selected_style_id || '').trim();
+      if(sel.options.length){
+        if(preferred){
+          for(let i=0;i<sel.options.length;i++){
+            if(sel.options[i].value === preferred){ sel.selectedIndex = i; break; }
+          }
+        }
+        if(sel.selectedIndex < 0) sel.selectedIndex = 0;
+      }
+      if(!initialized && sel.value && sel.value !== sid){
+        initialized = true;
+        await refresh();
+        return;
+      }
+    }
+    initialized = true;
+    const imgWrap = document.getElementById('charImgWrap');
+    const imgEl = document.getElementById('charImg');
+    const imgUrl = (state.style_image_url || '').trim();
+    if(imgUrl){
+      imgEl.src = imgUrl;
+      imgWrap.style.display = 'block';
+    }else{
+      imgEl.removeAttribute('src');
+      imgWrap.style.display = 'none';
     }
     const tl = document.getElementById('traitList');
     tl.innerHTML = '';
@@ -88,7 +117,7 @@
       const d = document.createElement('div');
       d.className = 'trait';
       const owned = (state.purchased||{})[t.trait_id];
-      const st = owned ? 'Owned' : `Buy (${t.base_shard_cost} shards)`;
+      const st = owned ? '✅ Owned' : `⬜ Buy (${t.base_shard_cost} shards)`;
       d.innerHTML = `<strong>${t.title}</strong> <span class="muted">${st}</span><div class="muted">${t.description}</div>` +
         (!owned ? `<button type="button" data-buy="${t.trait_id}">Purchase</button>` : '');
       tl.appendChild(d);

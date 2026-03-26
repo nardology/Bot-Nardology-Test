@@ -5,6 +5,7 @@ import discord
 import logging
 import time
 
+import config
 
 from discord.ext import commands
 from discord import app_commands
@@ -231,6 +232,20 @@ class SlashBasic(commands.Cog):
     @app_commands.command(name="add", description="Add two numbers")
     async def add(self, interaction: discord.Interaction, a: int, b: int):
         await interaction.response.send_message(f"{a} + {b} = {a + b}", ephemeral=True)
+
+    @app_commands.command(name="badges", description="Open the badges catalog web page")
+    async def badges(self, interaction: discord.Interaction):
+        base = (config.BASE_URL or "").strip().rstrip("/")
+        if not base:
+            await interaction.response.send_message(
+                "Badges page is unavailable because BASE_URL is not configured.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            f"View badges here: {base}/badges",
+            ephemeral=True,
+        )
 
 
 # ---------- Context menu: React 🔥 ----------

@@ -9,6 +9,7 @@ import discord
 from discord import app_commands
 from discord.ext import commands
 
+import config
 from utils.stats import get_user_stats, UserStats
 from utils.character_registry import get_style
 from utils.character_store import compute_limits, get_inventory_upgrades
@@ -23,6 +24,7 @@ logger = logging.getLogger("bot.inspect")
 def _add_stats_fields(e: discord.Embed, stats: UserStats, *, max_inventory_slots: Optional[int] = None) -> None:
     """Add stats fields to an embed."""
     e.add_field(name="Points", value=f"**{stats.points}**", inline=True)
+    e.add_field(name="Shards", value=f"**{int(getattr(stats, 'shards', 0) or 0)}**", inline=True)
     e.add_field(name="Daily streak", value=f"**{stats.daily_streak}** day(s)", inline=True)
     badges: list[str] = []
     if getattr(stats, "streak_badge_30", False):
@@ -259,7 +261,50 @@ class CharacterInspectView(discord.ui.View):
 
     def __init__(self, target_id: int, character_ids: list[str], allowed_user_id: int):
         super().__init__(timeout=180)
+        self.target_id = int(target_id)
+        self.allowed_user_id = int(allowed_user_id)
         self.add_item(CharacterInspectSelect(target_id, character_ids, allowed_user_id))
+        base = (config.BASE_URL or "").strip().rstrip("/")
+        if base:
+            self.add_item(
+                discord.ui.Button(
+                    label="Connection traits (web)",
+                    style=discord.ButtonStyle.link,
+                    url=f"{base}/connection",
+                )
+            )
+
+    @discord.ui.button(label="View Purchased Traits", style=discord.ButtonStyle.secondary)
+    async def view_purchased_traits(self, interaction: discord.Interaction, _button: discord.ui.Button):
+        if int(interaction.user.id) != self.allowed_user_id:
+            await interaction.response.send_message("This menu isn't yours.", ephemeral=True)
+            return
+        try:
+            from utils.character_store import load_state
+            from utils.connection_traits_store import load_profile
+            from utils.connection_traits_catalog import list_enabled_traits
+
+            st = await load_state(user_id=self.target_id)
+            sid = (str(getattr(st, "active_style_id", "") or "").strip().lower())
+            if not sid:
+                await interaction.response.send_message("No selected character to inspect traits for.", ephemeral=True)
+                return
+
+            data = await load_profile(user_id=self.target_id, style_id=sid)
+            purchased = dict(data.get("purchased") or {})
+            title_map = {t.trait_id: t.title for t in list_enabled_traits()}
+            lines = []
+            for tid in sorted(purchased.keys()):
+                tname = title_map.get(tid, tid)
+                lines.append(f"✅ {tname}")
+            if not lines:
+                lines = ["No purchased connection traits found for selected character."]
+            await interaction.response.send_message(
+                f"**Selected character:** `{sid}`\n" + "\n".join(lines),
+                ephemeral=True,
+            )
+        except Exception:
+            await interaction.response.send_message("Failed to load purchased traits.", ephemeral=True)
 
 
 class SlashInspect(commands.Cog):

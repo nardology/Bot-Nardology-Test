@@ -27,7 +27,7 @@ from core.kai_mascot import (
 )
 import config
 
-from utils.shard_economy import duplicate_shards_for_rarity
+from utils.shard_economy import duplicate_shards_for_rarity, repeat_roll_shards
 from utils.start_required import require_start
 from utils.roll_ready_dm import schedule_roll_ready_dm
 from utils.character_store import (
@@ -43,11 +43,15 @@ from utils.character_store import (
     award_dupe_shards,
     compute_limits,
     delete_custom_style_profile,
+    has_rolled_style_before,
+    mark_style_rolled,
     remove_style_from_inventory,
     get_roll_retry_after_seconds,
     roll_window_seconds,
     get_inventory_upgrades,
 )
+from utils.bonds_store import get_bond
+from utils.bonds import level_from_xp
 
 from utils.points_store import get_active_booster, get_booster_stack, spend_points
 from utils.packs_store import get_enabled_pack_ids
@@ -920,10 +924,14 @@ class SlashCharacter(commands.Cog):
             ok, msg = await set_active_style(user_id=interaction.user.id, style_id=style_id)
 
             if ok:
-                await interaction.response.send_message(
-                    f"✅ Selected character: **{_format_character_name(style_id)}**.",
-                    ephemeral=True,
-                )
+                base = (config.BASE_URL or "").strip().rstrip("/")
+                kwargs = {
+                    "content": f"✅ Selected character: **{_format_character_name(style_id)}**.",
+                    "ephemeral": True,
+                }
+                if base:
+                    kwargs["view"] = CollectionConnectionView(f"{base}/connection")
+                await interaction.response.send_message(**kwargs)
             else:
                 await interaction.response.send_message("⚠️ " + msg, ephemeral=True)
 
@@ -1338,10 +1346,35 @@ class SlashCharacter(commands.Cog):
                 animated = False
                 animated_msg = None
                 reward_sfx = ""
-            # Duplicate handling: ONLY Roll again + Close
-            if rolled.style_id.lower() in owned:
-                dupe_amount = duplicate_shards_for_rarity(getattr(rolled, "rarity", None))
-                await award_dupe_shards(user_id=user_id, amount=dupe_amount)
+            style_id_rolled = rolled.style_id.lower()
+            in_inventory_duplicate = style_id_rolled in owned
+            had_rolled_before = await has_rolled_style_before(user_id=user_id, style_id=style_id_rolled)
+            selected_style = str(getattr(state, "active_style_id", "") or "").strip().lower()
+            is_selected_duplicate = in_inventory_duplicate and selected_style == style_id_rolled
+            bond_level = 0
+            try:
+                b = await get_bond(guild_id=guild_id, user_id=user_id, style_id=style_id_rolled)
+                bond_level = level_from_xp(int(getattr(b, "xp", 0) or 0)) if b else 0
+            except Exception:
+                bond_level = 0
+
+            repeat_shards = 0
+            repeat_base_shards = duplicate_shards_for_rarity(getattr(rolled, "rarity", None))
+            if had_rolled_before:
+                repeat_shards, repeat_base_shards = repeat_roll_shards(
+                    rarity=getattr(rolled, "rarity", None),
+                    in_inventory=in_inventory_duplicate,
+                    is_selected=is_selected_duplicate,
+                    bond_level=bond_level,
+                )
+                if repeat_shards > 0:
+                    await award_dupe_shards(user_id=user_id, amount=repeat_shards)
+
+            # Mark this style as rolled after computing "had_rolled_before".
+            await mark_style_rolled(user_id=user_id, style_id=style_id_rolled)
+
+            # Duplicate handling: inventory duplicate keeps Roll again + Close behavior.
+            if in_inventory_duplicate:
 
                 badge = await badges_for_style_id(rolled.style_id)
                 rolls_left_after = max(0, remaining - 1) if consume_roll_credit else max(0, remaining)
@@ -1355,8 +1388,11 @@ class SlashCharacter(commands.Cog):
                 )
                 e.add_field(
                     name="Duplicate!",
-                    value=f"You already own this character → **+{dupe_amount}** shards "
-                    f"(rarity **{str(getattr(rolled, 'rarity', 'common') or 'common').lower()}**)",
+                    value=(
+                        f"You already own this character → **+{repeat_shards}** shards "
+                        f"(base **{repeat_base_shards}**, selected bonus: "
+                        f"{'yes' if is_selected_duplicate else 'no'}, bond level: **{bond_level}**)"
+                    ),
                     inline=False,
                 )
 
@@ -1422,6 +1458,15 @@ class SlashCharacter(commands.Cog):
                 pity_legendary=new_pity_leg,
                 pity_mythic=new_pity_myth,
             )
+            if had_rolled_before and repeat_shards > 0:
+                e.add_field(
+                    name="Repeat roll bonus",
+                    value=(
+                        f"You rolled this character before, so you earned **+{repeat_shards}** shards "
+                        f"(base **{repeat_base_shards}**, bond level: **{bond_level}**)."
+                    ),
+                    inline=False,
+                )
 
             # Re-check for safety (cheap)
             _state_now = await load_state(user_id=user_id)

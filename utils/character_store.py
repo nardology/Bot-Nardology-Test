@@ -20,7 +20,7 @@ from utils.backpressure import get_redis_or_none
 from utils.character_registry import BASE_STYLE_IDS, disable_style, get_style, merge_pack_payload
 from utils.packs_store import list_custom_packs, normalize_style_id
 from utils.db import get_sessionmaker
-from utils.models import CharacterCustomStyle, CharacterOwnedStyle, CharacterUserState
+from utils.models import CharacterCustomStyle, CharacterOwnedStyle, CharacterRollHistory, CharacterUserState
 
 try:
     from sqlalchemy import delete, select  # type: ignore
@@ -943,6 +943,64 @@ async def add_style_to_inventory(
 
 async def award_dupe_shards(*, user_id: int, amount: int) -> None:
     await add_points(user_id, int(amount or 0))
+
+
+async def has_rolled_style_before(*, user_id: int, style_id: str) -> bool:
+    """Return True if this user has ever rolled this style before."""
+    sid = _norm(style_id)
+    if not sid:
+        return False
+    if select is None:
+        return False
+    Session = get_sessionmaker()
+    async with Session() as session:
+        try:
+            res = await session.execute(
+                select(CharacterRollHistory.id)
+                .where(CharacterRollHistory.user_id == int(user_id))
+                .where(CharacterRollHistory.style_id == sid)
+                .limit(1)
+            )
+            return res.scalar_one_or_none() is not None
+        except Exception:
+            return False
+
+
+async def mark_style_rolled(*, user_id: int, style_id: str) -> None:
+    """Upsert roll history so future rolls of this style are treated as repeats."""
+    sid = _norm(style_id)
+    if not sid:
+        return
+    if select is None:
+        return
+    Session = get_sessionmaker()
+    async with Session() as session:
+        try:
+            res = await session.execute(
+                select(CharacterRollHistory)
+                .where(CharacterRollHistory.user_id == int(user_id))
+                .where(CharacterRollHistory.style_id == sid)
+                .limit(1)
+            )
+            row = res.scalar_one_or_none()
+            if row is None:
+                row = CharacterRollHistory(
+                    user_id=int(user_id),
+                    style_id=sid,
+                    first_rolled_at=_now_utc(),
+                    last_rolled_at=_now_utc(),
+                    roll_count=1,
+                )
+                session.add(row)
+            else:
+                row.roll_count = int(getattr(row, "roll_count", 0) or 0) + 1
+                row.last_rolled_at = _now_utc()
+            await session.commit()
+        except Exception:
+            try:
+                await session.rollback()
+            except Exception:
+                pass
 
 
 async def replace_style_in_inventory(*, user_id: int, old_style_id: str, new_style_id: str) -> tuple[bool, str]:

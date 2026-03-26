@@ -82,6 +82,23 @@ try:
         )
 
 
+    class CharacterRollHistory(Base):
+        """Tracks rolled characters regardless of current inventory ownership."""
+
+        __tablename__ = "character_roll_history"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        user_id: Mapped[int] = mapped_column(BigInteger, index=True)
+        style_id: Mapped[str] = mapped_column(String(64), index=True)
+        first_rolled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+        last_rolled_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+        roll_count: Mapped[int] = mapped_column(Integer, default=1)
+
+        __table_args__ = (
+            Index("ix_roll_history_unique", "user_id", "style_id", unique=True),
+        )
+
+
     class CharacterCustomStyle(Base):
         __tablename__ = "character_custom_styles"
 
@@ -605,6 +622,25 @@ try:
 
         __table_args__ = (
             UniqueConstraint("user_id", "badge_key", name="uq_user_profile_badges_user_key"),
+        )
+
+    class BadgeDefinition(Base):
+        """Catalog metadata for badges that can be granted to users."""
+
+        __tablename__ = "badge_definitions"
+
+        id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+        badge_key: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
+        emoji: Mapped[str] = mapped_column(String(16), default="")
+        label: Mapped[str] = mapped_column(String(120), nullable=False)
+        name: Mapped[str] = mapped_column(String(120), default="")
+        description: Mapped[str] = mapped_column(Text, default="")
+        how_to_obtain: Mapped[str] = mapped_column(Text, default="")
+        created_by_user_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+        created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_now_utc)
+
+        __table_args__ = (
+            Index("ix_badge_defs_key", "badge_key", unique=True),
         )
 
     # ------------------------------------------------------------------

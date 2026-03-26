@@ -14,6 +14,8 @@ import config
 from utils.connection_traits_catalog import list_enabled_traits
 from core.recommendations import generate_token, verify_token
 from utils.character_store import load_state
+from utils.character_registry import get_style
+from utils.media_assets import resolve_embed_image_url
 from utils.connection_traits_store import (
     get_shard_balance,
     load_profile,
@@ -202,6 +204,11 @@ async def handle_api_state(request: web.Request) -> web.Response:
     style_id = (request.query.get("style_id") or "").strip().lower()
     st = await load_state(uid)
     owned = [x for x in (getattr(st, "owned_custom", None) or []) if x and x != "fun"]
+    owned_sorted = sorted(owned)
+    selected_style_id = (str(getattr(st, "active_style_id", "") or "").strip().lower())
+    if selected_style_id not in owned_sorted:
+        selected_style_id = owned_sorted[0] if owned_sorted else ""
+    effective_style_id = style_id or selected_style_id
     traits = [
         {
             "trait_id": t.trait_id,
@@ -211,17 +218,25 @@ async def handle_api_state(request: web.Request) -> web.Response:
         }
         for t in list_enabled_traits()
     ]
-    if not style_id:
+    def _style_image_url(sid: str) -> str | None:
+        s = get_style((sid or "").strip().lower())
+        raw = str(getattr(s, "image_url", "") or "").strip() if s else ""
+        return resolve_embed_image_url(raw)
+
+    if not effective_style_id:
         return web.json_response(
             {
                 "shard_balance": await get_shard_balance(uid),
-                "owned_characters": sorted(owned),
+                "owned_characters": owned_sorted,
                 "traits": traits,
                 "purchased": {},
                 "payload": {},
+                "selected_style_id": selected_style_id,
+                "style_id": "",
+                "style_image_url": None,
             }
         )
-    data = await load_profile(user_id=uid, style_id=style_id)
+    data = await load_profile(user_id=uid, style_id=effective_style_id)
     purchased = dict(data.get("purchased") or {})
     prices: dict[str, Any] = {}
     for t in list_enabled_traits():
@@ -237,8 +252,10 @@ async def handle_api_state(request: web.Request) -> web.Response:
     return web.json_response(
         {
             "shard_balance": await get_shard_balance(uid),
-            "owned_characters": sorted(owned),
-            "style_id": style_id,
+            "owned_characters": owned_sorted,
+            "style_id": effective_style_id,
+            "selected_style_id": selected_style_id,
+            "style_image_url": _style_image_url(effective_style_id),
             "traits": traits,
             "purchased": purchased,
             "payload": data.get("payload") or {},

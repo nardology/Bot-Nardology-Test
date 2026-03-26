@@ -97,7 +97,8 @@ def get_sessionmaker():
 #      ADD COLUMN IF NOT EXISTS and the same type/default, so deployments that
 #      skip migrations still work. Keep this in sync with the latest migrations.
 # Tables with ensure helpers: points_wallet, character_user_state, stripe/premium,
-# global_quest, topic engagement (daily_topic_*, character_weekly_topics).
+# global_quest, topic engagement (daily_topic_*, character_weekly_topics),
+# connection traits (character_connection_profiles), badge definitions.
 # ---------------------------------------------------------------------------
 
 
@@ -291,6 +292,28 @@ async def _ensure_topic_engagement_schema(conn) -> None:
         log.exception("topic engagement table create failed")
 
 
+async def _ensure_connection_traits_schema(conn) -> None:
+    """Create connection traits profile table when migrations were not applied."""
+    try:
+        from utils.models import CharacterConnectionProfile
+
+        await conn.run_sync(lambda sc: CharacterConnectionProfile.__table__.create(sc, checkfirst=True))
+        log.info("connection traits schema: table present or created")
+    except Exception:
+        log.exception("connection traits table create failed")
+
+
+async def _ensure_badge_definition_schema(conn) -> None:
+    """Create badge definition table when migrations were not applied."""
+    try:
+        from utils.models import BadgeDefinition
+
+        await conn.run_sync(lambda sc: BadgeDefinition.__table__.create(sc, checkfirst=True))
+        log.info("badge definitions schema: table present or created")
+    except Exception:
+        log.exception("badge definitions table create failed")
+
+
 _DB_RETRY_ATTEMPTS = 5
 _DB_RETRY_BASE_DELAY = 2.0
 
@@ -344,6 +367,9 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
             await _ensure_character_user_state_columns(conn)
             await _ensure_stripe_columns(conn)
             await _ensure_global_quest_schema(conn)
+            await _ensure_topic_engagement_schema(conn)
+            await _ensure_connection_traits_schema(conn)
+            await _ensure_badge_definition_schema(conn)
             log.info("DB init OK (tables ensured; env=%s auto_create=%s)", env, auto_create)
         else:
             from sqlalchemy import text  # type: ignore
@@ -359,6 +385,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                     QuestProgress,
                     QuestClaim,
                     CharacterRecommendation,
+                    CharacterRollHistory,
                 )  # type: ignore
 
                 await conn.run_sync(lambda sync_conn: AnalyticsDailyMetric.__table__.create(sync_conn, checkfirst=True))
@@ -370,6 +397,7 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                 await conn.run_sync(lambda sync_conn: QuestProgress.__table__.create(sync_conn, checkfirst=True))
                 await conn.run_sync(lambda sync_conn: QuestClaim.__table__.create(sync_conn, checkfirst=True))
                 await conn.run_sync(lambda sync_conn: CharacterRecommendation.__table__.create(sync_conn, checkfirst=True))
+                await conn.run_sync(lambda sync_conn: CharacterRollHistory.__table__.create(sync_conn, checkfirst=True))
                 await _ensure_stripe_columns(conn)
                 log.info("DB preflight OK (env=%s). Analytics + points tables ensured.", env)
             except Exception:
@@ -383,3 +411,11 @@ async def _init_db_inner(engine, Base, env: str, auto_create: bool) -> None:
                 await _ensure_topic_engagement_schema(conn)
             except Exception:
                 log.exception("topic engagement schema ensure failed (non-fatal)")
+            try:
+                await _ensure_connection_traits_schema(conn)
+            except Exception:
+                log.exception("connection traits schema ensure failed (non-fatal)")
+            try:
+                await _ensure_badge_definition_schema(conn)
+            except Exception:
+                log.exception("badge definitions schema ensure failed (non-fatal)")

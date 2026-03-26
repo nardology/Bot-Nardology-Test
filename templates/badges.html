@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Badges</title>
+  <style>
+    body{font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#0f0f12;color:#e8e8ef;max-width:900px;margin:0 auto;padding:24px;}
+    h1{font-size:1.4rem;margin-bottom:8px;}
+    .muted{color:#9aa0b3;}
+    .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:14px;}
+    .card{background:#18181f;border:1px solid #2a2a35;border-radius:12px;padding:12px;}
+    .head{display:flex;align-items:center;gap:8px;font-weight:700;}
+    .emoji{font-size:1.3rem;min-width:1.4rem;text-align:center;}
+    .src{font-size:0.8rem;color:#a0a6bd;text-transform:uppercase;letter-spacing:.04em;margin-top:6px;}
+  </style>
+</head>
+<body>
+  <h1>Badges</h1>
+  <p class="muted">All known badges, what they are called, and how they are rewarded.</p>
+  <div id="rows" class="grid"></div>
+<script>
+(async function(){
+  const rowsEl = document.getElementById('rows');
+  try{
+    const r = await fetch('/api/public/badges');
+    const j = await r.json();
+    if(!r.ok){ throw new Error(j.error || 'load failed'); }
+    const rows = j.badges || [];
+    rowsEl.innerHTML = '';
+    rows.forEach(b=>{
+      const c = document.createElement('div');
+      c.className = 'card';
+      c.innerHTML =
+        `<div class="head"><span class="emoji">${b.emoji || '🏷️'}</span><span>${b.name || b.label || 'Badge'}</span></div>` +
+        `<div class="muted">${b.description || 'No description available.'}</div>` +
+        `<div class="src">${(b.source || 'badge')}</div>`;
+      rowsEl.appendChild(c);
+    });
+    if(!rows.length){
+      rowsEl.innerHTML = '<div class="muted">No badges found.</div>';
+    }
+  }catch(e){
+    rowsEl.innerHTML = '<div class="muted">Failed to load badges.</div>';
+  }
+})();
+</script>
+</body>
+</html>

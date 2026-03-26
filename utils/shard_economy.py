@@ -25,6 +25,35 @@ def duplicate_shards_for_rarity(rarity: str | None) -> int:
     return int(DUPLICATE_SHARDS_BY_RARITY[r])
 
 
+def repeat_roll_shards(
+    *,
+    rarity: str | None,
+    in_inventory: bool,
+    is_selected: bool,
+    bond_level: int,
+) -> tuple[int, int]:
+    """Return (total_shards, base_shards) for a repeat roll payout."""
+    import math
+
+    base = duplicate_shards_for_rarity(rarity)
+    total = int(base)
+
+    if in_inventory:
+        # Inventory duplicate: +50% of base reward.
+        total += int(math.ceil(base * 0.5))
+        if is_selected:
+            # Selected duplicate: +100% of base reward.
+            total += int(base)
+
+    # Bond bonus uses levels above 1 (L3 -> +50% of base as requested).
+    lvl = max(0, int(bond_level or 0))
+    extra_levels = max(0, lvl - 1)
+    if extra_levels > 0:
+        total += int(math.ceil(base * (0.25 * extra_levels)))
+
+    return max(0, int(total)), int(base)
+
+
 def shards_to_points_after_fee(shards: int) -> int:
     """Convert shards to wallet points: floor(shards * POINTS_PER_SHARD * (1 - fee))."""
     s = max(0, int(shards or 0))

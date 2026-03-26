@@ -33,8 +33,10 @@ from utils.packs_store import (
 from utils.packs_builtin import get_builtin_pack
 from utils.media_assets import save_attachment_image
 from utils.pack_security import hash_pack_password
-from utils.character_store import give_style_to_user, nuke_style_globally
-from utils.character_registry import merge_pack_payload
+from utils.character_store import give_style_to_user, nuke_style_globally, remove_style_from_inventory
+from utils.character_registry import merge_pack_payload, get_style, get_shop_item_defs
+from utils.packs_store import is_pack_official
+from utils.badges import create_badge_definition, grant_defined_badge_to_user
 from utils.shop_store import (
     list_shop_items,
     upsert_shop_item,
@@ -339,6 +341,21 @@ class SlashOwner(commands.Cog):
     # Character owner utilities
     # ----------------------------
 
+    async def _is_official_or_shop_character(self, character_id: str) -> tuple[bool, str]:
+        sid = str(character_id or "").strip().lower()
+        s = get_style(sid)
+        if s is None:
+            return False, "Unknown character id."
+        # Allow any character with a shop item definition.
+        if sid in get_shop_item_defs():
+            return True, ""
+        try:
+            if await is_pack_official(str(getattr(s, "pack_id", "") or "")):
+                return True, ""
+        except Exception:
+            pass
+        return False, "This command only supports official/shop characters (not community pack characters)."
+
     @owner.command(name="give_character", description="Grant a character to a user by character id")
     async def give_character(
         self,
@@ -370,6 +387,85 @@ class SlashOwner(commands.Cog):
             )
         else:
             await interaction.response.send_message(f"❌ {stats.get('reason')}", ephemeral=True)
+
+    @owner.command(name="dev_character", description="DEV: give or take an official/shop character from a user")
+    @app_commands.describe(action="give or take", character_id="Character id", user="Target user")
+    @app_commands.choices(
+        action=[
+            app_commands.Choice(name="give", value="give"),
+            app_commands.Choice(name="take", value="take"),
+        ]
+    )
+    async def dev_character(
+        self,
+        interaction: discord.Interaction,
+        action: app_commands.Choice[str],
+        character_id: str,
+        user: discord.Member | None = None,
+    ):
+        if not await self.bot.is_owner(interaction.user):
+            await interaction.response.send_message("❌ Owner only.", ephemeral=True)
+            return
+        ok_kind, msg_kind = await self._is_official_or_shop_character(character_id)
+        if not ok_kind:
+            await interaction.response.send_message(f"❌ {msg_kind}", ephemeral=True)
+            return
+        target = user or interaction.user
+        sid = str(character_id or "").strip().lower()
+        if action.value == "give":
+            ok, msg = await give_style_to_user(int(target.id), sid)
+            prefix = "✅" if ok else "❌"
+            await interaction.response.send_message(f"{prefix} {msg}", ephemeral=True)
+            return
+        ok, msg, _old_streak = await remove_style_from_inventory(user_id=int(target.id), style_id=sid)
+        prefix = "✅" if ok else "❌"
+        await interaction.response.send_message(f"{prefix} {msg}", ephemeral=True)
+
+    @owner.command(name="create_badge", description="DEV: create a badge definition")
+    @app_commands.describe(
+        emoji="Badge emoji",
+        label="Badge label shown to users",
+        name="Optional display name",
+        description="Optional short description",
+        how_to_obtain="Optional acquisition note",
+    )
+    async def create_badge(
+        self,
+        interaction: discord.Interaction,
+        emoji: str,
+        label: str,
+        name: str | None = None,
+        description: str | None = None,
+        how_to_obtain: str | None = None,
+    ):
+        if not await self.bot.is_owner(interaction.user):
+            await interaction.response.send_message("❌ Owner only.", ephemeral=True)
+            return
+        ok, msg, badge_key = await create_badge_definition(
+            emoji=emoji,
+            label=label,
+            name=name,
+            description=description,
+            how_to_obtain=how_to_obtain,
+            created_by_user_id=int(interaction.user.id),
+        )
+        if not ok:
+            await interaction.response.send_message(f"❌ {msg}", ephemeral=True)
+            return
+        await interaction.response.send_message(
+            f"✅ {msg}\nBadge key: `{badge_key}`",
+            ephemeral=True,
+        )
+
+    @owner.command(name="grant_badge", description="DEV: grant a created badge to a user")
+    @app_commands.describe(badge_key="Badge key from /z_owner create_badge", user="Target user")
+    async def grant_badge(self, interaction: discord.Interaction, badge_key: str, user: discord.User):
+        if not await self.bot.is_owner(interaction.user):
+            await interaction.response.send_message("❌ Owner only.", ephemeral=True)
+            return
+        ok, msg = await grant_defined_badge_to_user(user_id=int(user.id), badge_key=str(badge_key or ""))
+        prefix = "✅" if ok else "❌"
+        await interaction.response.send_message(f"{prefix} {msg}", ephemeral=True)
 
     # ----------------------------
     # Data deletion helpers

@@ -23,6 +23,7 @@ class BondSummary:
 class UserStats:
     user_id: int
     points: int = 0
+    shards: int = 0
     daily_streak: int = 0
     characters_owned_count: int = 0
     character_ids: list[str] = field(default_factory=list)
@@ -82,6 +83,7 @@ async def get_user_stats(user_id: int, guild_id: int = 0) -> UserStats:
         stats.character_ids = [s for s in owned_list if s and str(s).lower() not in base_set]
         stats.character_ids = list(dict.fromkeys(s.lower() for s in stats.character_ids if s))
         stats.characters_owned_count = len(stats.character_ids)
+        stats.shards = int(getattr(state, "points", 0) or 0)
         active = getattr(state, "active_style_id", None) or ""
         stats.selected_character_id = (active or "").strip().lower()
         if stats.selected_character_id:

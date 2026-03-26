@@ -493,19 +493,20 @@ async def record_training_from_talk(
     selected_style_id: str,
     bond_xp_gained: int,
     bond_level: int | None = None,
-) -> None:
+) -> list[dict[str, Any]]:
     """Award training when user talks with their selected owned character."""
     sid = (style_id or "").strip().lower()
     sel = (selected_style_id or "").strip().lower()
     if not sid or not sel or sid != sel:
-        return
+        return []
 
     events = await get_active_events_for_guild(guild_id=int(guild_id))
     if not events:
-        return
+        return []
+    out: list[dict[str, Any]] = []
     for ev in events:
         try:
-            await _apply_training_delta(
+            delta = await _apply_training_delta(
                 event=ev,
                 guild_id=int(guild_id),
                 user_id=int(user_id),
@@ -513,8 +514,16 @@ async def record_training_from_talk(
                 bond_xp_gained=int(bond_xp_gained),
                 bond_level=int(bond_level) if bond_level is not None else None,
             )
+            out.append(
+                {
+                    "event_id": int(getattr(ev, "id", 0) or 0),
+                    "title": str(getattr(ev, "title", "") or "Global quest"),
+                    "delta": int(delta or 0),
+                }
+            )
         except Exception:
             logger.debug("training event failed", exc_info=True)
+    return out
 
 
 async def _apply_training_delta(
@@ -525,7 +534,7 @@ async def _apply_training_delta(
     style_id: str,
     bond_xp_gained: int,
     bond_level: int | None = None,
-) -> None:
+) -> int:
     if _json_mode_enabled():
         eid = int(getattr(event, "id", 0) or 1)
         mult = _parse_multipliers(getattr(event, "character_multipliers_json", None)).get(
@@ -555,7 +564,7 @@ async def _apply_training_delta(
         bucket[key] = int(prev + delta)
         await _write_store(data)
         await resolve_event_if_needed(event_id=eid)
-        return
+        return int(delta)
     from utils.models import GlobalQuestContribution
 
     eid = int(getattr(event, "id", 0))
@@ -576,7 +585,7 @@ async def _apply_training_delta(
         delta = max(1, int(round(base * float(mult))))
 
     if select is None:
-        return
+        return 0
 
     Session = get_sessionmaker()
     async with Session() as session:
@@ -608,6 +617,7 @@ async def _apply_training_delta(
         await session.commit()
 
     await resolve_event_if_needed(event_id=eid)
+    return int(delta)
 
 
 async def resolve_event_if_needed(*, event_id: int) -> None:
@@ -643,12 +653,38 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
         timed_out = ends is not None and now > ends
         if not success and not timed_out:
             return
+        reward = int(ev.get("reward_points") or 0)
+        failure = int(ev.get("failure_points") or 0)
+        grant_badge = bool(ev.get("grant_success_badge", True))
+        emoji = str(ev.get("success_badge_emoji") or "🏆")[:16]
+        label = str(ev.get("success_badge_label") or ev.get("title") or "Quest")[:120]
+        slug = str(ev.get("slug") or "")
+        badge_key = f"gq:{slug}:{int(event_id)}"[:128]
+        display = f"{emoji} {label}".strip()
         ev["status"] = "completed_success" if success else "completed_fail"
         ev["resolution_applied"] = True
         if idx >= 0:
             events[idx] = ev
             data["events"] = events
         await _write_store(data)
+        if success:
+            await _apply_points_to_contributors(
+                event_id=event_id,
+                delta=reward,
+                reason="global_quest_success",
+            )
+            if grant_badge:
+                await _grant_badges_to_contributors(
+                    event_id=event_id,
+                    badge_key=badge_key,
+                    display_text=display,
+                )
+        elif timed_out:
+            await _apply_points_to_contributors(
+                event_id=event_id,
+                delta=failure,
+                reason="global_quest_fail",
+            )
         return
     from utils.models import GlobalQuestEvent
 

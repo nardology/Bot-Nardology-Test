@@ -789,6 +789,11 @@ async def start_webhook_server(bot) -> None:
         _register_gq_routes(app, bot)
     except Exception:
         log.exception("Failed to register global quest routes (non-fatal)")
+    try:
+        from core.badges_page import register_routes as _register_badges_routes
+        _register_badges_routes(app, bot)
+    except Exception:
+        log.exception("Failed to register badges routes (non-fatal)")
 
     try:
         from utils.global_quest_loop import start_global_quest_loop
