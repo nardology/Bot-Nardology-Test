@@ -840,8 +840,37 @@ async def _grant_badges_to_contributors(
 
 async def list_user_badges(*, user_id: int, limit: int = 20) -> list[str]:
     """Display strings for /inspect."""
-    from utils.models import UserProfileBadge
+    if _json_mode_enabled():
+        # JSON mode fallback: synthesize success badges directly from completed events
+        # so users see badges immediately even if DB badge rows were not written yet.
+        try:
+            data = await _read_store()
+            rows = [ev for ev in (data.get("events") or []) if isinstance(ev, dict)]
+            out: list[str] = []
+            for ev in rows:
+                if str(ev.get("status") or "").strip().lower() != "completed_success":
+                    continue
+                if not bool(ev.get("grant_success_badge", True)):
+                    continue
+                emoji = str(ev.get("success_badge_emoji") or "🏆").strip()[:16]
+                label = str(ev.get("success_badge_label") or ev.get("title") or "Quest Winner").strip()[:120]
+                display = f"{emoji} {label}".strip()
+                if display:
+                    out.append(display)
+            # Preserve stable order + dedupe, then limit.
+            seen: set[str] = set()
+            deduped: list[str] = []
+            for b in out:
+                k = b.lower().strip()
+                if k in seen:
+                    continue
+                seen.add(k)
+                deduped.append(b)
+            return deduped[: max(1, int(limit))]
+        except Exception:
+            return []
 
+    from utils.models import UserProfileBadge
     if select is None:
         return []
     Session = get_sessionmaker()

@@ -145,13 +145,24 @@
   document.getElementById('btnSave').onclick = async ()=>{
     const sel = document.getElementById('charSel');
     const hobbies = document.getElementById('fld_hobbies').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
-    const fields = {
-      display_name: document.getElementById('fld_name').value,
-      hobbies: hobbies,
-      speech_style: document.getElementById('fld_style').value,
-      weekly_status: document.getElementById('fld_weekly').value,
-      daily_today: document.getElementById('fld_daily').value,
-    };
+    const purchased = (state && state.purchased) ? state.purchased : {};
+    const hasTrait = (tid) => !!purchased[tid];
+    const fields = {};
+    if(hasTrait('remember_name')){
+      fields.display_name = document.getElementById('fld_name').value;
+    }
+    if(hasTrait('hobbies')){
+      fields.hobbies = hobbies;
+    }
+    if(hasTrait('speech_style')){
+      fields.speech_style = document.getElementById('fld_style').value;
+    }
+    if(hasTrait('weekly_life') || hasTrait('daily_status')){
+      fields.weekly_status = document.getElementById('fld_weekly').value;
+    }
+    if(hasTrait('daily_status')){
+      fields.daily_today = document.getElementById('fld_daily').value;
+    }
     const r = await api('/connection/api/update', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({style_id: sel.value, fields})});
     const j = await r.json();
     document.getElementById('saveMsg').textContent = j.message || j.error || 'ok';

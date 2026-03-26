@@ -46,7 +46,7 @@
     "cost": 800,
     "title": "Cupid — Valentine's Special",
     "description": "A limited Valentine's character. The mischievous god of love, available for a limited time!",
-    "active": true,
+    "active": false,
     "exclusive": true,
     "button_label": "Buy Cupid",
     "button_emoji": "❤️"

@@ -191,7 +191,11 @@ async def build_badge_catalog() -> list[dict[str, str]]:
     except Exception:
         pass
 
+    blocked_test_labels = {"aaaaaa", "bbbbb"}
     for d in await list_badge_definitions(limit=500):
+        lbl = str(d.get("label") or d.get("name") or "").strip()
+        if lbl.lower() in blocked_test_labels:
+            continue
         out.append(
             {
                 "emoji": str(d.get("emoji") or "").strip() or "🏷️",
