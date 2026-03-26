@@ -352,7 +352,13 @@ def build_prompt_context(
     """Bounded text block for /talk injection."""
     parts: list[str] = []
     if has_trait(purchased, "remember_name") and (payload.get("display_name") or "").strip():
-        parts.append(f"User prefers to be called: {payload['display_name'].strip()}")
+        preferred_name = payload["display_name"].strip()
+        parts.append(f"User prefers to be called: {preferred_name}")
+        # Strong instruction to reduce model drift/forgetfulness on direct name questions.
+        parts.append(
+            "If the user asks what their name is (or how to address them), "
+            f"answer with: {preferred_name}. Do not say you do not know."
+        )
     if has_trait(purchased, "hobbies") and payload.get("hobbies"):
         parts.append("User hobbies/interests: " + " | ".join(payload["hobbies"][:12]))
     if has_trait(purchased, "speech_style") and (payload.get("speech_style") or "").strip():
