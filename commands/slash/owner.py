@@ -2414,6 +2414,32 @@ class SlashOwner(commands.Cog):
             lines.append(f"... and {len(ids) - 50} more")
         await interaction.followup.send(msg + "\n".join(lines), ephemeral=True)
 
+    @token_limits.command(
+        name="clear_daily",
+        description="Clear today's /talk daily counters (count + tokens) for a user",
+    )
+    @_owner_only()
+    @app_commands.describe(user="User to clear (defaults to you)")
+    async def token_limits_clear_daily(self, interaction: discord.Interaction, user: discord.User | None = None):
+        await interaction.response.defer(ephemeral=True)
+        if interaction.guild is None:
+            await interaction.followup.send("❌ This command must be used in a server.", ephemeral=True)
+            return
+        target = user or interaction.user
+        from utils.talk_store import clear_today_talk_counters_for_user
+
+        ok = await clear_today_talk_counters_for_user(guild_id=int(interaction.guild.id), user_id=int(target.id))
+        if not ok:
+            await interaction.followup.send(
+                f"⚠️ Could not clear daily counters for <@{target.id}> (`{target.id}`). (Redis unavailable or delete failed.)",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            f"✅ Cleared today's /talk daily counters (count + tokens) for <@{target.id}> (`{target.id}`) in this server.",
+            ephemeral=True,
+        )
+
     # ----------------------------
     # /owner global ...
     # ----------------------------

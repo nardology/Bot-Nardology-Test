@@ -131,3 +131,27 @@ async def count_talk_tokens_user_since(*, guild_id: int, user_id: int, since_utc
         days.append(_day_key(cur))
         cur += timedelta(days=1)
     return await _sum([_user_tokens_key(guild_id, user_id, d) for d in days])
+
+
+async def clear_today_talk_counters_for_user(*, guild_id: int, user_id: int) -> bool:
+    """
+    Owner/dev utility: clear today's UTC daily counters for a user in a guild.
+    This resets both:
+      - talk count: talk:count:user:{guild_id}:{user_id}:{YYYYMMDD}
+      - token count: talk:tokens:user:{guild_id}:{user_id}:{YYYYMMDD}
+    Returns True if Redis was available and a delete was attempted.
+    """
+    r = await get_redis_or_none()
+    if r is None:
+        return False
+    now = datetime.now(timezone.utc)
+    day = _day_key(now)
+    keys = [
+        _user_key(guild_id, user_id, day),
+        _user_tokens_key(guild_id, user_id, day),
+    ]
+    try:
+        await r.delete(*keys)
+    except Exception:
+        return False
+    return True
