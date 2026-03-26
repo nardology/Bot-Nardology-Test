@@ -378,6 +378,19 @@ def build_prompt_context(
         # older weekly/daily retained in payload under archived keys — MVP uses same payload
         pass
 
+    # Always include a compact snapshot of everything stored by the HTML dashboard.
+    # This makes it unambiguous what data exists, and reduces "I don't know" drift.
+    try:
+        snapshot = {
+            "purchased": purchased or {},
+            "payload": payload or {},
+        }
+        snap_s = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        parts.append("Connection profile snapshot (verbatim JSON): " + snap_s)
+    except Exception:
+        # Best-effort; never break /talk because of a serialization edge case.
+        pass
+
     out = "\n".join(parts).strip()
     if len(out) > max_chars:
         out = out[: max_chars - 3] + "..."
