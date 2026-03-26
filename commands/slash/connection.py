@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import secrets
 
 import discord
 from discord import app_commands
@@ -134,6 +135,72 @@ class SlashConnection(commands.Cog):
             await interaction.followup.send("⚠️ " + msg, ephemeral=True)
             return
         await interaction.followup.send("✅ " + msg, ephemeral=True)
+
+    @conn.command(
+        name="sync_test",
+        description="Verify Connection HTML <-> bot sync using a probe token",
+    )
+    @require_start()
+    @app_commands.describe(
+        character="Character to test against",
+        expected_name="Optional: expected saved display name from HTML",
+    )
+    @app_commands.autocomplete(character=ac_character_select)
+    async def connection_sync_test(
+        self,
+        interaction: discord.Interaction,
+        character: str,
+        expected_name: str | None = None,
+    ):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        uid = int(interaction.user.id)
+        style_id = (character or "").strip().lower()
+        probe = f"sync_{secrets.token_hex(4)}"
+
+        data_before = await load_profile(user_id=uid, style_id=style_id)
+        purchased = dict(data_before.get("purchased") or {})
+        payload_before = dict(data_before.get("payload") or {})
+        display_name = str(payload_before.get("display_name") or "").strip()
+
+        ok_write, msg_write = await update_payload_fields(
+            user_id=uid,
+            style_id=style_id,
+            fields={"_sync_probe": probe},
+        )
+        data_after = await load_profile(user_id=uid, style_id=style_id)
+        probe_back = str((data_after.get("payload") or {}).get("_sync_probe") or "").strip()
+
+        pass_db_roundtrip = bool(ok_write and probe_back == probe)
+        remember_owned = has_trait(purchased, "remember_name")
+
+        exp = (expected_name or "").strip()
+        if exp:
+            name_match = (display_name.lower() == exp.lower())
+            name_line = f"{'PASS' if name_match else 'FAIL'} expected_name check (bot read: `{display_name or '(empty)'}`)"
+        else:
+            name_line = f"INFO current saved display_name: `{display_name or '(empty)'}`"
+
+        base = (config.BASE_URL or "").strip().rstrip("/")
+        dashboard = f"{base}/connection/app" if base else "/connection/app"
+        lines = [
+            f"Character: `{style_id}`",
+            f"Remember-name trait owned: `{'yes' if remember_owned else 'no'}`",
+            f"{'PASS' if pass_db_roundtrip else 'FAIL'} bot write/read probe: `{probe_back or '(missing)'}`",
+            name_line,
+            "",
+            "To verify HTML -> bot:",
+            "1) Save your name in Connection HTML for this same character.",
+            f"2) Run this command again with `expected_name` set to that name.",
+            "",
+            "To verify bot -> HTML:",
+            f"1) Open {dashboard}",
+            "2) Open browser DevTools -> Network -> response for `/connection/api/state`.",
+            f"3) Confirm `payload._sync_probe` equals `{probe}`.",
+        ]
+        if not ok_write:
+            lines.insert(3, f"Write error: {msg_write}")
+
+        await interaction.followup.send("\n".join(lines), ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
