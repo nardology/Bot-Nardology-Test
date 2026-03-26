@@ -821,7 +821,9 @@ class SlashTalk(commands.Cog):
                     if emo and emo != "neutral":
                         ctx = (ctx + "\n\nDetected user emotional tone: " + emo).strip()
                 if ctx:
-                    system = system.rstrip() + "\n\n[Connection profile]\n" + ctx + "\n"
+                    # Prepend (not append) so it can't be trimmed off when the system prompt
+                    # is truncated to a max character budget later.
+                    system = ("[Connection profile]\n" + ctx + "\n\n" + (system or "").lstrip()).rstrip() + "\n"
             except Exception:
                 logger.debug("Connection traits injection skipped", exc_info=True)
 

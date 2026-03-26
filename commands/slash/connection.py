@@ -18,6 +18,7 @@ from utils.connection_traits_store import (
     update_payload_fields,
     get_shard_balance,
     has_trait,
+    build_prompt_context,
 )
 
 logger = logging.getLogger("bot.connection")
@@ -201,6 +202,32 @@ class SlashConnection(commands.Cog):
             lines.insert(3, f"Write error: {msg_write}")
 
         await interaction.followup.send("\n".join(lines), ephemeral=True)
+
+    @conn.command(
+        name="dump_profile",
+        description="Show the exact connection profile that /talk will inject for a character",
+    )
+    @require_start()
+    @app_commands.describe(character="Character to inspect")
+    @app_commands.autocomplete(character=ac_character_select)
+    async def connection_dump_profile(self, interaction: discord.Interaction, character: str):
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        uid = int(interaction.user.id)
+        style_id = (character or "").strip().lower()
+        data = await load_profile(user_id=uid, style_id=style_id)
+        purch = data.get("purchased") or {}
+        payload = data.get("payload") or {}
+        ctx = build_prompt_context(payload=payload, purchased=purch, max_chars=3500, memory_tier="none")
+        dn = str((payload or {}).get("display_name") or "").strip()
+        lines = [
+            f"Character: `{style_id}`",
+            f"remember_name owned: `{'yes' if has_trait(purch, 'remember_name') else 'no'}`",
+            f"display_name in DB: `{dn or '(empty)'}`",
+            "",
+            "Injected block preview:",
+            ctx or "(empty)",
+        ]
+        await interaction.followup.send("\n".join(lines)[:1900], ephemeral=True)
 
 
 async def setup(bot: commands.Bot):
