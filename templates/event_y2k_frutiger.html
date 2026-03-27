@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Character Creation Event — Y2K + Frutiger Aero</title>
+  <meta name="description" content="Create a character inspired by Y2K and Frutiger Aero. Submit via /recommend and help shape the future of Bot‑Nardology." />
+  <style>
+    :root{
+      --bg0:#050816;
+      --bg1:#061b2d;
+      --card: rgba(255,255,255,0.06);
+      --card2: rgba(255,255,255,0.08);
+      --border: rgba(255,255,255,0.14);
+      --text:#eaf6ff;
+      --muted: rgba(234,246,255,0.72);
+      --accent:#3df2ff;
+      --accent2:#7c5cff;
+      --accent3:#6dff93;
+      --shadow: 0 18px 60px rgba(0,0,0,0.45);
+      --r: 16px;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0}
+    body{
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+      color:var(--text);
+      background:
+        radial-gradient(1200px 800px at 15% 10%, rgba(61,242,255,0.18), transparent 55%),
+        radial-gradient(900px 700px at 80% 20%, rgba(124,92,255,0.16), transparent 60%),
+        radial-gradient(900px 700px at 70% 85%, rgba(109,255,147,0.10), transparent 60%),
+        linear-gradient(180deg, var(--bg0), var(--bg1));
+      line-height:1.6;
+    }
+    a{color:var(--accent);text-decoration:none}
+    a:hover{text-decoration:underline}
+    .wrap{max-width:1120px;margin:0 auto;padding:28px 18px 70px}
+
+    /* Top bar */
+    .top{
+      display:flex;align-items:center;justify-content:space-between;gap:14px;
+      padding:10px 12px;border:1px solid var(--border);border-radius:999px;
+      background: rgba(0,0,0,0.20);backdrop-filter: blur(10px);
+    }
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:0.2px}
+    .orb{width:14px;height:14px;border-radius:999px;background: radial-gradient(circle at 30% 30%, #fff, var(--accent) 35%, rgba(61,242,255,0.05) 70%); box-shadow: 0 0 18px rgba(61,242,255,0.55);}
+    .pill{display:flex;gap:10px;flex-wrap:wrap;justify-content:flex-end}
+    .pill a{
+      padding:8px 12px;border-radius:999px;border:1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color:var(--text);font-weight:650;font-size:0.92rem;
+    }
+    .pill a.primary{
+      border-color: rgba(61,242,255,0.6);
+      background: linear-gradient(135deg, rgba(61,242,255,0.22), rgba(124,92,255,0.18));
+    }
+
+    /* Hero */
+    .hero{margin-top:18px;display:grid;grid-template-columns: 1.1fr 0.9fr;gap:16px;align-items:stretch}
+    @media (max-width: 980px){ .hero{grid-template-columns:1fr;}}
+    .heroCard{
+      border:1px solid var(--border);
+      background: linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.04));
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      position:relative;
+    }
+    .heroPad{padding:22px 22px 20px}
+    .kicker{
+      display:inline-flex;gap:8px;align-items:center;
+      font-weight:800;font-size:0.9rem;color:rgba(234,246,255,0.92);
+      padding:6px 10px;border-radius:999px;border:1px solid rgba(61,242,255,0.28);
+      background: rgba(61,242,255,0.06);
+    }
+    h1{margin:12px 0 10px;font-size:2.35rem;line-height:1.12;letter-spacing:-0.6px}
+    .grad{
+      background: linear-gradient(90deg, var(--accent), #a8fffb 40%, var(--accent3));
+      -webkit-background-clip:text;background-clip:text;color:transparent;
+    }
+    .sub{color:var(--muted);font-size:1.05rem;max-width:62ch}
+    .cta{margin-top:16px;display:flex;gap:10px;flex-wrap:wrap}
+    .btn{
+      display:inline-flex;align-items:center;gap:10px;
+      padding:12px 14px;border-radius:12px;
+      border:1px solid var(--border);
+      background: rgba(255,255,255,0.04);
+      color:var(--text);font-weight:750;
+    }
+    .btn.primary{
+      border-color: rgba(61,242,255,0.65);
+      background: linear-gradient(135deg, rgba(61,242,255,0.18), rgba(124,92,255,0.16));
+      box-shadow: 0 0 0 1px rgba(61,242,255,0.10) inset;
+    }
+    .tiny{font-size:0.92rem;color:rgba(234,246,255,0.70);margin-top:10px}
+    .tiny code{background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,0.12);padding:2px 6px;border-radius:8px}
+
+    /* Collage */
+    .collage{
+      display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:10px;
+      height:100%;
+    }
+    .tile{
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,0.12);
+      overflow:hidden;
+      background: rgba(255,255,255,0.03);
+      position:relative;
+      min-height: 160px;
+    }
+    .tile img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(1.12) contrast(1.04)}
+    .tag{
+      position:absolute;left:10px;bottom:10px;
+      font-weight:800;font-size:0.85rem;
+      padding:6px 9px;border-radius:999px;
+      background: rgba(0,0,0,0.40);
+      border:1px solid rgba(255,255,255,0.14);
+      color:rgba(234,246,255,0.90);
+      backdrop-filter: blur(8px);
+    }
+
+    /* Sections */
+    .grid2{margin-top:18px;display:grid;grid-template-columns: 1fr 1fr;gap:14px}
+    @media (max-width: 980px){ .grid2{grid-template-columns:1fr;}}
+    .card{
+      border:1px solid var(--border);
+      background: rgba(255,255,255,0.05);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      padding:16px;
+    }
+    .card h2{margin:0 0 10px;font-size:1.25rem;letter-spacing:-0.2px}
+    .bullets{margin:0;padding-left:18px;color:var(--muted)}
+    .bullets li{margin:8px 0}
+    .callout{
+      margin-top:12px;
+      border:1px dashed rgba(61,242,255,0.45);
+      background: rgba(61,242,255,0.07);
+      padding:12px;border-radius:14px;color:rgba(234,246,255,0.92);
+    }
+
+    /* Moodboard */
+    .mood{margin-top:16px}
+    .mood h2{margin:0 0 10px;font-size:1.25rem}
+    .mGrid{
+      display:grid;
+      grid-template-columns: repeat(12, 1fr);
+      gap:10px;
+    }
+    .mGrid .m{
+      border-radius:14px; overflow:hidden;
+      border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.03);
+      box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+      position:relative;
+      min-height: 170px;
+    }
+    .m img{width:100%;height:100%;object-fit:cover;display:block;filter:saturate(1.15)}
+    .span6{grid-column: span 6;}
+    .span4{grid-column: span 4;}
+    .span8{grid-column: span 8;}
+    @media (max-width: 980px){
+      .span6,.span4,.span8{grid-column: span 12;}
+      .m{min-height:200px}
+    }
+
+    /* Character examples */
+    .examples{margin-top:16px}
+    .exGrid{display:grid;grid-template-columns: repeat(4, 1fr);gap:12px}
+    @media (max-width: 980px){ .exGrid{grid-template-columns: repeat(2,1fr);} }
+    @media (max-width: 560px){ .exGrid{grid-template-columns: 1fr;} }
+    .ex{
+      border-radius:16px;overflow:hidden;border:1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.04);
+      box-shadow: 0 16px 45px rgba(0,0,0,0.40);
+    }
+    .ex img{width:100%;height:220px;object-fit:cover;display:block}
+    .ex .cap{padding:10px 12px;color:rgba(234,246,255,0.78);font-size:0.93rem}
+
+    /* Footer */
+    .foot{margin-top:20px;text-align:center;color:rgba(234,246,255,0.62);font-size:0.92rem}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div class="brand"><span class="orb"></span> Bot‑Nardology <span style="opacity:.7">• Event</span></div>
+      <div class="pill">
+        <a href="/recommend/form" title="You’ll normally open via /recommend in Discord">/recommend</a>
+        <a class="primary" href="#how">How to enter</a>
+        <a href="#examples">Examples</a>
+      </div>
+    </div>
+
+    <div class="hero">
+      <div class="heroCard">
+        <div class="heroPad">
+          <div class="kicker">🌐 Theme Week • <strong>Y2K + Frutiger Aero</strong></div>
+          <h1>Create a character that feels like <span class="grad">the future we dreamed of</span>.</h1>
+          <div class="sub">
+            This week’s character creation event is inspired by early‑2000s optimism: glossy UI, vibrant color, clean tech,
+            and a world that feels bright, friendly, and full of possibility.
+          </div>
+          <div class="cta">
+            <a class="btn primary" href="#how">Enter the event →</a>
+            <a class="btn" href="#mood">Use the moodboard ↓</a>
+          </div>
+          <div class="tiny">
+            Submit your character using Discord: <code>/recommend</code>
+            <span style="opacity:.7"> (the bot opens a web form)</span>
+          </div>
+          <div class="callout">
+            <strong>What we’re looking for:</strong> characters whose vibe, visuals, and personality match Y2K / Frutiger Aero / Frutiger Metro.
+            Think: glossy plastics, friendly mascots, bright skies, dolphins, city‑tech optimism, music‑UI energy, and positive outlook.
+          </div>
+        </div>
+      </div>
+
+      <div class="heroCard">
+        <div class="collage">
+          <div class="tile">
+            <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/frutiger1.png" alt="Frutiger Aero landscape" />
+            <div class="tag">Frutiger Aero</div>
+          </div>
+          <div class="tile">
+            <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/metro4.png" alt="Futuristic blue city" />
+            <div class="tag">Frutiger Metro</div>
+          </div>
+          <div class="tile">
+            <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/frutiger4.png" alt="Dolphins jumping in the ocean" />
+            <div class="tag">Bright &amp; hopeful</div>
+          </div>
+          <div class="tile">
+            <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/metro1.png" alt="Stereo and music playing" />
+            <div class="tag">Y2K energy</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" id="how">
+      <div class="card">
+        <h2>How to enter</h2>
+        <ol class="bullets">
+          <li><strong>Create a character</strong> that fits the theme (Y2K + Frutiger Aero/Metro).</li>
+          <li>In Discord, run <strong><code>/recommend</code></strong> and open the form.</li>
+          <li>Add your character’s <strong>name</strong>, <strong>visual description</strong>, <strong>personality</strong>, and what makes them feel “early‑2000s future.”</li>
+          <li>Submit. You can re-open <code>/recommend</code> to edit while it’s pending.</li>
+        </ol>
+        <div class="callout">
+          <strong>Tip:</strong> Include at least one “signature detail” (catchphrase, gadget, UI‑style quirk, vibe words) so we can translate it into in‑bot character behavior.
+        </div>
+      </div>
+      <div class="card">
+        <h2>Theme notes (quick checklist)</h2>
+        <ul class="bullets">
+          <li><strong>Color:</strong> bright greens/blues, glossy gradients, neon accents.</li>
+          <li><strong>Texture:</strong> smooth plastic, glassy UI, clean tech surfaces.</li>
+          <li><strong>Emotion:</strong> optimistic, welcoming, “tomorrow is better.”</li>
+          <li><strong>World:</strong> dolphins, bubbles, skies, eco‑tech cities, music &amp; UI motifs.</li>
+        </ul>
+        <div class="callout">
+          <strong>Frutiger Aero</strong> is a lifestyle: upbeat, refreshing, and friendly. Your character should feel like they belong inside that world.
+        </div>
+      </div>
+    </div>
+
+    <div class="mood" id="mood">
+      <h2>Moodboard (use these vibes)</h2>
+      <div class="mGrid">
+        <div class="m span8">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/frutiger3.png" alt="Frutiger Aero game characters living together" />
+        </div>
+        <div class="m span4">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/frutiger2.png" alt="Frutiger Aero stickers" />
+        </div>
+        <div class="m span6">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/metro2.png" alt="Bright flowers with music" />
+        </div>
+        <div class="m span6">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/metro5.png" alt="Vibrant frutiger metro dancer" />
+        </div>
+        <div class="m span6">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/metro3.png" alt="Frutiger metro girl in green coat" />
+        </div>
+        <div class="m span6">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/metro4.png" alt="Futuristic blue city" />
+        </div>
+      </div>
+    </div>
+
+    <div class="examples" id="examples">
+      <h2>Character examples (inspiration)</h2>
+      <div class="exGrid">
+        <div class="ex">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/char1.png" alt="Crash Bandicoot" />
+          <div class="cap"><strong>Crash Bandicoot</strong> — iconic early‑2000s energy.</div>
+        </div>
+        <div class="ex">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/char2.png" alt="Nintendo Mii creation menu" />
+          <div class="cap"><strong>Nintendo Mii</strong> — playful, friendly UI era.</div>
+        </div>
+        <div class="ex">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/char3.png" alt="Frutiger aero figure" />
+          <div class="cap"><strong>Frutiger figure</strong> — smooth, approachable mascot design.</div>
+        </div>
+        <div class="ex">
+          <img src="https://raw.githubusercontent.com/nardology/BotNardology-Assets/refs/heads/main/assets/charactercomp/Y2K/char4.png" alt="Mirror's Edge character" />
+          <div class="cap"><strong>Mirror’s Edge</strong> — clean city‑future + Y2K/Metro vibes.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="foot">
+      Built for the Bot‑Nardology theme week. Submit your character via <strong><code>/recommend</code></strong> in Discord.
+    </div>
+  </div>
+</body>
+</html>
+

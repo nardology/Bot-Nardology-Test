@@ -17,6 +17,15 @@ async def handle_landing(request):
     return web.Response(text=html, content_type="text/html")
 
 
+async def handle_y2k_event(request):
+    from aiohttp import web
+
+    path = _TEMPLATE_DIR / "event_y2k_frutiger.html"
+    html = path.read_text(encoding="utf-8")
+    return web.Response(text=html, content_type="text/html")
+
+
 def register_routes(app) -> None:
     app.router.add_get("/", handle_landing)
+    app.router.add_get("/events/y2k", handle_y2k_event)
     log.info("Landing page route registered at /")
