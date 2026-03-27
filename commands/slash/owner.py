@@ -663,6 +663,27 @@ class SlashOwner(commands.Cog):
                 ephemeral=True,
             )
 
+    @owner.command(name="recommend_dashboard", description="Get a magic link to the recommendation review/accept dashboard (owner only)")
+    @_owner_only()
+    async def owner_recommend_dashboard(self, interaction: discord.Interaction):
+        base = (getattr(config, "BASE_URL") or "").strip().rstrip("/")
+        if not base:
+            await _ephemeral(interaction, "Set **BASE_URL** in the environment.")
+            return
+        from core.recommendations import generate_token
+        token = generate_token(int(interaction.user.id), "review")
+        url = f"{base}/recommend/dashboard?token={token}"
+        await _ephemeral(interaction, "Check your DMs for the recommendation dashboard link.")
+        try:
+            await interaction.user.send(
+                "**Recommendation dashboard** (valid for 30 days):\n" + url + "\n\nDo not share this link."
+            )
+        except discord.Forbidden:
+            await interaction.followup.send(
+                "I couldn't DM you. Use this link (do not share):\n" + url,
+                ephemeral=True,
+            )
+
     # ----------------------------
     # /owner packs ...
     # ----------------------------

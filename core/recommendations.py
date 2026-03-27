@@ -415,6 +415,23 @@ async def handle_submit(request):
     except Exception:
         log.debug("Could not DM user %s about submission", user_id)
 
+    # If the submitting user is an owner, DM them a direct dashboard link too.
+    try:
+        if user_id in (config.BOT_OWNER_IDS or set()):
+            base = (config.BASE_URL or "").strip().rstrip("/")
+            if base:
+                otok = generate_token(int(user_id), "review")
+                dash_url = f"{base}/recommend/dashboard?token={otok}"
+                await _dm_user(
+                    int(user_id),
+                    "✅ Your recommendation was submitted.\n"
+                    "**Owner dashboard (review/accept):**\n"
+                    + dash_url
+                    + "\n\nDo not share this link.",
+                )
+    except Exception:
+        log.debug("Could not DM owner dashboard link to %s", user_id, exc_info=True)
+
     return web.json_response({"ok": True, "id": rec_id})
 
 
