@@ -1288,11 +1288,19 @@ class SlashTalk(commands.Cog):
                     )
                     if gq_contribs:
                         lines = []
+                        reward_lines = []
                         for c in gq_contribs:
                             title = str(c.get("title") or "Global quest")
                             delta = int(c.get("delta") or 0)
                             lines.append(f"🌍 **{title}**: +**{delta}** training points")
+                            if bool(c.get("badge_awarded_now")):
+                                badge_display = str(c.get("badge_display") or "").strip()
+                                reward_lines.append(
+                                    f"🎉 You met the community goal for **{title}** and received badge **{badge_display or 'Quest Winner'}**."
+                                )
                         await interaction.followup.send("\n".join(lines), ephemeral=True)
+                        if reward_lines:
+                            await interaction.followup.send("\n".join(reward_lines), ephemeral=True)
                 except Exception:
                     pass
                 

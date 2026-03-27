@@ -20,6 +20,61 @@ from utils.media_assets import resolve_embed_image_url, fetch_embed_image_as_fil
 
 logger = logging.getLogger("bot.inspect")
 
+try:
+    from sqlalchemy import select  # type: ignore
+except Exception:  # pragma: no cover
+    select = None  # type: ignore
+
+
+async def _get_all_badges_for_user(user_id: int, stats: UserStats | None = None) -> list[str]:
+    """Return a deduped full badge list for a user (event + custom + streak)."""
+    out: list[str] = []
+    # Include streak badges from stats when available.
+    if stats is not None:
+        if getattr(stats, "streak_badge_30", False):
+            out.append("🏅 30-day")
+        if getattr(stats, "streak_badge_60", False):
+            out.append("🏅 60-day")
+        if getattr(stats, "streak_badge_90", False):
+            out.append("🏅 90-day")
+
+    # Include event/synthesized badges.
+    try:
+        from utils.global_quest import list_user_badges
+        out.extend(await list_user_badges(user_id=int(user_id), limit=250))
+    except Exception:
+        pass
+
+    # Include all DB-backed profile badges (custom + event rows).
+    try:
+        if select is not None:
+            from utils.db import get_sessionmaker
+            from utils.models import UserProfileBadge
+            Session = get_sessionmaker()
+            async with Session() as session:
+                res = await session.execute(
+                    select(UserProfileBadge.display_text)
+                    .where(UserProfileBadge.user_id == int(user_id))
+                    .order_by(UserProfileBadge.created_at.desc())
+                    .limit(500)
+                )
+                out.extend([str(r[0]) for r in res.all() if r and r[0]])
+    except Exception:
+        pass
+
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for b in out:
+        s = str(b or "").strip()
+        if not s:
+            continue
+        k = s.lower()
+        if k in seen:
+            continue
+        seen.add(k)
+        deduped.append(s)
+    return deduped
+
 
 def _add_stats_fields(e: discord.Embed, stats: UserStats, *, max_inventory_slots: Optional[int] = None) -> None:
     """Add stats fields to an embed."""
@@ -263,7 +318,9 @@ class CharacterInspectView(discord.ui.View):
         super().__init__(timeout=180)
         self.target_id = int(target_id)
         self.allowed_user_id = int(allowed_user_id)
-        self.add_item(CharacterInspectSelect(target_id, character_ids, allowed_user_id))
+        if character_ids:
+            self.add_item(CharacterInspectSelect(target_id, character_ids, allowed_user_id))
+        self.add_item(BadgeInspectSelect(target_id=self.target_id, allowed_user_id=self.allowed_user_id))
         base = (config.BASE_URL or "").strip().rstrip("/")
         if base:
             self.add_item(
@@ -305,6 +362,52 @@ class CharacterInspectView(discord.ui.View):
             )
         except Exception:
             await interaction.response.send_message("Failed to load purchased traits.", ephemeral=True)
+
+
+class BadgeInspectSelect(discord.ui.Select):
+    """Dropdown to inspect all badges a player has (paged)."""
+
+    def __init__(self, target_id: int, allowed_user_id: int):
+        self.target_id = int(target_id)
+        self.allowed_user_id = int(allowed_user_id)
+        options = [
+            discord.SelectOption(label="Badges page 1", value="1"),
+            discord.SelectOption(label="Badges page 2", value="2"),
+            discord.SelectOption(label="Badges page 3", value="3"),
+            discord.SelectOption(label="Badges page 4", value="4"),
+        ]
+        super().__init__(
+            placeholder="Select to inspect all badges…",
+            options=options,
+            min_values=1,
+            max_values=1,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        if interaction.user.id != self.allowed_user_id:
+            await interaction.response.send_message("This menu isn't yours.", ephemeral=True)
+            return
+        try:
+            page = max(1, min(4, int((self.values[0] if self.values else "1"))))
+        except Exception:
+            page = 1
+        badges = await _get_all_badges_for_user(self.target_id)
+        if not badges:
+            await interaction.response.send_message("No badges found for this user.", ephemeral=True)
+            return
+        per_page = 25
+        start = (page - 1) * per_page
+        chunk = badges[start:start + per_page]
+        if not chunk and page > 1:
+            page = 1
+            start = 0
+            chunk = badges[:per_page]
+        total_pages = max(1, (len(badges) + per_page - 1) // per_page)
+        msg = "\n".join(f"• {b}" for b in chunk) if chunk else "No badges on this page."
+        await interaction.response.send_message(
+            f"**All badges** (page {page}/{total_pages}, total {len(badges)})\n{msg}",
+            ephemeral=True,
+        )
 
 
 class SlashInspect(commands.Cog):
@@ -415,14 +518,12 @@ class SlashInspect(commands.Cog):
             max_inventory_slots=max_inventory_slots,
         )
 
-        # Build character dropdown if the target has characters
-        view: discord.ui.View | None = None
-        if stats.character_ids:
-            view = CharacterInspectView(
-                target_id=target_id,
-                character_ids=stats.character_ids,
-                allowed_user_id=int(interaction.user.id),
-            )
+        # Build inspect controls (character + badges dropdowns).
+        view: discord.ui.View | None = CharacterInspectView(
+            target_id=target_id,
+            character_ids=stats.character_ids,
+            allowed_user_id=int(interaction.user.id),
+        )
 
         kwargs: dict = {"embeds": embeds}
         if files:

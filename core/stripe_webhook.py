@@ -730,6 +730,11 @@ async def start_webhook_server(bot) -> None:
     """
     global _bot
     _bot = bot
+    try:
+        from utils.global_quest import set_bot_for_global_quest_notifications
+        set_bot_for_global_quest_notifications(bot)
+    except Exception:
+        log.exception("Failed to set global quest notification bot ref (non-fatal)")
 
     from aiohttp import web
 

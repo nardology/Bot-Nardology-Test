@@ -21,6 +21,13 @@ except Exception:  # pragma: no cover
 
 logger = logging.getLogger("bot.global_quest")
 _JSON_LOCK = threading.Lock()
+_bot_ref = None
+
+
+def set_bot_for_global_quest_notifications(bot) -> None:
+    """Call at startup so global quest reward DMs can be sent."""
+    global _bot_ref
+    _bot_ref = bot
 
 
 def _json_mode_enabled() -> bool:
@@ -506,7 +513,7 @@ async def record_training_from_talk(
     out: list[dict[str, Any]] = []
     for ev in events:
         try:
-            delta = await _apply_training_delta(
+            delta, completion = await _apply_training_delta(
                 event=ev,
                 guild_id=int(guild_id),
                 user_id=int(user_id),
@@ -514,11 +521,16 @@ async def record_training_from_talk(
                 bond_xp_gained=int(bond_xp_gained),
                 bond_level=int(bond_level) if bond_level is not None else None,
             )
+            completed_now = bool((completion or {}).get("completed_now"))
+            badge_display = str((completion or {}).get("display_text") or "").strip()
             out.append(
                 {
                     "event_id": int(getattr(ev, "id", 0) or 0),
                     "title": str(getattr(ev, "title", "") or "Global quest"),
                     "delta": int(delta or 0),
+                    "completed_now": completed_now,
+                    "badge_awarded_now": bool(completed_now and badge_display),
+                    "badge_display": badge_display,
                 }
             )
         except Exception:
@@ -534,7 +546,7 @@ async def _apply_training_delta(
     style_id: str,
     bond_xp_gained: int,
     bond_level: int | None = None,
-) -> int:
+) -> tuple[int, dict[str, Any] | None]:
     if _json_mode_enabled():
         eid = int(getattr(event, "id", 0) or 1)
         mult = _parse_multipliers(getattr(event, "character_multipliers_json", None)).get(
@@ -563,8 +575,8 @@ async def _apply_training_delta(
         prev = int(bucket.get(key) or 0)
         bucket[key] = int(prev + delta)
         await _write_store(data)
-        await resolve_event_if_needed(event_id=eid)
-        return int(delta)
+        completion = await resolve_event_if_needed(event_id=eid)
+        return int(delta), completion
     from utils.models import GlobalQuestContribution
 
     eid = int(getattr(event, "id", 0))
@@ -585,7 +597,7 @@ async def _apply_training_delta(
         delta = max(1, int(round(base * float(mult))))
 
     if select is None:
-        return 0
+        return 0, None
 
     Session = get_sessionmaker()
     async with Session() as session:
@@ -616,11 +628,11 @@ async def _apply_training_delta(
             row.updated_at = now
         await session.commit()
 
-    await resolve_event_if_needed(event_id=eid)
-    return int(delta)
+    completion = await resolve_event_if_needed(event_id=eid)
+    return int(delta), completion
 
 
-async def resolve_event_if_needed(*, event_id: int) -> None:
+async def resolve_event_if_needed(*, event_id: int) -> dict[str, Any] | None:
     """Complete or fail event; apply rewards once."""
     if _json_mode_enabled():
         data = await _read_store()
@@ -635,11 +647,11 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
                 idx = i
                 break
         if ev is None:
-            return
+            return None
         if bool(ev.get("resolution_applied", False)):
-            return
+            return None
         if str(ev.get("status") or "").strip().lower() != "active":
-            return
+            return None
         scope = (str(ev.get("scope") or "global").strip().lower() or "global")
         eg = ev.get("guild_id")
         target = max(1, int(ev.get("target_training_points") or 1))
@@ -652,7 +664,7 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
         success = total >= target
         timed_out = ends is not None and now > ends
         if not success and not timed_out:
-            return
+            return None
         reward = int(ev.get("reward_points") or 0)
         failure = int(ev.get("failure_points") or 0)
         grant_badge = bool(ev.get("grant_success_badge", True))
@@ -685,19 +697,25 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
                 delta=failure,
                 reason="global_quest_fail",
             )
-        return
+        return {
+            "completed_now": True,
+            "success": bool(success),
+            "grant_badge": bool(grant_badge),
+            "display_text": display,
+            "event_id": int(event_id),
+        }
     from utils.models import GlobalQuestEvent
 
     if select is None:
-        return
+        return None
 
     Session = get_sessionmaker()
     async with Session() as session:
         ev = await session.get(GlobalQuestEvent, int(event_id))
         if ev is None or getattr(ev, "resolution_applied", False):
-            return
+            return None
         if getattr(ev, "status", "") != "active":
-            return
+            return None
 
         scope = (getattr(ev, "scope", "") or "").strip().lower()
         eg = getattr(ev, "guild_id", None)
@@ -716,7 +734,7 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
         timed_out = ends is not None and now > ends
 
         if not success and not timed_out:
-            return
+            return None
 
         if success:
             await session.execute(
@@ -744,7 +762,13 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
                     badge_key=badge_key,
                     display_text=display,
                 )
-            return
+            return {
+                "completed_now": True,
+                "success": True,
+                "grant_badge": bool(getattr(ev, "grant_success_badge", True)),
+                "display_text": display if getattr(ev, "grant_success_badge", True) else "",
+                "event_id": int(event_id),
+            }
 
         if timed_out:
             await session.execute(
@@ -762,6 +786,13 @@ async def resolve_event_if_needed(*, event_id: int) -> None:
                 delta=int(getattr(ev, "failure_points", 0) or 0),
                 reason="global_quest_fail",
             )
+            return {
+                "completed_now": True,
+                "success": False,
+                "grant_badge": False,
+                "display_text": "",
+                "event_id": int(event_id),
+            }
 
 
 async def _apply_points_to_contributors(
@@ -806,6 +837,7 @@ async def _grant_badges_to_contributors(
     if select is None:
         return
     Session = get_sessionmaker()
+    newly_granted: list[int] = []
     async with Session() as session:
         res = await session.execute(
             select(GlobalQuestContribution.user_id)
@@ -833,9 +865,22 @@ async def _grant_badges_to_contributors(
                         created_at=now,
                     )
                 )
+                newly_granted.append(uid)
             except Exception:
                 logger.debug("badge grant skip uid=%s", uid, exc_info=True)
         await session.commit()
+    bot = _bot_ref
+    if bot and newly_granted:
+        for uid in newly_granted:
+            try:
+                user = bot.get_user(int(uid)) or await bot.fetch_user(int(uid))
+                if user:
+                    await user.send(
+                        f"🎉 You received a global quest badge: **{display_text}**\n"
+                        "You met the community goal requirements and were rewarded immediately."
+                    )
+            except Exception:
+                logger.debug("global quest badge DM failed uid=%s", uid, exc_info=True)
 
 
 async def list_user_badges(*, user_id: int, limit: int = 20) -> list[str]:
