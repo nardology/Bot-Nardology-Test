@@ -1,6 +1,28 @@
 {
   "events": [
     {
+      "id": 3,
+      "slug": "instant-reward-test",
+      "title": "Instant Reward Test Quest",
+      "description": "Test quest for immediate global reward distribution.",
+      "image_url": null,
+      "image_url_secondary": null,
+      "scope": "global",
+      "guild_id": null,
+      "starts_at": "2026-03-01T00:00:00+00:00",
+      "ends_at": "2026-04-30T23:59:59+00:00",
+      "activated_at": null,
+      "target_training_points": 3,
+      "status": "active",
+      "character_multipliers": {},
+      "reward_points": 0,
+      "failure_points": 0,
+      "success_badge_emoji": "🧪",
+      "success_badge_label": "Instant Reward Test",
+      "grant_success_badge": true,
+      "resolution_applied": false
+    },
+    {
       "id": 2,
       "slug": "global-quest",
       "title": "Community Global Quest",
@@ -46,6 +68,7 @@
     }
   ],
   "contributions": {
-    "1": {}
+    "1": {},
+    "3": {}
   }
 }
