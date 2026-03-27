@@ -51,8 +51,12 @@
     <h2 style="margin-top:0;">Your details</h2>
     <label>Display name (max 10 words)</label>
     <input id="fld_name" placeholder="Name the bot should use"/>
-    <label>Hobbies (one per line, max words each enforced server-side)</label>
-    <textarea id="fld_hobbies" rows="4" placeholder="Line per hobby"></textarea>
+    <label>Hobbies (one entry per slot, max words enforced server-side)</label>
+    <div id="hobbySlots"></div>
+    <div id="hobbyBuyWrap" style="display:none;">
+      <button type="button" id="btnBuyHobbySlot" class="secondary">Buy +1 hobby slot</button>
+      <span id="hobbyBuyPrice" class="muted"></span>
+    </div>
     <label>Speech style</label>
     <textarea id="fld_style" rows="5" placeholder="How should this character talk to you?"></textarea>
     <label>Weekly life update</label>
@@ -72,6 +76,37 @@
   }
   let state = null;
   let initialized = false;
+  function renderHobbySlots(){
+    const p = state && state.payload ? state.payload : {};
+    const purchased = (state && state.purchased) ? state.purchased : {};
+    const hasHobbies = !!purchased.hobbies;
+    const totalSlots = Math.max(3, Number((state && state.upgrade_prices && state.upgrade_prices.hobby_slots_total) || 3));
+    const hobbies = Array.isArray(p.hobbies) ? p.hobbies : [];
+    const host = document.getElementById('hobbySlots');
+    host.innerHTML = '';
+    if(!hasHobbies){
+      const m = document.createElement('div');
+      m.className = 'muted';
+      m.textContent = 'Buy the Hobbies trait in the shop to unlock hobby slots.';
+      host.appendChild(m);
+      document.getElementById('hobbyBuyWrap').style.display = 'none';
+      return;
+    }
+    for(let i=0;i<totalSlots;i++){
+      const lbl = document.createElement('label');
+      lbl.textContent = `Hobby slot ${i+1}`;
+      const inp = document.createElement('input');
+      inp.type = 'text';
+      inp.className = 'hobby-slot';
+      inp.placeholder = 'Enter a hobby';
+      inp.value = hobbies[i] || '';
+      host.appendChild(lbl);
+      host.appendChild(inp);
+    }
+    const buyWrap = document.getElementById('hobbyBuyWrap');
+    buyWrap.style.display = 'block';
+    document.getElementById('hobbyBuyPrice').textContent = `(Cost: ${Number((state && state.upgrade_prices && state.upgrade_prices.hobby_slot) || 0)} shards)`;
+  }
   async function refresh(){
     const sel = document.getElementById('charSel');
     const sid = sel.value || '';
@@ -133,7 +168,7 @@
     });
     const p = state.payload || {};
     document.getElementById('fld_name').value = p.display_name || '';
-    document.getElementById('fld_hobbies').value = (p.hobbies||[]).join('\n');
+    renderHobbySlots();
     document.getElementById('fld_style').value = p.speech_style || '';
     document.getElementById('fld_weekly').value = p.weekly_status || '';
     document.getElementById('fld_daily').value = '';
@@ -142,9 +177,27 @@
     document.getElementById('saveMsg').textContent = '';
   }
   document.getElementById('charSel').onchange = refresh;
+  document.getElementById('btnBuyHobbySlot').onclick = async ()=>{
+    const sel = document.getElementById('charSel');
+    const purchased = (state && state.purchased) ? state.purchased : {};
+    if(!purchased.hobbies){
+      alert('Buy Hobbies first.');
+      return;
+    }
+    const r = await api('/connection/api/purchase', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({style_id: sel.value, trait_id:'hobbies', kind:'hobby_slot'})
+    });
+    const j = await r.json();
+    if(!r.ok){ alert(j.error || 'failed'); return; }
+    await refresh();
+  };
   document.getElementById('btnSave').onclick = async ()=>{
     const sel = document.getElementById('charSel');
-    const hobbies = document.getElementById('fld_hobbies').value.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+    const hobbies = Array.from(document.querySelectorAll('.hobby-slot'))
+      .map(el => (el.value || '').trim())
+      .filter(Boolean);
     const purchased = (state && state.purchased) ? state.purchased : {};
     const hasTrait = (tid) => !!purchased[tid];
     const fields = {};

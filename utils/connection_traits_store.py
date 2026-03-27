@@ -4,7 +4,7 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from utils.connection_traits_catalog import (
@@ -46,6 +46,73 @@ def _parse_json(s: str | None) -> dict[str, Any]:
         return {}
 
 
+def _retention_sanitize_payload(
+    *,
+    purchased: dict[str, Any],
+    payload: dict[str, Any],
+) -> tuple[dict[str, Any], bool]:
+    """
+    Apply retention windows for weekly/daily fields.
+    - No memory upgrade: weekly rolls each week, daily rolls each day (today only).
+    - memory_semi: keep weekly archives + last 7 daily entries.
+    - memory_permanent: keep all historical entries.
+    Returns (sanitized_payload, changed).
+    """
+    out = dict(payload or {})
+    changed = False
+
+    has_weekly = has_trait(purchased, "weekly_life") or has_trait(purchased, "daily_status")
+    has_daily = has_trait(purchased, "daily_status")
+    mem_semi = has_trait(purchased, "memory_semi")
+    mem_perm = has_trait(purchased, "memory_permanent")
+
+    now = datetime.now(timezone.utc)
+    today_key = now.strftime("%Y%m%d")
+    current_week = _utc_week_id()
+
+    # Weekly retention / rollover
+    if has_weekly:
+        stored_week = str(out.get("week_id") or "")
+        weekly_status = str(out.get("weekly_status") or "").strip()
+        if weekly_status and stored_week and stored_week != current_week:
+            if mem_perm:
+                # Keep current weekly text as-is for permanent memory.
+                pass
+            elif mem_semi:
+                archived = list(out.get("archived_weekly") or [])
+                archived.append({"week_id": stored_week, "text": weekly_status})
+                # Keep bounded archive to prevent unbounded growth.
+                out["archived_weekly"] = archived[-24:]
+                out["weekly_status"] = ""
+                out["week_id"] = current_week
+                changed = True
+            else:
+                out["weekly_status"] = ""
+                out["week_id"] = current_week
+                changed = True
+        elif not stored_week:
+            out["week_id"] = current_week
+            changed = True
+
+    # Daily retention
+    if has_daily:
+        dailies = dict(out.get("daily_by_day") or {})
+        if dailies:
+            if mem_perm:
+                # keep everything
+                keep = dailies
+            elif mem_semi:
+                oldest = (now - timedelta(days=6)).strftime("%Y%m%d")
+                keep = {k: v for k, v in dailies.items() if str(k) >= oldest}
+            else:
+                keep = {today_key: dailies[today_key]} if today_key in dailies else {}
+            if keep != dailies:
+                out["daily_by_day"] = keep
+                changed = True
+
+    return out, changed
+
+
 async def load_profile(*, user_id: int, style_id: str) -> dict[str, Any]:
     """Return {purchased: dict, payload: dict} for this pair."""
     if select is None:
@@ -67,9 +134,16 @@ async def load_profile(*, user_id: int, style_id: str) -> dict[str, Any]:
             row = res.scalar_one_or_none()
             if row is None:
                 return {"purchased": {}, "payload": {}}
+            p_tr = _parse_json(getattr(row, "purchased_traits_json", None))
+            p_ld = _parse_json(getattr(row, "payload_json", None))
+            p_ld2, changed = _retention_sanitize_payload(purchased=p_tr, payload=p_ld)
+            if changed:
+                row.payload_json = json.dumps(p_ld2, separators=(",", ":"))
+                row.updated_at = datetime.now(timezone.utc)
+                await session.commit()
             return {
-                "purchased": _parse_json(getattr(row, "purchased_traits_json", None)),
-                "payload": _parse_json(getattr(row, "payload_json", None)),
+                "purchased": p_tr,
+                "payload": p_ld2,
             }
     except Exception:
         logger.debug("load_profile failed", exc_info=True)
