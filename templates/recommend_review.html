@@ -205,6 +205,19 @@ function render(r) {
 
 render(rec);
 
+// Mark as "being reviewed" only when an actual owner opens this page in a real browser.
+// This prevents link previews or scanners from triggering the "being reviewed" DM.
+(async function markViewed(){
+  try{
+    if(!TOKEN || !rec || !rec.id) return;
+    await fetch('/api/recommend/mark_viewed', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ token: TOKEN, id: rec.id }),
+    });
+  }catch(e){}
+})();
+
 async function decide(decision) {
   $('btnAccept').disabled = true;
   $('btnDeny').disabled = true;

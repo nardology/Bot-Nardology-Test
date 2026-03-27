@@ -244,7 +244,6 @@ async def _dm_owners_recommendation(rec_id: int, display_name: str, rarity: str,
             user = _bot.get_user(owner_id) or await _bot.fetch_user(owner_id)
             if user:
                 await user.send(msg[:2000])
-                break
         except Exception:
             log.debug("Could not DM owner %s", owner_id, exc_info=True)
 
@@ -295,16 +294,7 @@ async def handle_review_page(request):
     if rec is None:
         return web.Response(text="<h2>Recommendation not found.</h2>", content_type="text/html", status=404)
 
-    if rec.status == "pending":
-        await update_recommendation_status(rec_id, "viewed")
-        try:
-            await _dm_user(rec.user_id, f"Your character recommendation **{rec.display_name}** is being reviewed!")
-        except Exception:
-            pass
-
     rec_data = _rec_to_dict(rec)
-    if rec_data.get("status") == "pending":
-        rec_data["status"] = "viewed"
 
     html = _render_template("recommend_review.html", {
         "token": token,
@@ -312,6 +302,37 @@ async def handle_review_page(request):
         "dashboard_url": f"/recommend/dashboard?token={token}",
     })
     return web.Response(text=html, content_type="text/html")
+
+
+async def handle_mark_viewed(request):
+    """POST /api/recommend/mark_viewed — owner marks a recommendation as being reviewed (DMs user)."""
+    from aiohttp import web
+    try:
+        body = await request.json()
+    except Exception:
+        return web.json_response({"error": "Invalid JSON"}, status=400)
+    token = body.get("token", "")
+    owner_id = verify_token(token, "review")
+    if owner_id is None or owner_id not in (config.BOT_OWNER_IDS or set()):
+        return web.json_response({"error": "Invalid or expired token"}, status=403)
+    rec_id = int(body.get("id", 0) or 0)
+    if not rec_id:
+        return web.json_response({"error": "Missing recommendation ID"}, status=400)
+    rec = await get_recommendation_by_id(rec_id)
+    if rec is None:
+        return web.json_response({"error": "Recommendation not found"}, status=404)
+    # Only transition pending -> viewed once.
+    if getattr(rec, "status", "") == "pending":
+        try:
+            await update_recommendation_status(rec_id, "viewed")
+        except Exception:
+            pass
+        try:
+            await _dm_user(rec.user_id, f"Your character recommendation **{rec.display_name}** is being reviewed!")
+        except Exception:
+            pass
+        return web.json_response({"ok": True, "status": "viewed"})
+    return web.json_response({"ok": True, "status": getattr(rec, "status", "")})
 
 
 async def handle_dashboard_page(request):
@@ -512,6 +533,7 @@ def register_routes(app, bot) -> None:
     app.router.add_get("/recommend/dashboard", handle_dashboard_page)
 
     app.router.add_post("/api/recommend", handle_submit)
+    app.router.add_post("/api/recommend/mark_viewed", handle_mark_viewed)
     app.router.add_post("/api/recommend/decide", handle_decide)
     app.router.add_get("/api/recommend/list", handle_list_api)
     log.info("Recommendation routes registered (self-hosted mode)")
