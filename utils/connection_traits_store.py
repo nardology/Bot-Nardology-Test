@@ -351,6 +351,7 @@ def build_prompt_context(
 ) -> str:
     """Bounded text block for /talk injection."""
     parts: list[str] = []
+    behavior_rules: list[str] = []
     if has_trait(purchased, "remember_name") and (payload.get("display_name") or "").strip():
         preferred_name = payload["display_name"].strip()
         parts.append(f"User prefers to be called: {preferred_name}")
@@ -359,13 +360,23 @@ def build_prompt_context(
             "If the user asks what their name is (or how to address them), "
             f"answer with: {preferred_name}. Do not say you do not know."
         )
+        behavior_rules.append(
+            f"Address the user as '{preferred_name}' naturally at least once every 1-2 assistant replies."
+        )
     if has_trait(purchased, "hobbies") and payload.get("hobbies"):
         parts.append("User hobbies/interests: " + " | ".join(payload["hobbies"][:12]))
+        behavior_rules.append(
+            "When relevant, weave the user's hobbies/interests into your reply (roughly every 1-2 replies)."
+        )
     if has_trait(purchased, "speech_style") and (payload.get("speech_style") or "").strip():
         parts.append("How the user wants you to speak to them: " + (payload["speech_style"] or "").strip())
+        behavior_rules.append("Follow the user-requested speech style in every reply.")
     if has_trait(purchased, "weekly_life") or has_trait(purchased, "daily_status"):
         if (payload.get("weekly_status") or "").strip():
             parts.append("This week's life context (user-provided): " + (payload["weekly_status"] or "").strip())
+            behavior_rules.append(
+                "Treat weekly life context as persistent background and reference it when relevant (roughly every 1-2 replies)."
+            )
     if has_trait(purchased, "daily_status") and payload.get("daily_by_day"):
         # last 7 days only
         keys = sorted((payload.get("daily_by_day") or {}).keys())[-7:]
@@ -373,10 +384,21 @@ def build_prompt_context(
             line = (payload["daily_by_day"] or {}).get(d)
             if line:
                 parts.append(f"Daily note {d}: {line}")
+        behavior_rules.append(
+            "Treat the most recent daily note as today's status and consider it in every reply when context fits."
+        )
+
+    if has_trait(purchased, "emotion_adapt"):
+        behavior_rules.append("Mirror the user's emotional tone while staying in character.")
 
     if has_trait(purchased, "memory_semi") or memory_tier in {"semi", "permanent"}:
         # older weekly/daily retained in payload under archived keys — MVP uses same payload
-        pass
+        behavior_rules.append(
+            "Preserve and consistently apply previously shared profile details across replies."
+        )
+
+    if behavior_rules:
+        parts.append("Connection behavior rules:\n- " + "\n- ".join(behavior_rules))
 
     # Always include a compact snapshot of everything stored by the HTML dashboard.
     # This makes it unambiguous what data exists, and reduces "I don't know" drift.

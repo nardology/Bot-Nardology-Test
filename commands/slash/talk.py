@@ -798,6 +798,8 @@ class SlashTalk(commands.Cog):
                         logger.debug("Memory block injection skipped", exc_info=True)
 
             # ---- Connection traits (shard shop; all tiers) ----
+            _conn_display_name = ""
+            _conn_has_remember_name = False
             try:
                 from utils.connection_traits_store import load_profile, build_prompt_context, has_trait
                 from utils.emotion_classifier import classify_emotion
@@ -805,6 +807,8 @@ class SlashTalk(commands.Cog):
                 _cp = await load_profile(user_id=user_id, style_id=effective_style)
                 _purch = _cp.get("purchased") or {}
                 _pload = _cp.get("payload") or {}
+                _conn_display_name = str((_pload or {}).get("display_name") or "").strip()
+                _conn_has_remember_name = bool(has_trait(_purch, "remember_name") and _conn_display_name)
                 mtier = (
                     "permanent"
                     if has_trait(_purch, "memory_permanent")
@@ -942,6 +946,22 @@ class SlashTalk(commands.Cog):
 
             # --- Parse the LLM emotion tag before anything else ---
             text, llm_emotion = parse_emotion_tag(text)
+
+            # Deterministic guardrail: if user asks their name and they have a saved
+            # remember-name trait value, force the answer to use that stored name.
+            # This avoids model drift even when persona/context is noisy.
+            try:
+                p_low = (prompt or "").strip().lower()
+                asks_name = (
+                    ("my name" in p_low and ("what" in p_low or "know" in p_low or "remember" in p_low or "tell" in p_low))
+                    or ("what should you call me" in p_low)
+                    or ("call me" in p_low and "?" in p_low)
+                    or ("who am i" in p_low)
+                )
+                if asks_name and _conn_has_remember_name and _conn_display_name:
+                    text = f"I remember your name. I'll call you **{_conn_display_name}**."
+            except Exception:
+                pass
 
             emit(mt.finish(ok=True, output_chars=len(text or "")))
 
