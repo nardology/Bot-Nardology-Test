@@ -481,68 +481,80 @@ class SlashOwner(commands.Cog):
         if not await self.bot.is_owner(interaction.user):
             await interaction.response.send_message("❌ Owner only.", ephemeral=True)
             return
-        from utils.character_store import load_state  # noqa: WPS433
-        from utils.character_weekly_topics import (  # noqa: WPS433
-            current_iso_week_id,
-            is_eligible_for_weekly_topics,
-            load_weekly_topics_bundle,
-        )
-
-        target = user or interaction.user
-        uid = int(target.id)
-        st = await load_state(uid)
-        sid = (character_id or getattr(st, "active_style_id", "") or "").strip().lower()
-        if not sid:
-            await interaction.response.send_message(
-                "❌ No character_id and user has no selected character.",
-                ephemeral=True,
-            )
-            return
-
-        week_id = current_iso_week_id()
-        elig = await is_eligible_for_weekly_topics(user_id=uid, style_id=sid)
-        bundle = await load_weekly_topics_bundle(user_id=uid, style_id=sid)
-        s = get_style(sid)
-        char_label = f"{s.display_name} (`{sid}`)" if s else f"`{sid}`"
-
-        emb = discord.Embed(
-            title="Weekly character topics (dev)",
-            description=(
-                f"User: {target.mention} (`{uid}`)\n"
-                f"Character: {char_label}\n"
-                f"ISO week: **{week_id}**\n"
-                f"Eligible (bonded + quests + selected): **{'yes' if elig else 'no'}**"
-            ),
-            color=0x5865F2,
-        )
-
-        if not bundle or not any((t.get("title") or "").strip() for t in bundle.topics):
-            emb.add_field(
-                name="Row",
-                value="No topics row for this week (or empty). User may be ineligible or generation has not run.",
-                inline=False,
-            )
-            await interaction.response.send_message(embed=emb, ephemeral=True)
-            return
-
-        for i in range(3):
-            t = bundle.topics[i] if i < len(bundle.topics) else {}
-            title = str((t or {}).get("title") or "").strip() or "(empty)"
-            desc = str((t or {}).get("description") or "").strip() or "—"
-            kws = ", ".join(bundle.keywords[i]) if i < len(bundle.keywords) else ""
-            hint = bundle.hints[i] if i < len(bundle.hints) else ""
-            claimed = bool(int(bundle.claimed_mask or 0) & (1 << i))
-            emb.add_field(
-                name=f"Topic {i + 1}{' ✅' if claimed else ''}",
-                value=(
-                    f"**{title[:240]}**\n{desc[:350]}\n"
-                    f"*Keywords:* {kws or '—'}\n"
-                    f"*Hint:* {hint or '—'}"
-                )[:1024],
-                inline=False,
+        # DB + eligibility checks can exceed Discord's ~3s interaction ack window (10062).
+        await interaction.response.defer(ephemeral=True)
+        try:
+            from utils.character_store import load_state  # noqa: WPS433
+            from utils.character_weekly_topics import (  # noqa: WPS433
+                current_iso_week_id,
+                is_eligible_for_weekly_topics,
+                load_weekly_topics_bundle,
             )
 
-        await interaction.response.send_message(embed=emb, ephemeral=True)
+            target = user or interaction.user
+            uid = int(target.id)
+            st = await load_state(uid)
+            sid = (character_id or getattr(st, "active_style_id", "") or "").strip().lower()
+            if not sid:
+                await interaction.followup.send(
+                    "❌ No character_id and user has no selected character.",
+                    ephemeral=True,
+                )
+                return
+
+            week_id = current_iso_week_id()
+            elig = await is_eligible_for_weekly_topics(user_id=uid, style_id=sid)
+            bundle = await load_weekly_topics_bundle(user_id=uid, style_id=sid)
+            s = get_style(sid)
+            char_label = f"{s.display_name} (`{sid}`)" if s else f"`{sid}`"
+
+            emb = discord.Embed(
+                title="Weekly character topics (dev)",
+                description=(
+                    f"User: {target.mention} (`{uid}`)\n"
+                    f"Character: {char_label}\n"
+                    f"ISO week: **{week_id}**\n"
+                    f"Eligible (bonded + quests + selected): **{'yes' if elig else 'no'}**"
+                ),
+                color=0x5865F2,
+            )
+
+            if not bundle or not any((t.get("title") or "").strip() for t in bundle.topics):
+                emb.add_field(
+                    name="Row",
+                    value="No topics row for this week (or empty). User may be ineligible or generation has not run.",
+                    inline=False,
+                )
+                await interaction.followup.send(embed=emb, ephemeral=True)
+                return
+
+            for i in range(3):
+                t = bundle.topics[i] if i < len(bundle.topics) else {}
+                title = str((t or {}).get("title") or "").strip() or "(empty)"
+                desc = str((t or {}).get("description") or "").strip() or "—"
+                kws = ", ".join(bundle.keywords[i]) if i < len(bundle.keywords) else ""
+                hint = bundle.hints[i] if i < len(bundle.hints) else ""
+                claimed = bool(int(bundle.claimed_mask or 0) & (1 << i))
+                emb.add_field(
+                    name=f"Topic {i + 1}{' ✅' if claimed else ''}",
+                    value=(
+                        f"**{title[:240]}**\n{desc[:350]}\n"
+                        f"*Keywords:* {kws or '—'}\n"
+                        f"*Hint:* {hint or '—'}"
+                    )[:1024],
+                    inline=False,
+                )
+
+            await interaction.followup.send(embed=emb, ephemeral=True)
+        except Exception:
+            logger.exception("dev_weekly_topics failed")
+            try:
+                await interaction.followup.send(
+                    "❌ Failed to load weekly topics (see bot logs).",
+                    ephemeral=True,
+                )
+            except Exception:
+                logger.exception("dev_weekly_topics followup failed")
 
     # ----------------------------
     # Data deletion helpers
