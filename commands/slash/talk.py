@@ -1179,29 +1179,34 @@ class SlashTalk(commands.Cog):
                     ensure_weekly_topics_row,
                     match_weekly_topic_indices,
                     claim_weekly_topic_indices,
+                    is_eligible_for_weekly_topics,
                 )
 
-                _bundle = await ensure_weekly_topics_row(
+                if await is_eligible_for_weekly_topics(
                     user_id=int(user_id),
                     style_id=str(effective_style or ""),
-                )
-                if _bundle is not None and any(t.get("title") for t in _bundle.topics):
-                    _idxs = match_weekly_topic_indices(prompt, bundle=_bundle)
-                    if _idxs:
-                        pts, _m = await claim_weekly_topic_indices(
-                            guild_id=int(guild_id),
-                            user_id=int(user_id),
-                            style_id=str(effective_style or ""),
-                            indices=_idxs,
-                        )
-                        if pts > 0:
-                            try:
-                                await interaction.followup.send(
-                                    f"💡 Weekly character topic matched! **+{pts} points**",
-                                    ephemeral=True,
-                                )
-                            except Exception:
-                                pass
+                ):
+                    _bundle = await ensure_weekly_topics_row(
+                        user_id=int(user_id),
+                        style_id=str(effective_style or ""),
+                    )
+                    if _bundle is not None and any(t.get("title") for t in _bundle.topics):
+                        _idxs = match_weekly_topic_indices(prompt, bundle=_bundle)
+                        if _idxs:
+                            pts, _m = await claim_weekly_topic_indices(
+                                guild_id=int(guild_id),
+                                user_id=int(user_id),
+                                style_id=str(effective_style or ""),
+                                indices=_idxs,
+                            )
+                            if pts > 0:
+                                try:
+                                    await interaction.followup.send(
+                                        f"💡 Weekly character topic matched! **+{pts} points**",
+                                        ephemeral=True,
+                                    )
+                                except Exception:
+                                    pass
             except Exception:
                 pass
 

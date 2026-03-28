@@ -3,6 +3,12 @@
 Rows are keyed by (guild_id, user_id, style_id, week_id). Quest progress uses
 GLOBAL_GUILD_ID; weekly topic rows use the same guild scope as points (0) for
 one consistent row per user/character/week.
+
+Eligibility (generation, matching, quest blurbs, streak DM hints): the character
+must be the user's **selected** style, **owned**, not a server default (fun/serious),
+**bonded** (1+ bond XP with that character), and daily quest progress sum **> 5**
+for the relevant UTC day. Topic 1–2 are character-rooted; topic 3 is tied to
+stored user-specific context when available (memories, connection profile, bond).
 """
 from __future__ import annotations
 
@@ -150,13 +156,34 @@ async def is_eligible_for_weekly_topics(
     style_id: str,
     progress_day_key: str | None = None,
 ) -> bool:
-    """Daily quest progress sum > 5 for the given UTC day (default: today) and selected character."""
+    """Selected character only; not server defaults; owned; bonded (1+ bond XP); daily quest sum > 5."""
     from utils.quests import sum_daily_quest_progress_for_day, sum_daily_quest_progress_today  # noqa: WPS433
+    from utils.character_registry import BASE_STYLE_IDS  # noqa: WPS433
+    from utils.character_store import owns_style  # noqa: WPS433
+    from utils.bonds_store import get_bond  # noqa: WPS433
+
+    sid = (style_id or "").strip().lower()
+    if not sid:
+        return False
 
     st = await _load_state_safe(user_id)
     active = (getattr(st, "active_style_id", "") or "").strip().lower()
-    if not active or active != (style_id or "").strip().lower():
+    if not active or active != sid:
         return False
+
+    if sid in {s.lower() for s in BASE_STYLE_IDS}:
+        return False
+
+    if not await owns_style(int(user_id), sid):
+        return False
+
+    try:
+        bond = await get_bond(guild_id=0, user_id=int(user_id), style_id=sid)
+    except Exception:
+        bond = None
+    if bond is None or int(getattr(bond, "xp", 0) or 0) < 1:
+        return False
+
     if progress_day_key:
         total = await sum_daily_quest_progress_for_day(
             user_id=int(user_id),
@@ -179,7 +206,67 @@ async def _load_state_safe(user_id: int) -> Any:
         return _Dummy()
 
 
-async def generate_weekly_topics_ai(style: Any) -> dict[str, Any] | None:
+async def _user_context_for_weekly_topics(*, user_id: int, style_id: str) -> str:
+    """Compact facts the bot knows about this user for this character (memories, bond, connection)."""
+    parts: list[str] = []
+    sid = (style_id or "").strip().lower()
+    try:
+        from utils.bonds_store import get_bond  # noqa: WPS433
+
+        b = await get_bond(guild_id=0, user_id=int(user_id), style_id=sid)
+        if b:
+            nn = (getattr(b, "nickname", None) or "").strip()
+            if nn:
+                parts.append(f"Bond nickname: {nn}")
+            xp = int(getattr(b, "xp", 0) or 0)
+            if xp:
+                parts.append(f"Bond XP (relationship depth): {xp}")
+    except Exception:
+        pass
+
+    try:
+        from utils.character_memory import load_memories  # noqa: WPS433
+
+        for m in await load_memories(int(user_id), sid, limit=5):
+            k = str((m or {}).get("key") or "").strip()
+            v = str((m or {}).get("value") or "").strip()
+            if v:
+                label = f"{k}: " if k else ""
+                parts.append(f"Remembered — {label}{v[:220]}")
+    except Exception:
+        pass
+
+    try:
+        from utils.connection_traits_store import load_profile, has_trait  # noqa: WPS433
+
+        prof = await load_profile(user_id=int(user_id), style_id=sid)
+        payload = dict(prof.get("payload") or {})
+        purchased = dict(prof.get("purchased") or {})
+        if has_trait(purchased, "remember_name") and (payload.get("display_name") or "").strip():
+            parts.append(f"Preferred name: {(payload.get('display_name') or '').strip()}")
+        if has_trait(purchased, "hobbies") and payload.get("hobbies"):
+            hb = [str(x) for x in (payload.get("hobbies") or [])[:8] if str(x).strip()]
+            if hb:
+                parts.append("Hobbies/interests: " + ", ".join(hb))
+        ws = str(payload.get("weekly_status") or "").strip()
+        if ws:
+            parts.append("Weekly life note: " + ws[:280])
+        dailies = payload.get("daily_by_day") or {}
+        if has_trait(purchased, "daily_status") and isinstance(dailies, dict) and dailies:
+            last_k = sorted(str(k) for k in dailies.keys())[-1]
+            line = str(dailies.get(last_k) or "").strip()
+            if line:
+                parts.append(f"Latest daily status: {line[:220]}")
+    except Exception:
+        pass
+
+    out = "\n".join(parts).strip()
+    if len(out) > 1400:
+        out = out[:1397] + "..."
+    return out
+
+
+async def generate_weekly_topics_ai(style: Any, *, user_id: int | None = None) -> dict[str, Any] | None:
     """Call OpenAI to produce strict JSON: topics, keywords, hints."""
     try:
         from utils.ai_client import generate_text
@@ -200,11 +287,24 @@ async def generate_weekly_topics_ai(style: Any) -> dict[str, Any] | None:
         '"hints":["one short DM hint line for the user","",""]}\n'
         "Rules:\n"
         "- Exactly 3 topics.\n"
+        "- Topic 1: rooted in this character's world, interests, backstory, or voice (not generic small talk).\n"
+        "- Topic 2: another distinct character-rooted angle (values, relationships, dreams, flaws).\n"
+        "- Topic 3: must tie to the user's specific context below when that block is non-empty; "
+        "reference what the bot knows (nickname, memories, hobbies, life notes) in a natural, in-character way. "
+        "If the user context block is empty, choose something the character would sincerely want to learn about the user.\n"
         "- Each keywords array has 4-8 words related to that topic (lowercase).\n"
-        "- Hints must NOT mention quests, points, streaks, or Discord. They hint what to talk about in character.\n"
+        "- Hints must NOT mention quests, points, streaks, or Discord. Each hint matches its topic; "
+        "they are teaser lines for what the character wants to discuss.\n"
         "- Topics must fit the character's personality.\n"
     )
-    user = f"Character name: {name}\nPersona:\n{persona[:4000]}\n"
+    user_lines = [f"Character name: {name}", "Persona:", persona[:4000]]
+    sid = str(getattr(style, "style_id", "") or "").strip().lower()
+    if user_id is not None and sid:
+        ctx = await _user_context_for_weekly_topics(user_id=int(user_id), style_id=sid)
+        user_lines.append("")
+        user_lines.append("User-specific context (from what the bot stores for this pair):")
+        user_lines.append(ctx if ctx else "(none yet — topic 3 should gently invite the user to share.)")
+    user = "\n".join(user_lines) + "\n"
 
     model = getattr(config, "OPENAI_MODEL", None) or "gpt-4.1-mini"
     try:
@@ -340,7 +440,7 @@ async def ensure_weekly_topics_row(
     if style is None:
         return None
 
-    payload = await generate_weekly_topics_ai(style)
+    payload = await generate_weekly_topics_ai(style, user_id=int(user_id))
     if not payload:
         return None
 
@@ -485,10 +585,15 @@ async def weekly_topics_quest_embed_lines(
     """Lines for /points quests weekly section."""
     if not style_id:
         return ["Select a character to see weekly topic progress."]
+    if not await is_eligible_for_weekly_topics(user_id=int(user_id), style_id=str(style_id)):
+        return [
+            "Weekly topics need your **selected** character to be **bonded** (1+ bond XP), "
+            "not a server default, plus **>5** daily quest progress today.",
+        ]
     bundle = await load_weekly_topics_bundle(user_id=user_id, style_id=style_id)
     if not bundle or not any(t.get("title") for t in bundle.topics):
         return [
-            "No weekly topics yet. Earn **>5** daily quest progress today with your selected character.",
+            "No weekly topics yet. Keep your bonded character selected and earn **>5** daily quest progress today.",
         ]
 
     lines: list[str] = []
@@ -510,12 +615,19 @@ async def weekly_topics_quest_embed_lines(
 
 
 async def get_weekly_hint_for_streak_dm(user_id: int, style_id: str) -> str | None:
-    """One rotating hint line for Pro streak DMs (reminder stage)."""
+    """One rotating hint line for Pro streak DMs."""
+    if not await is_eligible_for_weekly_topics(user_id=int(user_id), style_id=str(style_id)):
+        return None
     bundle = await load_weekly_topics_bundle(user_id=user_id, style_id=style_id)
     if not bundle:
         return None
     hints = [h for h in bundle.hints if h.strip()]
-    if not hints:
-        return None
     d = datetime.now(timezone.utc).weekday()
-    return hints[d % len(hints)]
+    if hints:
+        return hints[d % len(hints)]
+    titles = [str((t or {}).get("title") or "").strip() for t in bundle.topics[:3]]
+    titles = [t for t in titles if t]
+    if not titles:
+        return None
+    t = titles[d % len(titles)]
+    return f"Maybe chat about: {t}"[:240]

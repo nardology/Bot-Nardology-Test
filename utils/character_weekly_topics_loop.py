@@ -121,7 +121,7 @@ async def run_weekly_character_topics_generation(_bot: discord.Client) -> None:
             if style is None:
                 continue
 
-            payload = await generate_weekly_topics_ai(style)
+            payload = await generate_weekly_topics_ai(style, user_id=int(uid))
             if not payload:
                 continue
 
