@@ -12,7 +12,6 @@ from datetime import datetime, timedelta, timezone
 import discord
 
 from utils.backpressure import get_redis_or_none
-from utils.character_registry import get_style
 from utils.character_store import load_state
 from utils.character_weekly_topics import (
     current_iso_week_id,
@@ -20,6 +19,7 @@ from utils.character_weekly_topics import (
     insert_weekly_topics_row,
     is_eligible_for_weekly_topics,
     load_weekly_topics_bundle,
+    resolve_style_for_weekly_ai,
 )
 from utils.db import get_sessionmaker
 from utils.models import QuestProgress
@@ -91,12 +91,16 @@ async def _user_ids_with_daily_progress_over_5(*, day_key: str) -> list[int]:
 async def run_weekly_character_topics_generation(_bot: discord.Client) -> None:
     """Generate rows for eligible users who don't have a row yet this week.
 
-    Uses yesterday's daily quest totals so Monday morning batch sees real numbers.
+    Considers **both** yesterday and today's daily quest totals so Monday 00:30 UTC
+    still picks up users who only crossed the threshold on the new week day.
     """
     yesterday_key = _daily_key(_now_utc() - timedelta(days=1))
-    uids = await _user_ids_with_daily_progress_over_5(day_key=yesterday_key)
+    today_key = _daily_key(_now_utc())
+    uids_y = await _user_ids_with_daily_progress_over_5(day_key=yesterday_key)
+    uids_t = await _user_ids_with_daily_progress_over_5(day_key=today_key)
+    uids = sorted(set(uids_y) | set(uids_t))
     if not uids:
-        logger.info("Weekly character topics: no eligible users (daily sum > 5).")
+        logger.info("Weekly character topics: no users with daily quest sum > 5 (yesterday or today).")
         return
 
     generated = 0
@@ -106,19 +110,25 @@ async def run_weekly_character_topics_generation(_bot: discord.Client) -> None:
             sid = (getattr(st, "active_style_id", "") or "").strip().lower()
             if not sid:
                 continue
-            if not await is_eligible_for_weekly_topics(
-                user_id=uid,
-                style_id=sid,
-                progress_day_key=yesterday_key,
-            ):
+            quest_ok = False
+            for dk in (yesterday_key, today_key):
+                if await is_eligible_for_weekly_topics(
+                    user_id=uid,
+                    style_id=sid,
+                    progress_day_key=dk,
+                ):
+                    quest_ok = True
+                    break
+            if not quest_ok:
                 continue
 
             bundle = await load_weekly_topics_bundle(user_id=uid, style_id=sid)
             if bundle and any(t.get("title") for t in bundle.topics):
                 continue
 
-            style = get_style(sid)
+            style = await resolve_style_for_weekly_ai(user_id=int(uid), style_id=sid)
             if style is None:
+                logger.warning("weekly topics loop: no StyleDef uid=%s style=%s", uid, sid)
                 continue
 
             payload = await generate_weekly_topics_ai(style, user_id=int(uid))

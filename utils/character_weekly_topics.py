@@ -12,6 +12,7 @@ stored user-specific context when available (memories, connection profile, bond)
 """
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -204,6 +205,67 @@ async def _load_state_safe(user_id: int) -> Any:
             active_style_id = ""
 
         return _Dummy()
+
+
+async def resolve_style_for_weekly_ai(*, user_id: int, style_id: str) -> Any | None:
+    """Resolve StyleDef the same way /talk does: registry, lazy pack merge, then custom profile."""
+    from utils.character_registry import StyleDef, get_style, merge_pack_payload  # noqa: WPS433
+    from utils.character_store import get_custom_style_profile  # noqa: WPS433
+    from utils.packs_store import list_custom_packs, normalize_style_id  # noqa: WPS433
+
+    sid = (style_id or "").strip().lower()
+    if not sid:
+        return None
+
+    s = get_style(sid)
+    if s is not None:
+        return s
+
+    target = normalize_style_id(sid)
+    try:
+        packs = await list_custom_packs(limit=600, include_internal=True, include_shop_only=True)
+        for p in packs or []:
+            if not isinstance(p, dict):
+                continue
+            chars = p.get("characters") or []
+            if not isinstance(chars, list):
+                continue
+            for c in chars:
+                if not isinstance(c, dict):
+                    continue
+                cid = normalize_style_id(str(c.get("id") or c.get("style_id") or ""))
+                if cid == target:
+                    try:
+                        merge_pack_payload(p)
+                    except Exception:
+                        logger.debug("resolve_style merge_pack_payload failed", exc_info=True)
+                    break
+    except Exception:
+        logger.debug("resolve_style list_custom_packs failed", exc_info=True)
+
+    s = get_style(sid)
+    if s is not None:
+        return s
+
+    try:
+        prof = await get_custom_style_profile(user_id=int(user_id), style_id=sid)
+    except Exception:
+        prof = None
+    if prof is None:
+        return None
+    name = (getattr(prof, "name", None) or "").strip() or sid
+    prompt = (getattr(prof, "prompt", None) or "").strip()
+    if not prompt:
+        prompt = "An original character the user created. Stay in character; be warm and curious."
+    return StyleDef(
+        style_id=sid,
+        display_name=name[:80],
+        rarity="common",  # type: ignore[arg-type]
+        color=0x5865F2,
+        prompt=prompt[:4000],
+        description="",
+        tips=[],
+    )
 
 
 async def _user_context_for_weekly_topics(*, user_id: int, style_id: str) -> str:
@@ -434,15 +496,23 @@ async def ensure_weekly_topics_row(
     if not await is_eligible_for_weekly_topics(user_id=user_id, style_id=style_id):
         return existing
 
-    from utils.character_registry import get_style  # noqa: WPS433
-
-    style = get_style(style_id)
+    style = await resolve_style_for_weekly_ai(user_id=int(user_id), style_id=str(style_id))
     if style is None:
-        return None
+        logger.warning(
+            "weekly topics: cannot resolve StyleDef (pack merge / custom profile missing) user=%s style=%s",
+            user_id,
+            style_id,
+        )
+        return existing
 
     payload = await generate_weekly_topics_ai(style, user_id=int(user_id))
     if not payload:
-        return None
+        logger.warning(
+            "weekly topics: AI generation returned no payload user=%s style=%s",
+            user_id,
+            style_id,
+        )
+        return existing
 
     ok = await insert_weekly_topics_row(user_id=user_id, style_id=style_id, payload=payload, guild_id=guild_id)
     if not ok:
@@ -592,8 +662,19 @@ async def weekly_topics_quest_embed_lines(
         ]
     bundle = await load_weekly_topics_bundle(user_id=user_id, style_id=style_id)
     if not bundle or not any(t.get("title") for t in bundle.topics):
+        async def _bg_ensure() -> None:
+            try:
+                await ensure_weekly_topics_row(user_id=int(user_id), style_id=str(style_id))
+            except Exception:
+                logger.exception("weekly topics background ensure failed user=%s", user_id)
+
+        try:
+            asyncio.create_task(_bg_ensure())
+        except RuntimeError:
+            await _bg_ensure()
         return [
-            "No weekly topics yet. Keep your bonded character selected and earn **>5** daily quest progress today.",
+            "⏳ **Generating** your 3 weekly topics now — reopen **Quests** in a few seconds or use `/talk`.",
+            "*(You already qualify; the bot was waiting for a character definition or AI slot.)*",
         ]
 
     lines: list[str] = []
