@@ -65,6 +65,7 @@ from utils.streak_reminders import (
 from core.kai_mascot import embed_kaihappy, embed_kaisad
 from utils.character_streak_dm import send_character_streak_dm
 from utils.character_store import load_state
+from commands.slash.points import DailyReminderDmView
 
 logger = logging.getLogger("bot.streak_reminder_loop")
 
@@ -110,11 +111,12 @@ async def _send_daily_ready_dm(bot: discord.Client, user_id: int, streak_days: i
         return
     text = (
         f"Your daily reward is ready to claim! "
-        f"Use **/points daily** in any server to collect your reward and keep your **{streak_days}**-day streak.\n\n{OPT_OUT_ADVICE}"
+        f"Use the button below to open your daily, then tap **Claim Daily** to keep your **{streak_days}**-day streak "
+        f"(or use **/points daily** in any server).\n\n{OPT_OUT_ADVICE}"
     )
     embed = embed_kaihappy(text, title="Daily reward ready!")
     try:
-        await user.send(embed=embed)
+        await user.send(embed=embed, view=DailyReminderDmView(bot=bot, user_id=user_id))
     except discord.Forbidden:
         logger.debug("User %s has DMs disabled (daily ready)", user_id)
     except Exception:
@@ -132,11 +134,12 @@ async def _send_daily_reminder_dm(bot: discord.Client, user_id: int, streak_days
         return
     text = (
         f"Don't forget to claim your daily reward today! "
-        f"Your current streak is **{streak_days}** days.\n\n{OPT_OUT_ADVICE}"
+        f"Your current streak is **{streak_days}** days. "
+        f"Use the button below to open your daily, then tap **Claim Daily**.\n\n{OPT_OUT_ADVICE}"
     )
     embed = embed_kaihappy(text, title="Daily reminder")
     try:
-        await user.send(embed=embed)
+        await user.send(embed=embed, view=DailyReminderDmView(bot=bot, user_id=user_id))
     except discord.Forbidden:
         logger.debug("User %s has DMs disabled (daily reminder)", user_id)
     except Exception:
@@ -164,7 +167,7 @@ async def _send_daily_warning_dm(bot: discord.Client, user_id: int, streak_days:
         )
     embed = embed_kaihappy(text, title="Streak warning")
     try:
-        await user.send(embed=embed)
+        await user.send(embed=embed, view=DailyReminderDmView(bot=bot, user_id=user_id))
     except discord.Forbidden:
         logger.debug("User %s has DMs disabled (daily warning)", user_id)
     except Exception:

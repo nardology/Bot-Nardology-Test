@@ -13,7 +13,7 @@
       "ends_at": "2026-04-30T23:59:59+00:00",
       "activated_at": null,
       "target_training_points": 3,
-      "status": "active",
+      "status": "draft",
       "character_multipliers": {},
       "reward_points": 0,
       "failure_points": 0,

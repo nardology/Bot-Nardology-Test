@@ -1335,6 +1335,83 @@ class ClaimDailyView(discord.ui.View):
                 pass
 
 
+async def build_daily_reward_ui(
+    bot: commands.Bot,
+    *,
+    guild_id: int,
+    user_id: int,
+) -> tuple[discord.Embed, discord.ui.View]:
+    """Shared embed + view for /points daily and streak reminder DMs."""
+    claimed, next_in_s, streak = await get_claim_status(guild_id=guild_id, user_id=user_id)
+    bal = await get_balance(guild_id=guild_id, user_id=user_id)
+
+    if claimed:
+        desc = "✅ You already claimed your daily today. Resets at **midnight UTC** (global clock)."
+    else:
+        desc = "Press **Claim Daily** to collect your reward."
+
+    e = discord.Embed(title="Daily Reward", description=desc)
+    e.add_field(name="Balance", value=f"{bal} points", inline=True)
+    e.add_field(name="Streak", value=str(streak), inline=True)
+    if claimed and next_in_s is not None:
+        e.add_field(
+            name="Next claim",
+            value=f"In **{_fmt_duration(next_in_s)}** — resets at **00:00 UTC**",
+            inline=False,
+        )
+
+    if claimed:
+        prog = await get_streak_reward_progress(user_id=user_id)
+        avail: tuple[int, ...] = ()
+        if prog:
+            if prog.character_10_available:
+                avail += (10,)
+            if prog.character_15_available:
+                avail += (15,)
+            if prog.character_25_available:
+                avail += (25,)
+        view: discord.ui.View = StreakRewardDailyView(
+            bot=bot, guild_id=guild_id, user_id=user_id, available_tiers=avail,
+        )
+    else:
+        view = ClaimDailyView(bot=bot, guild_id=guild_id, user_id=user_id)
+
+    return e, view
+
+
+class DailyReminderDmView(discord.ui.View):
+    """Button on streak reminder DMs: opens the same flow as /points daily (then Claim Daily)."""
+
+    def __init__(self, *, bot: commands.Bot, user_id: int):
+        super().__init__(timeout=None)
+        self.bot = bot
+        self.user_id = int(user_id)
+
+    async def interaction_check(self, interaction: discord.Interaction) -> bool:
+        if int(interaction.user.id) != self.user_id:
+            await interaction.response.send_message("❌ This button isn't for you.", ephemeral=True)
+            return False
+        return True
+
+    @discord.ui.button(label="Open daily reward", style=discord.ButtonStyle.primary, emoji="🎁")
+    async def open_daily(self, interaction: discord.Interaction, button: discord.ui.Button):
+        await interaction.response.defer(ephemeral=True)
+        try:
+            gid = int(interaction.guild_id or 0)
+            uid = int(interaction.user.id)
+            embed, view = await build_daily_reward_ui(self.bot, guild_id=gid, user_id=uid)
+            await interaction.followup.send(embed=embed, ephemeral=True, view=view)
+        except Exception:
+            logger.exception("DailyReminderDmView.open_daily failed")
+            try:
+                await interaction.followup.send(
+                    "⚠️ Something went wrong. Try **/points daily** in a server.",
+                    ephemeral=True,
+                )
+            except Exception:
+                pass
+
+
 class SlashPoints(commands.Cog):
     """Points system: daily claims, streaks, and a small test shop."""
 
@@ -1352,40 +1429,7 @@ class SlashPoints(commands.Cog):
             gid = int(interaction.guild_id or 0)
             uid = int(interaction.user.id)
 
-            claimed, next_in_s, streak = await get_claim_status(guild_id=gid, user_id=uid)
-            bal = await get_balance(guild_id=gid, user_id=uid)
-
-            if claimed:
-                desc = "✅ You already claimed your daily today. Resets at **midnight UTC** (global clock)."
-            else:
-                desc = "Press **Claim Daily** to collect your reward."
-
-            e = discord.Embed(title="Daily Reward", description=desc)
-            e.add_field(name="Balance", value=f"{bal} points", inline=True)
-            e.add_field(name="Streak", value=str(streak), inline=True)
-            if claimed and next_in_s is not None:
-                e.add_field(
-                    name="Next claim",
-                    value=f"In **{_fmt_duration(next_in_s)}** — resets at **00:00 UTC**",
-                    inline=False,
-                )
-
-            if claimed:
-                prog = await get_streak_reward_progress(user_id=uid)
-                avail: tuple[int, ...] = ()
-                if prog:
-                    if prog.character_10_available:
-                        avail += (10,)
-                    if prog.character_15_available:
-                        avail += (15,)
-                    if prog.character_25_available:
-                        avail += (25,)
-                view = StreakRewardDailyView(
-                    bot=self.bot, guild_id=gid, user_id=uid, available_tiers=avail,
-                )
-            else:
-                view = ClaimDailyView(bot=self.bot, guild_id=gid, user_id=uid)
-
+            e, view = await build_daily_reward_ui(self.bot, guild_id=gid, user_id=uid)
             await interaction.followup.send(embed=e, ephemeral=True, view=view)
         except Exception:
             logger.exception("/points daily failed")
